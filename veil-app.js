@@ -303,7 +303,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverStyle: "orbs", saverUrl: "", customOutline: "", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverStyle: "orbs", saverUrl: "", customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -417,6 +417,14 @@ function migrateSettings() {
   if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.saverStyle)) settings.saverStyle = "orbs";
   if (typeof settings.saverUrl !== "string") settings.saverUrl = "";
   if (typeof settings.customOutline !== "string") settings.customOutline = "";
+  if (settings.colorMode !== "light" && settings.colorMode !== "dark") settings.colorMode = "dark";
+  if (settings.customPalette && typeof settings.customPalette !== "object") settings.customPalette = null;
+  if (settings.theme === "custom" && !settings.customPalette) {
+    settings.customPalette = {
+      bg: settings.bg, panel: settings.panel, accent: settings.accent, text: settings.text,
+      outline: settings.customOutline || settings.border || ""
+    };
+  }
   // Default launch is always manual unless user explicitly keeps auto in settings UI
   if (settings.launchMode !== "auto" && settings.launchMode !== "manual") {
     settings.launchMode = "manual";
@@ -507,11 +515,32 @@ function deriveCustomSurfaces() {
   settings.accentText = relLuma(accent) > 0.62 ? "#111111" : "#f4f4f4";
 }
 
+function toLightPalette(src) {
+  const bg = mixHex("#f5f5f6", src.bg || "#101010", 0.1);
+  const panel = mixHex("#ffffff", src.panel || "#181818", 0.07);
+  const bg2 = mixHex(bg, panel, 0.5);
+  const bg3 = mixHex(panel, "#000000", 0.045);
+  const panel2 = mixHex(panel, "#000000", 0.06);
+  let border = src.border || "#2b2b2b";
+  if (relLuma(border) > 0.82) border = mixHex(border, "#1a1a1a", 0.78);
+  if (channelDistance(border, panel) < 28) border = mixHex(panel, "#000000", 0.16);
+  const text = mixHex("#141416", src.accent || "#333333", 0.1);
+  const muted = mixHex(text, bg, 0.45);
+  let accent = src.accent || "#111111";
+  if (relLuma(accent) > 0.78) accent = mixHex(accent, "#161616", 0.82);
+  const accentText = relLuma(accent) > 0.62 ? "#111111" : "#f7f7f7";
+  return { bg, bg2, bg3, panel, panel2, border, text, muted, accent, accentText, newtab: bg };
+}
+
 function applyCSSVariables() {
-  deriveCustomSurfaces();
+  if (settings.theme === "custom") deriveCustomSurfaces();
+  const keys = ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"];
+  const src = {};
+  keys.forEach((k) => { src[k] = settings[k]; });
+  const colors = settings.colorMode === "light" ? toLightPalette(src) : src;
   const root = document.documentElement;
-  ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"]
-    .forEach(k => root.style.setProperty("--" + k, settings[k]));
+  keys.forEach((k) => root.style.setProperty("--" + k, colors[k]));
+  root.dataset.mode = settings.colorMode === "light" ? "light" : "dark";
 }
 function isVideoUrl(url) {
   return /\.(mp4|webm|ogg)(\?|#|$)/i.test(url || "");
@@ -1041,7 +1070,7 @@ function homepageHTML(pageId) {
     '<div class="newtab-title">Veil</div>' +
     '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
     '<div class="search-row">' +
-    '<div class="search-box" style="width:100%">' +
+    '<div class="search-box" style="width:100%"><span class="home-search-icon"></span>' +
     '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' +
     '</div></div>' +
     '<div class="quick-links">' +
@@ -1064,7 +1093,11 @@ function homepageHTML(pageId) {
 const SETTINGS_INFO = {
   theme: {
     title: "Site theme colors",
-    body: "Changes Veil’s colors (toolbars and menus only — not the sites you visit)."
+    body: "Changes Veil’s colors (toolbars and menus only — not the sites you visit). Custom works like the other themes: pick it to use your saved colors, then Apply colors to update them."
+  },
+  appearance: {
+    title: "Appearance",
+    body: "Light mode keeps your current theme, including a custom one, and shows the light version of those colors. Turn it off to go back to the dark version."
   },
   background: {
     title: "Home page background",
@@ -2312,6 +2345,7 @@ function highlightTheme() {
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
     setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
+    setSwitch(document.getElementById("lightModeSwitch"), settings.colorMode === "light");
     const animOpts = document.getElementById("animOpts");
     if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
     const range = document.getElementById("maxLoadedTabs");
@@ -2366,7 +2400,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, customOutline: settings.customOutline };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -2390,6 +2424,13 @@ function applyCustomColors() {
   settings.customOutline = /^#[0-9a-fA-F]{6}$/.test(outline) ? outline : "";
   settings.theme = "custom";
   deriveCustomSurfaces();
+  settings.customPalette = {
+    bg: settings.bg,
+    panel: settings.panel,
+    accent: settings.accent,
+    text: settings.text,
+    outline: settings.customOutline || settings.border || ""
+  };
   applyCSSVariables();
   save();
   highlightTheme();
@@ -2582,13 +2623,20 @@ function toggleEruda() {
 
 function updateDevtoolsMenuState() {
   const btn = document.getElementById("menuDevtools");
-  if (!btn) return;
+  const fs = document.getElementById("menuFullscreen");
   const p = getActiveTab();
-  // Grey out on home, Games, and Admin — same idea as Fullscreen on Games
   const disabled = !p || !!p.newTab || !!p.isGames || !!p.isAdmin;
-  btn.classList.toggle("disabled", disabled);
-  btn.disabled = disabled;
-  btn.setAttribute("aria-disabled", disabled ? "true" : "false");
+  const fsOff = !p || !!p.newTab || !!p.isGames;
+  if (btn) {
+    btn.classList.toggle("disabled", disabled);
+    btn.disabled = disabled;
+    btn.setAttribute("aria-disabled", disabled ? "true" : "false");
+  }
+  if (fs) {
+    fs.classList.toggle("disabled", fsOff);
+    fs.disabled = fsOff;
+    fs.setAttribute("aria-disabled", fsOff ? "true" : "false");
+  }
 }
 
 
@@ -2760,7 +2808,7 @@ on("menuFullscreen", () => { closeMenu(); togglePageFullscreen(); });
 function togglePageFullscreen() {
   try {
     const tab = getActiveTab();
-    if (tab && tab.isGames) return;
+    if (tab && (tab.isGames || tab.newTab)) return;
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       const exit = document.exitFullscreen || document.webkitExitFullscreen;
       if (exit) exit.call(document);
@@ -2824,6 +2872,12 @@ on("confirmLeaveSwitch", () => {
 on("time24Switch", () => {
   settings.timeFormat = settings.timeFormat === "24" ? "12" : "24";
   save(); highlightTheme(); startWelcomeClock();
+});
+on("lightModeSwitch", () => {
+  settings.colorMode = settings.colorMode === "light" ? "dark" : "light";
+  save();
+  applyCSSVariables();
+  highlightTheme();
 });
 const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
@@ -2975,12 +3029,42 @@ on("savePassword", () => {
 on("backdrop", closePanels);
 document.querySelectorAll("[data-close-panel]").forEach(b => { b.onclick = closePanels; });
 document.querySelectorAll("[data-theme]").forEach(b => { b.onclick = () => applyTheme(b.dataset.theme); });
+function applySavedCustomTheme() {
+  const p = settings.customPalette;
+  if (p && p.bg) {
+    settings.bg = p.bg;
+    settings.panel = p.panel || p.bg;
+    settings.accent = p.accent || "#ffffff";
+    settings.text = p.text || "#f2f2f2";
+    settings.customOutline = p.outline || "";
+  }
+  settings.theme = "custom";
+  deriveCustomSurfaces();
+  if (!settings.customPalette) {
+    settings.customPalette = {
+      bg: settings.bg,
+      panel: settings.panel,
+      accent: settings.accent,
+      text: settings.text,
+      outline: settings.customOutline || settings.border || ""
+    };
+  }
+  applyCSSVariables();
+  save();
+  highlightTheme();
+  loadColorInputs();
+}
 on("customThemeCard", () => {
   const editor = document.getElementById("customColorCard");
+  const already = settings.theme === "custom";
+  applySavedCustomTheme();
   if (!editor) return;
-  editor.classList.toggle("open");
-  editor.classList.toggle("force-open", editor.classList.contains("open"));
-  document.getElementById("customThemeCard")?.classList.add("active");
+  if (already) {
+    editor.classList.toggle("open");
+    editor.classList.toggle("force-open", editor.classList.contains("open"));
+  } else {
+    editor.classList.add("open", "force-open");
+  }
 });
 on("applyColors", applyCustomColors);
 on("transportEpoxy", () => setTransport("epoxy"));
@@ -3320,7 +3404,17 @@ async function bootVeilApp() {
   setTimeout(syncAboutBlankChrome, 100);
   setTimeout(syncAboutBlankChrome, 600);
 
-  if (settings.theme && THEMES[settings.theme]) {
+  if (settings.theme === "custom") {
+    const p = settings.customPalette;
+    if (p && p.bg) {
+      settings.bg = p.bg;
+      settings.panel = p.panel || p.bg;
+      settings.accent = p.accent || "#ffffff";
+      settings.text = p.text || "#f2f2f2";
+      settings.customOutline = p.outline || settings.customOutline || "";
+    }
+    deriveCustomSurfaces();
+  } else if (settings.theme && THEMES[settings.theme]) {
     Object.assign(settings, THEMES[settings.theme], {
       theme: settings.theme,
       transport: settings.transport,
@@ -3343,7 +3437,9 @@ async function bootVeilApp() {
       saverMinutes: settings.saverMinutes,
       saverStyle: settings.saverStyle,
       saverUrl: settings.saverUrl,
-      customOutline: settings.customOutline
+      customOutline: settings.customOutline,
+      colorMode: settings.colorMode,
+      customPalette: settings.customPalette
     });
   } else {
     settings.theme = "matte";
@@ -3582,10 +3678,11 @@ function updateGamesChromeLocks() {
   gamesPageActive = onGames;
   const fs = document.getElementById("menuFullscreen");
   const dt = document.getElementById("menuDevtools");
+  const fsOff = !!(tab && (tab.newTab || tab.isGames)) || !tab;
   if (fs) {
-    fs.classList.toggle("disabled", onGames);
-    fs.disabled = onGames;
-    fs.setAttribute("aria-disabled", onGames ? "true" : "false");
+    fs.classList.toggle("disabled", fsOff);
+    fs.disabled = fsOff;
+    fs.setAttribute("aria-disabled", fsOff ? "true" : "false");
   }
   // Keep DevTools greyed out on Games (also enforced in updateDevtoolsMenuState)
   if (dt) {
@@ -3640,11 +3737,13 @@ function paintGamesLists(root, state, animate) {
       allRow.innerHTML = list.length ? list.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
     }
     if (favSec && favRow) {
-      if (favs.length) { favSec.style.display = ""; favRow.innerHTML = favs.map(tileHTML).join(""); }
+      const showFav = state.activeCat === "all" && !state.query && favs.length;
+      if (showFav) { favSec.style.display = ""; favRow.innerHTML = favs.map(tileHTML).join(""); }
       else favSec.style.display = "none";
     }
     if (recSec && recRow) {
-      if (rec.length) { recSec.style.display = ""; recRow.innerHTML = rec.map(tileHTML).join(""); }
+      const showRec = state.activeCat === "all" && !state.query && rec.length;
+      if (showRec) { recSec.style.display = ""; recRow.innerHTML = rec.map(tileHTML).join(""); }
       else recSec.style.display = "none";
     }
   }
@@ -3815,10 +3914,7 @@ function openGamePlayer(g) {
     '<div class="game-notes-editor">' +
     '<input type="text" class="game-note-title" id="gameNoteTitle" maxlength="60" placeholder="Note title">' +
     '<textarea id="gameNoteBody" placeholder="Write a note…"></textarea>' +
-    '<div class="game-notes-actions">' +
-    '<button type="button" class="game-note-action" data-note-new>New</button>' +
-    '<button type="button" class="game-note-action" data-note-del>Delete</button>' +
-    "</div></div></div></div>";
+    "</div></div></div>";
 
   document.body.appendChild(overlay);
   const player = overlay.querySelector("#gamePlayer");
@@ -3855,10 +3951,18 @@ function openGamePlayer(g) {
 
   function paintNotes() {
     const tabs = overlay.querySelector("#gameNoteTabs");
-    tabs.innerHTML = notes.map((n, i) =>
+    const tabHtml = notes.map((n, i) =>
       '<button type="button" class="game-note-tab' + (i === activeNote ? " active" : "") + '" data-note="' + i + '">' +
-      escapeHTML(n.title || "Note") + "</button>"
+      '<span class="game-note-tab-title">' + escapeHTML(n.title || "Note") + "</span>" +
+      (i === activeNote
+        ? '<span class="game-note-x" data-note-x="' + i + '" title="Close note"><img src="' + IMG + 'exit.svg" alt=""></span>'
+        : "") +
+      "</button>"
     ).join("");
+    const addHtml = notes.length >= 20
+      ? ""
+      : '<button type="button" class="game-note-add" data-note-add title="New note" aria-label="New note"><img src="' + IMG + 'plus.svg" alt=""></button>';
+    tabs.innerHTML = tabHtml + addHtml;
     const n = notes[activeNote] || { title: "", body: "" };
     overlay.querySelector("#gameNoteTitle").value = n.title || "";
     overlay.querySelector("#gameNoteBody").value = n.body || "";
@@ -3866,30 +3970,39 @@ function openGamePlayer(g) {
   paintNotes();
 
   overlay.querySelector("#gameNoteTabs").onclick = (e) => {
+    const x = e.target.closest("[data-note-x]");
+    if (x) {
+      e.preventDefault();
+      e.stopPropagation();
+      saveCurrentNote();
+      const i = parseInt(x.getAttribute("data-note-x"), 10) || 0;
+      if (notes.length <= 1) {
+        notes[0] = { id: uid(), title: "Note 1", body: "" };
+        activeNote = 0;
+      } else {
+        notes.splice(i, 1);
+        if (activeNote >= notes.length) activeNote = notes.length - 1;
+        else if (i < activeNote) activeNote -= 1;
+      }
+      gamesUserData.notes[id] = notes;
+      saveGamesUserData();
+      paintNotes();
+      return;
+    }
+    if (e.target.closest("[data-note-add]")) {
+      if (notes.length >= 20) return;
+      saveCurrentNote();
+      notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "" });
+      activeNote = notes.length - 1;
+      gamesUserData.notes[id] = notes;
+      saveGamesUserData();
+      paintNotes();
+      return;
+    }
     const t = e.target.closest("[data-note]");
     if (!t) return;
     saveCurrentNote();
     activeNote = parseInt(t.getAttribute("data-note"), 10) || 0;
-    paintNotes();
-  };
-  overlay.querySelector("[data-note-new]").onclick = () => {
-    if (notes.length >= 20) { alert("Max 20 notes"); return; }
-    saveCurrentNote();
-    notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "" });
-    activeNote = notes.length - 1;
-    gamesUserData.notes[id] = notes;
-    saveGamesUserData();
-    paintNotes();
-  };
-  overlay.querySelector("[data-note-del]").onclick = () => {
-    if (notes.length <= 1) {
-      notes[0] = { id: uid(), title: "Note 1", body: "" };
-    } else {
-      notes.splice(activeNote, 1);
-      if (activeNote >= notes.length) activeNote = notes.length - 1;
-    }
-    gamesUserData.notes[id] = notes;
-    saveGamesUserData();
     paintNotes();
   };
   overlay.querySelector("#gameNoteTitle").addEventListener("change", saveCurrentNote);

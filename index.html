@@ -15,7 +15,6 @@
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
 body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 button,input,select{font:inherit}button{border:0}button:focus,input:focus,select:focus{outline:0}
-button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tool-btn,.menu-btn,.primary-btn,.secondary-btn,.gate-btn,.preset{transition:background .15s ease,border-color .15s ease,color .15s ease,filter .15s ease}
 
 #browser{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}
@@ -59,8 +58,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .tool-btn:hover,.menu-btn:hover,.address-bookmark:hover{background:var(--panel2);color:var(--text)}
 .tool-btn:disabled{opacity:.28;cursor:default}
 .icon{width:17px;height:17px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
-.address-wrap{flex:1;min-width:0;height:34px;display:flex;align-items:center;border-radius:17px;background:var(--bg2);border:1px solid var(--border);padding:0 6px 0 14px}
-.address-wrap:focus-within{border-color:var(--accent);background:var(--bg3)}
+.address-wrap{flex:1;min-width:0;height:34px;display:flex;align-items:center;border-radius:17px;background:var(--bg2);border:1px solid var(--border);padding:0 6px 0 12px}
+.address-wrap:focus-within{background:var(--bg3)}
+.address-icon{width:15px;height:15px;margin-right:8px;flex:0 0 15px;background:var(--muted);-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 #address{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:13px}
 #address::placeholder{color:#666}
 .address-bookmark{width:28px;height:28px;border-radius:50%}
@@ -83,12 +83,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column}
 .newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
 .newtab-media-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
-
-.newtab-page::before{content:"";position:absolute;inset:0;background:
-  radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,.07), transparent 55%),
-  radial-gradient(circle at 15% 80%, rgba(255,255,255,.03), transparent 40%),
-  radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
-  pointer-events:none}
 .newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:0;box-sizing:border-box}
 /* Fixed design stage — scaled as one unit so layout never squeezes or drops pieces */
 .newtab-stage{
@@ -113,7 +107,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .newtab-sub{font-size:13px;color:var(--muted);margin-bottom:22px;letter-spacing:.04em}
 .search-row{width:min(560px,100%);display:flex;align-items:stretch;gap:8px}
 .engine-select{height:50px;flex:0 0 auto;min-width:108px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(20,20,20,.85);color:var(--text);padding:0 12px;font-size:13px;cursor:pointer}
-.search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px}
+.search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px;gap:10px}
+.search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#666;-webkit-mask:url("image/search2.svg") center / contain no-repeat;mask:url("image/search2.svg") center / contain no-repeat}
 .search-box input{flex:1;border:0;background:transparent;color:#111;font-size:14px}
 .search-box input::placeholder{color:#999}
 .quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;margin-top:32px}
@@ -589,11 +584,33 @@ body.boot-reveal #browser{
 .game-notes{width:0;overflow:hidden;border-left:0;background:var(--bg2);display:flex;flex-direction:column;min-height:0;transition:width .2s ease}
 .game-player.notes-open .game-notes{width:300px;border-left:1px solid var(--border)}
 .game-notes-header{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
-.game-notes-tabs{display:flex;gap:4px;padding:8px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.game-note-tab{height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:11px;cursor:pointer;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.game-note-tab.active{border-color:var(--accent);color:var(--text)}
+.game-notes-tabs{display:flex;align-items:center;gap:4px;padding:8px;border-bottom:1px solid var(--border);overflow-x:auto;flex-wrap:nowrap}
+.game-note-tab{height:28px;display:inline-flex;align-items:center;gap:4px;padding:0 6px 0 8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:11px;cursor:pointer;max-width:120px;flex:0 0 auto}
+.game-note-tab.active{border-color:var(--accent);color:var(--text);background:var(--bg3)}
+.game-note-tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.game-note-x{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 16px;padding:0}
+.game-note-x img{width:10px;height:10px;display:block;filter:invert(1);opacity:.75}
+.game-note-x:hover{background:var(--panel2)}
+.game-note-add{width:28px;height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.game-note-add:hover{background:var(--panel2)}
+.game-note-add img{width:13px;height:13px;display:block;filter:invert(1);opacity:.8}
 .game-notes-editor{flex:1;display:flex;flex-direction:column;padding:8px;gap:8px;min-height:0}
 .game-note-title{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 10px;font-size:12px;box-sizing:border-box}
+html[data-mode="light"] .welcome-bar{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}
+html[data-mode="light"] .quick-link{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}
+html[data-mode="light"] .quick-link img,
+html[data-mode="light"] .new-tab img,
+html[data-mode="light"] .tab-close img,
+html[data-mode="light"] .menu-icon img,
+html[data-mode="light"] .close-panel img,
+html[data-mode="light"] .info-btn img,
+html[data-mode="light"] .game-player-btn img,
+html[data-mode="light"] .game-note-x img,
+html[data-mode="light"] .game-note-add img,
+html[data-mode="light"] .game-info-back img{filter:none}
+html[data-mode="light"] .veil-mark{background:linear-gradient(145deg,rgba(0,0,0,.05),rgba(0,0,0,.02));border-color:rgba(0,0,0,.1);box-shadow:none}
+html[data-mode="light"] .launch-btn{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}
+html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 .game-notes-editor textarea{flex:1;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);padding:10px;resize:none;font-size:12px;box-sizing:border-box;min-height:120px}
 .game-notes-actions{display:flex;gap:8px}
 .game-note-action{height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12px;cursor:pointer}
@@ -806,6 +823,7 @@ body.boot-reveal #browser{
         <button class="tool-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
       </div>
       <div class="address-wrap">
+        <span class="address-icon"></span>
         <input id="address" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter address">
         <button class="address-bookmark" id="bookmarkBtn" title="Bookmark"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
       </div>
@@ -827,7 +845,7 @@ body.boot-reveal #browser{
   <button class="menu-item" id="menuHistory"><span class="menu-icon"><img src="image/history.svg" alt=""></span>History</button>
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/bookmarks.svg" alt=""></span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
-  <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/terminal.svg" alt=""></span>DevTools</button>
+  <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/terminal.svg" alt=""></span>Developer Tools</button>
   <button class="menu-item" id="menuFullscreen"><span class="menu-icon"><img src="image/zoom.svg" alt=""></span>Fullscreen</button>
   <div class="menu-separator"></div>
   <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
@@ -867,6 +885,13 @@ body.boot-reveal #browser{
         <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText" value="#f2f2f2"></div>
         <div class="input-row"><label class="input-label">Outline</label><input class="color-input" type="color" id="colorOutline" value="#2b2b2b"></div>
         <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
+      </div>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Appearance <button type="button" class="info-btn" data-info="appearance" title="About this option" aria-label="About Appearance"><img src="image/info.svg" alt=""></button></div>
+      <div class="switch-row">
+        <span class="switch-label">Light mode</span>
+        <button type="button" class="switch" id="lightModeSwitch" role="switch" aria-checked="false"></button>
       </div>
     </section>
     <section class="setting-section">
