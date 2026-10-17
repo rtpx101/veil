@@ -262,7 +262,12 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .server-ping.ping-mid{color:#ffb86b}
 .server-ping.ping-bad{color:#ff7b7b}
 .server-ping.ping-off{color:#888}
-.server-row.selected .server-ping{margin-left:auto}
+.server-row.server-add{font-weight:650;justify-content:flex-start}
+.modal-go:disabled{opacity:.38;cursor:default;pointer-events:none}
+.add-server-url{display:flex;align-items:center;gap:8px;margin-top:6px}
+.add-server-url .text-input{flex:1;min-width:0;margin-top:0}
+#addServerModal .input-label{display:block;margin-top:12px}
+#addServerModal h2{margin-bottom:4px}
 
 .anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
 .anim-opts.enabled{opacity:1;pointer-events:auto}
@@ -546,7 +551,7 @@ body.boot-reveal #browser{
 .games-header{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
 .games-search-wrap{position:relative;width:100%}
 .games-search{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px 0 40px;font-size:14px;outline:none;box-sizing:border-box}
-.games-search-wrap .gs-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;background:var(--muted);-webkit-mask:url("image/search.svg") center/contain no-repeat;mask:url("image/search.svg") center/contain no-repeat;pointer-events:none}
+.games-search-wrap .gs-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;background:var(--muted);-webkit-mask:url("image/search2.svg") center/contain no-repeat;mask:url("image/search2.svg") center/contain no-repeat;pointer-events:none}
 .games-cats{display:flex;flex-wrap:wrap;gap:8px}
 .games-cat{height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);font-size:12px;cursor:pointer}
 .games-cat.active,.games-cat:hover{border-color:var(--accent);color:var(--text);background:var(--panel2)}
@@ -593,7 +598,8 @@ body.boot-reveal #browser{
 .game-note-x:hover{background:var(--panel2)}
 .game-note-add{width:28px;height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
 .game-note-add:hover{background:var(--panel2)}
-.game-note-add img{width:13px;height:13px;display:block;filter:invert(1);opacity:.8}
+.game-notes-tabs.is-menu{overflow:hidden}
+.game-note-menu{flex:1;min-width:0;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12px;padding:0 8px}
 .game-notes-editor{flex:1;display:flex;flex-direction:column;padding:8px;gap:8px;min-height:0}
 .game-note-title{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 10px;font-size:12px;box-sizing:border-box}
 html[data-mode="light"] .welcome-bar{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}
@@ -930,19 +936,31 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     </section>
     <section class="setting-section">
       <div class="setting-title">Screen saver <button type="button" class="info-btn" data-info="screensaver" title="About this option" aria-label="About Screen saver"><img src="image/info.svg" alt=""></button></div>
-      <div class="input-row"><label class="input-label">Show after</label>
-        <input class="text-input" id="saverDelay" placeholder="Blank = off. e.g. 30s, 5m, 1h;30m" autocomplete="off" spellcheck="false">
+      <div class="switch-row">
+        <span class="switch-label">Enable screen saver</span>
+        <button type="button" class="switch" id="saverEnabledSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <div class="input-row"><label class="input-label">Wallpaper</label>
-        <select class="text-input" id="saverStyle">
-          <option value="orbs">Floating orbs</option>
-          <option value="stars">Twinkling stars</option>
-          <option value="constellation">Constellation</option>
-          <option value="rain">Rain & storms</option>
-        </select>
+      <div class="anim-opts" id="saverOpts">
+        <div class="input-row"><label class="input-label">Show after</label>
+          <input class="text-input" id="saverDelay" placeholder="e.g. 30s, 5m, 1h;30m" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="input-row"><label class="input-label">Wallpaper</label>
+          <select class="text-input" id="saverStyle">
+            <option value="orbs">Floating orbs</option>
+            <option value="stars">Twinkling stars</option>
+            <option value="constellation">Constellation</option>
+            <option value="rain">Rain & storms</option>
+            <option value="custom">Custom URL</option>
+          </select>
+        </div>
+        <div id="saverUrlRow">
+          <div class="input-row"><input class="text-input" id="saverUrl" placeholder="Image, GIF, WebP, or video URL"></div>
+        </div>
+        <div id="saverColorRows">
+          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="saverColorA" value="#7aa2ff"></div>
+          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="saverColorB" value="#b88cff"></div>
+        </div>
       </div>
-      <div class="input-row"><input class="text-input" id="saverUrl" placeholder="Image, GIF, WebP, or video URL"></div>
-      <button class="primary-btn" id="applySaver" type="button">Apply screen saver</button>
     </section>
 
     <div class="settings-cat">Privacy</div>
@@ -1022,9 +1040,6 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     <section class="setting-section">
       <div class="setting-title">Proxy servers <button type="button" class="info-btn" data-info="proxy" title="About this option" aria-label="About Proxy servers"><img src="image/info.svg" alt=""></button></div>
       <div class="server-list" id="serverList"></div>
-      <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
-      <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
-      <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
     </section>
     <section class="setting-section">
       <div class="setting-title">Browser engine <button type="button" class="info-btn" data-info="engine" title="About this option" aria-label="About Browser engine"><img src="image/info.svg" alt=""></button></div>

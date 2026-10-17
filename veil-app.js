@@ -303,7 +303,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverStyle: "orbs", saverUrl: "", customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverEnabled: false, saverStyle: "orbs", saverUrl: "", saverColorA: "#7aa2ff", saverColorB: "#b88cff", customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -420,6 +420,9 @@ function migrateSettings() {
   if (settings.colorMode !== "light" && settings.colorMode !== "dark") settings.colorMode = "dark";
   if (typeof settings.saverDelay !== "string") settings.saverDelay = "";
   if (!settings.saverDelay && Number(settings.saverMinutes) > 0) settings.saverDelay = String(Number(settings.saverMinutes)) + "m";
+  if (typeof settings.saverEnabled !== "boolean") settings.saverEnabled = !!parseVeilDuration(settings.saverDelay);
+  if (!/^#[0-9a-fA-F]{6}$/.test(settings.saverColorA || "")) settings.saverColorA = "#7aa2ff";
+  if (!/^#[0-9a-fA-F]{6}$/.test(settings.saverColorB || "")) settings.saverColorB = "#b88cff";
   if (settings.customPalette && typeof settings.customPalette !== "object") settings.customPalette = null;
   if (settings.theme === "custom" && !settings.customPalette) {
     settings.customPalette = {
@@ -1136,7 +1139,7 @@ const SETTINGS_INFO = {
   },
   screensaver: {
     title: "Screen saver",
-    body: "Leave Show after blank to keep it off. Otherwise type a time the same way the admin panel does: 30s, 5m, 2h, 1d, or combine them with semicolons like 1h;30m. You can also write 5 minutes or 2 hours. Live wallpapers use your current theme colors. A media URL (image, GIF, WebP, or video) replaces the live wallpaper. Move the mouse or press a key and it fades away."
+    body: "Turn the screen saver on, then type how long Veil should wait. Use the same time format as the admin panel: 30s, 5m, 2h, 1d, or combine them with semicolons like 1h;30m. You can also write 5 minutes or 2 hours. Pick a live wallpaper and set Color A and Color B, or choose Custom URL for an image, GIF, WebP, or video. Move the mouse or press a key and it fades away."
   },
   cloak: {
     title: "Tab cloak",
@@ -1819,6 +1822,16 @@ function pingWisp(url, timeoutMs = 4000) {
   });
 }
 
+function normalizeWispUrl(raw) {
+  let url = String(raw || "").trim();
+  if (!url) return "";
+  url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
+  if (!/^wss?:\/\//i.test(url)) url = "wss://" + url;
+  if (!url.endsWith("/")) url += "/";
+  if (!/^wss?:\/\/[^\s/]+/i.test(url) || url.length < 12) return "";
+  return url;
+}
+
 function fillWispSelect() {
   const box = document.getElementById("serverList");
   if (!box) return;
@@ -1841,7 +1854,8 @@ function fillWispSelect() {
       actions +
       "</button>"
     );
-  }).join("");
+  }).join("") +
+    '<button type="button" class="server-row server-add" id="addCustomServer">+ Custom Server</button>';
 
   box.querySelectorAll("[data-server-id]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -1880,6 +1894,11 @@ function fillWispSelect() {
     });
   });
 
+  box.querySelector("#addCustomServer")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openAddServerModal();
+  });
+
   updateServerPings();
 }
 
@@ -1898,6 +1917,95 @@ function updateServerPings() {
     if (dot) dot.className = "server-dot " + pingClass(res.ms, res.offline);
   });
 }
+let _addServerPing = 0;
+function openAddServerModal() {
+  document.getElementById("addServerModal")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "addServerModal";
+  overlay.innerHTML =
+    '<div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="addServerTitle">' +
+    '<h2 id="addServerTitle">Add Custom Server</h2>' +
+    '<label class="input-label" for="addServerName">Server Name</label>' +
+    '<input class="text-input" id="addServerName" autocomplete="off" spellcheck="false">' +
+    '<label class="input-label" for="addServerUrl">Server URL</label>' +
+    '<div class="add-server-url">' +
+    '<input class="text-input" id="addServerUrl" placeholder="wss://your-server" autocomplete="off" spellcheck="false">' +
+    '<span class="server-dot ping-off" id="addServerDot"><img src="' + IMG + 'status.svg" alt=""></span>' +
+    '<span class="server-ping ping-off" id="addServerPing"></span>' +
+    "</div>" +
+    '<div class="modal-actions">' +
+    '<button type="button" class="modal-cancel" id="addServerCancel">Cancel</button>' +
+    '<button type="button" class="modal-go" id="addServerConfirm" disabled>Add Server</button>' +
+    "</div></div>";
+  document.body.appendChild(overlay);
+  const nameEl = overlay.querySelector("#addServerName");
+  const urlEl = overlay.querySelector("#addServerUrl");
+  const dot = overlay.querySelector("#addServerDot");
+  const pingEl = overlay.querySelector("#addServerPing");
+  const confirmBtn = overlay.querySelector("#addServerConfirm");
+  let pingOk = false;
+  let timer = null;
+
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector("#addServerCancel").addEventListener("click", close);
+
+  const refreshBtn = () => {
+    confirmBtn.disabled = !(nameEl.value.trim() && pingOk);
+  };
+  const setPing = (cls, text) => {
+    dot.className = "server-dot " + cls;
+    pingEl.className = "server-ping " + cls;
+    pingEl.textContent = text;
+  };
+  const runPing = () => {
+    const token = ++_addServerPing;
+    const url = normalizeWispUrl(urlEl.value);
+    pingOk = false;
+    refreshBtn();
+    if (!url) {
+      setPing("ping-off", "");
+      return;
+    }
+    setPing("ping-wait", "...");
+    pingWisp(url).then((res) => {
+      if (token !== _addServerPing || !overlay.isConnected) return;
+      if (normalizeWispUrl(urlEl.value) !== url) return;
+      if (res.offline) {
+        pingOk = false;
+        setPing("ping-off", "offline");
+      } else {
+        pingOk = true;
+        const cls = pingClass(res.ms, false);
+        setPing(cls, res.ms + " ms");
+      }
+      refreshBtn();
+    });
+  };
+  nameEl.addEventListener("input", refreshBtn);
+  urlEl.addEventListener("input", () => {
+    pingOk = false;
+    refreshBtn();
+    if (timer) clearTimeout(timer);
+    const url = normalizeWispUrl(urlEl.value);
+    if (!url) { setPing("ping-off", ""); return; }
+    setPing("ping-wait", "...");
+    timer = setTimeout(runPing, 350);
+  });
+  confirmBtn.addEventListener("click", () => {
+    const name = nameEl.value.trim();
+    const url = normalizeWispUrl(urlEl.value);
+    if (!name || !url || !pingOk) return;
+    if (!settings.customServers) settings.customServers = [];
+    settings.customServers.push({ id: "c_" + Date.now().toString(36), name: name, url: url, custom: true });
+    save();
+    close();
+    fillWispSelect();
+  });
+  nameEl.focus();
+}
+
 function startLivePings() {
   if (_pingTimer) clearInterval(_pingTimer);
   updateServerPings();
@@ -1998,11 +2106,8 @@ function setupHomeFx(wrapper, opts) {
   };
 
   function fxColor(which) {
-    if (opts && opts.followTheme) {
-      const cs = getComputedStyle(document.documentElement);
-      const key = which === "a" ? "--accent" : "--text";
-      const v = (cs.getPropertyValue(key) || "").trim();
-      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) return v;
+    if (opts && opts.saverColors) {
+      return which === "a" ? (settings.saverColorA || "#7aa2ff") : (settings.saverColorB || "#b88cff");
     }
     return which === "a" ? (settings.animColorA || "#7aa2ff") : (settings.animColorB || "#b88cff");
   }
@@ -2239,6 +2344,7 @@ function parseVeilDuration(input) {
 }
 
 function saverWaitMs() {
+  if (!settings.saverEnabled) return 0;
   const raw = (settings.saverDelay || "").trim();
   if (raw) return parseVeilDuration(raw);
   const legacy = Number(settings.saverMinutes) || 0;
@@ -2260,9 +2366,9 @@ function renderSaverVisual() {
   stopHomeFx(root);
   if (img) { img.removeAttribute("src"); img.hidden = true; }
   if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
-  const style = settings.saverStyle === "custom" ? "orbs" : (settings.saverStyle || "orbs");
+  const style = settings.saverStyle || "orbs";
   const url = (settings.saverUrl || "").trim();
-  if (url) {
+  if (style === "custom" && url) {
     if (canvas) canvas.style.display = "none";
     if (isVideoUrl(url) && video) {
       video.hidden = false;
@@ -2275,7 +2381,7 @@ function renderSaverVisual() {
     return;
   }
   if (canvas) canvas.style.display = "block";
-  setupHomeFx(root, { force: true, style: style, followTheme: true });
+  setupHomeFx(root, { force: true, style: style === "custom" ? "orbs" : style, saverColors: true });
 }
 
 function showSaver() {
@@ -2327,12 +2433,25 @@ function noteSaverActivity() {
 }
 
 function syncSaverFields() {
+  setSwitch(document.getElementById("saverEnabledSwitch"), !!settings.saverEnabled);
+  const opts = document.getElementById("saverOpts");
+  if (opts) opts.classList.toggle("enabled", !!settings.saverEnabled);
   const delay = document.getElementById("saverDelay");
   if (delay && document.activeElement !== delay) delay.value = settings.saverDelay || "";
   const style = document.getElementById("saverStyle");
-  if (style) style.value = ["orbs", "stars", "constellation", "rain"].includes(settings.saverStyle) ? settings.saverStyle : "orbs";
+  const styles = ["orbs", "stars", "constellation", "rain", "custom"];
+  if (style) style.value = styles.includes(settings.saverStyle) ? settings.saverStyle : "orbs";
   const url = document.getElementById("saverUrl");
   if (url && document.activeElement !== url) url.value = settings.saverUrl || "";
+  const custom = settings.saverStyle === "custom";
+  const urlRow = document.getElementById("saverUrlRow");
+  const colorRows = document.getElementById("saverColorRows");
+  if (urlRow) urlRow.style.display = custom ? "" : "none";
+  if (colorRows) colorRows.style.display = custom ? "none" : "";
+  const ca = document.getElementById("saverColorA");
+  const cb = document.getElementById("saverColorB");
+  if (ca && document.activeElement !== ca) ca.value = safeColorValue(settings.saverColorA, "#7aa2ff");
+  if (cb && document.activeElement !== cb) cb.value = safeColorValue(settings.saverColorB, "#b88cff");
 }
 
 function commitSaverDelay() {
@@ -2343,28 +2462,17 @@ function commitSaverDelay() {
     settings.saverDelay = "";
     settings.saverMinutes = 0;
     save();
-    if (saverVisible) hideSaver();
-    else armSaver();
+    armSaver();
     return;
   }
-  const ms = parseVeilDuration(raw);
-  if (!ms) {
-    el.value = settings.saverDelay || "";
+  if (!parseVeilDuration(raw)) {
+    if (document.activeElement !== el) el.value = settings.saverDelay || "";
     return;
   }
   settings.saverDelay = raw;
   settings.saverMinutes = 0;
   save();
   armSaver();
-}
-
-function applySaverUrl() {
-  const url = document.getElementById("saverUrl");
-  if (url) settings.saverUrl = url.value.trim();
-  commitSaverDelay();
-  save();
-  syncSaverFields();
-  if (saverVisible) renderSaverVisual();
 }
 
 function lockVeil() {
@@ -2504,7 +2612,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverEnabled: settings.saverEnabled, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, saverColorA: settings.saverColorA, saverColorB: settings.saverColorB, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -2987,9 +3095,17 @@ const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
   settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
 });
+on("saverEnabledSwitch", () => {
+  settings.saverEnabled = !settings.saverEnabled;
+  save();
+  highlightTheme();
+  if (!settings.saverEnabled && saverVisible) hideSaver();
+  else armSaver();
+});
 const saverDelay = document.getElementById("saverDelay");
 if (saverDelay) {
-  saverDelay.addEventListener("change", commitSaverDelay);
+  saverDelay.addEventListener("input", commitSaverDelay);
+  saverDelay.addEventListener("blur", commitSaverDelay);
   saverDelay.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); commitSaverDelay(); }
   });
@@ -3001,7 +3117,24 @@ if (saverStyleEl) saverStyleEl.addEventListener("change", () => {
   syncSaverFields();
   if (saverVisible) renderSaverVisual();
 });
-on("applySaver", applySaverUrl);
+let saverUrlTimer = null;
+const saverUrlEl = document.getElementById("saverUrl");
+if (saverUrlEl) saverUrlEl.addEventListener("input", () => {
+  settings.saverUrl = saverUrlEl.value.trim();
+  save();
+  if (saverUrlTimer) clearTimeout(saverUrlTimer);
+  saverUrlTimer = setTimeout(() => {
+    if (saverVisible && settings.saverStyle === "custom") renderSaverVisual();
+  }, 400);
+});
+["saverColorA", "saverColorB"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("input", () => {
+    settings[id] = el.value;
+    save();
+  });
+});
 ["mousemove", "mousedown", "keydown", "touchstart", "wheel"].forEach((ev) => {
   window.addEventListener(ev, noteSaverActivity, { passive: true, capture: true });
 });
@@ -3042,23 +3175,6 @@ if (animSize) {
     save(); refreshHomeFxAll();
   });
 }
-document.getElementById("addCustomServer")?.addEventListener("click", () => {
-  const name = (document.getElementById("customServerName")?.value || "").trim() || "Custom";
-  let url = (document.getElementById("customServerUrl")?.value || "").trim();
-  if (!url) { alert("Enter a server address (wss://...)"); return; }
-  url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
-  if (!/^wss?:\/\//i.test(url)) url = "wss://" + url;
-  if (!url.endsWith("/")) url += "/";
-  if (!settings.customServers) settings.customServers = [];
-  const id = "c_" + Date.now().toString(36);
-  settings.customServers.push({ id, name, url, custom: true });
-  settings.wispId = id;
-  save();
-  document.getElementById("customServerName").value = "";
-  document.getElementById("customServerUrl").value = "";
-  fillWispSelect();
-  applyMuxTransport().catch(() => {});
-});
 ["animColorA", "animColorB"].forEach((id) => {
   const el = document.getElementById(id);
   if (!el) return;
@@ -3538,8 +3654,11 @@ async function bootVeilApp() {
       timeFormat: settings.timeFormat,
       saverMinutes: settings.saverMinutes,
       saverDelay: settings.saverDelay,
+      saverEnabled: settings.saverEnabled,
       saverStyle: settings.saverStyle,
       saverUrl: settings.saverUrl,
+      saverColorA: settings.saverColorA,
+      saverColorB: settings.saverColorB,
       customOutline: settings.customOutline,
       colorMode: settings.colorMode,
       customPalette: settings.customPalette
@@ -4050,10 +4169,16 @@ function openGamePlayer(g) {
     }
     gamesUserData.notes[id] = notes;
     saveGamesUserData();
+    const liveTitle = notes[activeNote] ? (notes[activeNote].title || "Note") : "Note";
+    const tabTitle = overlay.querySelector(".game-note-tab.active .game-note-tab-title");
+    if (tabTitle) tabTitle.textContent = liveTitle;
+    const menu = overlay.querySelector("#gameNoteMenu");
+    if (menu && menu.options[activeNote]) menu.options[activeNote].textContent = liveTitle;
   }
 
   function paintNotes() {
     const tabs = overlay.querySelector("#gameNoteTabs");
+    tabs.classList.remove("is-menu");
     const tabHtml = notes.map((n, i) =>
       '<button type="button" class="game-note-tab' + (i === activeNote ? " active" : "") + '" data-note="' + i + '">' +
       '<span class="game-note-tab-title">' + escapeHTML(n.title || "Note") + "</span>" +
@@ -4066,6 +4191,19 @@ function openGamePlayer(g) {
       ? ""
       : '<button type="button" class="game-note-add" data-note-add title="New note" aria-label="New note"><img src="' + IMG + 'plus.svg" alt=""></button>';
     tabs.innerHTML = tabHtml + addHtml;
+    let used = 0;
+    tabs.querySelectorAll(":scope > *").forEach((el) => { used += el.getBoundingClientRect().width + 4; });
+    const limit = tabs.clientWidth > 40 ? tabs.clientWidth : 268;
+    if (used > limit + 1) {
+      tabs.classList.add("is-menu");
+      const options = notes.map((n, i) =>
+        '<option value="' + i + '"' + (i === activeNote ? " selected" : "") + ">" + escapeHTML(n.title || "Note") + "</option>"
+      ).join("");
+      tabs.innerHTML =
+        '<select class="game-note-menu" id="gameNoteMenu">' + options + "</select>" +
+        '<span class="game-note-x" data-note-x="' + activeNote + '" title="Close note"><img src="' + IMG + 'exit.svg" alt=""></span>' +
+        addHtml;
+    }
     const n = notes[activeNote] || { title: "", body: "" };
     overlay.querySelector("#gameNoteTitle").value = n.title || "";
     overlay.querySelector("#gameNoteBody").value = n.body || "";
@@ -4108,8 +4246,14 @@ function openGamePlayer(g) {
     activeNote = parseInt(t.getAttribute("data-note"), 10) || 0;
     paintNotes();
   };
-  overlay.querySelector("#gameNoteTitle").addEventListener("change", saveCurrentNote);
-  overlay.querySelector("#gameNoteBody").addEventListener("change", saveCurrentNote);
+  overlay.querySelector("#gameNoteTabs").addEventListener("change", (e) => {
+    if (!e.target || e.target.id !== "gameNoteMenu") return;
+    saveCurrentNote();
+    activeNote = parseInt(e.target.value, 10) || 0;
+    paintNotes();
+  });
+  overlay.querySelector("#gameNoteTitle").addEventListener("input", saveCurrentNote);
+  overlay.querySelector("#gameNoteBody").addEventListener("input", saveCurrentNote);
 
   overlay.querySelector(".game-player-bar").onclick = (e) => {
     const btn = e.target.closest("[data-gp]");
@@ -4133,6 +4277,7 @@ function openGamePlayer(g) {
     }
     if (act === "notes") {
       player.classList.add("notes-open");
+      requestAnimationFrame(paintNotes);
       return;
     }
     if (act === "info") showGameInfo(g);
