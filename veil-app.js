@@ -303,7 +303,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverStyle: "orbs", saverUrl: "", customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverStyle: "orbs", saverUrl: "", customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -418,6 +418,8 @@ function migrateSettings() {
   if (typeof settings.saverUrl !== "string") settings.saverUrl = "";
   if (typeof settings.customOutline !== "string") settings.customOutline = "";
   if (settings.colorMode !== "light" && settings.colorMode !== "dark") settings.colorMode = "dark";
+  if (typeof settings.saverDelay !== "string") settings.saverDelay = "";
+  if (!settings.saverDelay && Number(settings.saverMinutes) > 0) settings.saverDelay = String(Number(settings.saverMinutes)) + "m";
   if (settings.customPalette && typeof settings.customPalette !== "object") settings.customPalette = null;
   if (settings.theme === "custom" && !settings.customPalette) {
     settings.customPalette = {
@@ -515,21 +517,42 @@ function deriveCustomSurfaces() {
   settings.accentText = relLuma(accent) > 0.62 ? "#111111" : "#f4f4f4";
 }
 
+function colorfulHex(hex) {
+  const { r, g, b } = cssHexToRgb(hex);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const luma = relLuma(hex);
+  return (max - min) > 28 && luma > 0.05 && luma < 0.95;
+}
 function toLightPalette(src) {
-  const bg = mixHex("#f5f5f6", src.bg || "#101010", 0.1);
-  const panel = mixHex("#ffffff", src.panel || "#181818", 0.07);
-  const bg2 = mixHex(bg, panel, 0.5);
-  const bg3 = mixHex(panel, "#000000", 0.045);
-  const panel2 = mixHex(panel, "#000000", 0.06);
-  let border = src.border || "#2b2b2b";
-  if (relLuma(border) > 0.82) border = mixHex(border, "#1a1a1a", 0.78);
-  if (channelDistance(border, panel) < 28) border = mixHex(panel, "#000000", 0.16);
-  const text = mixHex("#141416", src.accent || "#333333", 0.1);
-  const muted = mixHex(text, bg, 0.45);
-  let accent = src.accent || "#111111";
-  if (relLuma(accent) > 0.78) accent = mixHex(accent, "#161616", 0.82);
-  const accentText = relLuma(accent) > 0.62 ? "#111111" : "#f7f7f7";
-  return { bg, bg2, bg3, panel, panel2, border, text, muted, accent, accentText, newtab: bg };
+  const accent = src.accent || "";
+  const bgSrc = src.bg || "";
+  const tint = colorfulHex(accent) ? accent : (colorfulHex(bgSrc) ? mixHex(bgSrc, "#ffffff", 0.62) : "");
+  const frame = tint ? mixHex("#ffffff", tint, 0.16) : "#e8eaed";
+  const chrome = tint ? mixHex("#ffffff", tint, 0.14) : "#f1f3f4";
+  const toolbar = tint ? mixHex("#ffffff", tint, 0.12) : "#f8f9fa";
+  const bg3 = tint ? mixHex("#ffffff", tint, 0.09) : "#f8f9fa";
+  const panel2 = tint ? mixHex("#ffffff", tint, 0.14) : "#e8eaed";
+  let border = tint ? mixHex("#ffffff", tint, 0.32) : "#dadce0";
+  if (channelDistance(border, toolbar) < 18) border = mixHex("#ffffff", tint || "#5f6368", 0.28);
+  const text = "#202124";
+  const muted = tint ? mixHex("#5f6368", tint, 0.22) : "#5f6368";
+  let accentOut = colorfulHex(accent) ? accent : "#3c4043";
+  if (relLuma(accentOut) > 0.82) accentOut = mixHex(accentOut, "#202124", 0.72);
+  const accentText = relLuma(accentOut) > 0.62 ? "#202124" : "#ffffff";
+  return {
+    bg: frame,
+    bg2: chrome,
+    bg3: bg3,
+    panel: toolbar,
+    panel2: panel2,
+    border: border,
+    text: text,
+    muted: muted,
+    accent: accentOut,
+    accentText: accentText,
+    newtab: "#ffffff"
+  };
 }
 
 function applyCSSVariables() {
@@ -1097,7 +1120,7 @@ const SETTINGS_INFO = {
   },
   appearance: {
     title: "Appearance",
-    body: "Light mode keeps your current theme, including a custom one, and shows the light version of those colors. Turn it off to go back to the dark version."
+    body: "Light mode keeps your theme’s color as a light tint on the toolbars, like Chrome, and leaves the page white. Turn it off to go back to the dark version."
   },
   background: {
     title: "Home page background",
@@ -1113,7 +1136,7 @@ const SETTINGS_INFO = {
   },
   screensaver: {
     title: "Screen saver",
-    body: "After Veil sits idle, a full-screen wallpaper takes over. Pick one of the live wallpapers, or your own image, GIF, WebP, or video. It stays off until you choose a time. Move the mouse or press a key to dismiss it."
+    body: "Leave Show after blank to keep it off. Otherwise type a time the same way the admin panel does: 30s, 5m, 2h, 1d, or combine them with semicolons like 1h;30m. You can also write 5 minutes or 2 hours. Live wallpapers use your current theme colors. A media URL (image, GIF, WebP, or video) replaces the live wallpaper. Move the mouse or press a key and it fades away."
   },
   cloak: {
     title: "Tab cloak",
@@ -1974,6 +1997,16 @@ function setupHomeFx(wrapper, opts) {
     state.flash = 0.55 + Math.random() * 0.35;
   };
 
+  function fxColor(which) {
+    if (opts && opts.followTheme) {
+      const cs = getComputedStyle(document.documentElement);
+      const key = which === "a" ? "--accent" : "--text";
+      const v = (cs.getPropertyValue(key) || "").trim();
+      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) return v;
+    }
+    return which === "a" ? (settings.animColorA || "#7aa2ff") : (settings.animColorB || "#b88cff");
+  }
+
   const draw = () => {
     if (!forced && !settings.animEnabled) return;
     // Base speed scale so 1x is calm (was too fast before)
@@ -1982,8 +2015,8 @@ function setupHomeFx(wrapper, opts) {
     const w = canvas.width, h = canvas.height;
     const dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, w, h);
-    const a = hexToRgb(settings.animColorA);
-    const b = hexToRgb(settings.animColorB);
+    const a = hexToRgb(fxColor("a"));
+    const b = hexToRgb(fxColor("b"));
 
     if (style === "rain") {
       // Soft overcast wash
@@ -2172,19 +2205,64 @@ function refreshHomeFxAll() {
 
 let saverTimer = null;
 let saverVisible = false;
+let saverHideTimer = null;
+
+function parseVeilDuration(input) {
+  if (input == null) return 0;
+  const raw = String(input).trim().toLowerCase();
+  if (!raw || ["inf", "infinite", "perm", "permanent", "0", "off", "disabled"].includes(raw)) return 0;
+  let s = raw
+    .replace(/days?/g, "d")
+    .replace(/hours?/g, "h")
+    .replace(/hrs?/g, "h")
+    .replace(/minutes?/g, "m")
+    .replace(/mins?/g, "m")
+    .replace(/seconds?/g, "s")
+    .replace(/secs?/g, "s")
+    .replace(/,/g, ";")
+    .replace(/\s+/g, "");
+  const parts = s.split(";").filter(Boolean);
+  let total = 0;
+  const re = /^(\d+)(ms|s|m|h|hr|d)$/;
+  for (const p of parts) {
+    const m = p.match(re);
+    if (!m) return 0;
+    const n = parseInt(m[1], 10);
+    const u = m[2];
+    if (u === "ms") total += n;
+    else if (u === "s") total += n * 1000;
+    else if (u === "m") total += n * 60 * 1000;
+    else if (u === "h" || u === "hr") total += n * 3600 * 1000;
+    else if (u === "d") total += n * 86400 * 1000;
+  }
+  return total > 0 ? total : 0;
+}
+
+function saverWaitMs() {
+  const raw = (settings.saverDelay || "").trim();
+  if (raw) return parseVeilDuration(raw);
+  const legacy = Number(settings.saverMinutes) || 0;
+  return legacy > 0 ? legacy * 60000 : 0;
+}
+
+function themeSurface(name, fallback) {
+  const v = (getComputedStyle(document.documentElement).getPropertyValue(name) || "").trim();
+  return v || fallback;
+}
 
 function renderSaverVisual() {
   const root = document.getElementById("veilSaver");
   if (!root) return;
+  root.style.background = themeSurface("--bg", "#101010");
   const canvas = root.querySelector("[data-home-fx]");
   const img = root.querySelector("img.saver-media");
   const video = root.querySelector("video.saver-media");
   stopHomeFx(root);
   if (img) { img.removeAttribute("src"); img.hidden = true; }
   if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
-  const style = settings.saverStyle || "orbs";
+  const style = settings.saverStyle === "custom" ? "orbs" : (settings.saverStyle || "orbs");
   const url = (settings.saverUrl || "").trim();
-  if (style === "custom" && url) {
+  if (url) {
     if (canvas) canvas.style.display = "none";
     if (isVideoUrl(url) && video) {
       video.hidden = false;
@@ -2197,41 +2275,46 @@ function renderSaverVisual() {
     return;
   }
   if (canvas) canvas.style.display = "block";
-  setupHomeFx(root, { force: true, style: style === "custom" ? "orbs" : style });
+  setupHomeFx(root, { force: true, style: style, followTheme: true });
 }
 
 function showSaver() {
-  const mins = Number(settings.saverMinutes) || 0;
-  if (mins <= 0 || saverVisible) return;
+  if (saverWaitMs() <= 0 || saverVisible) return;
   if (document.body.classList.contains("gate-lock") || document.body.classList.contains("booting")) return;
   const root = document.getElementById("veilSaver");
   if (!root) return;
+  if (saverHideTimer) { clearTimeout(saverHideTimer); saverHideTimer = null; }
   saverVisible = true;
-  root.hidden = false;
   root.classList.add("on");
   requestAnimationFrame(renderSaverVisual);
 }
 
+function finishSaverHide() {
+  const root = document.getElementById("veilSaver");
+  if (!root || saverVisible) return;
+  stopHomeFx(root);
+  const video = root.querySelector("video.saver-media");
+  if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
+}
+
 function hideSaver() {
   const root = document.getElementById("veilSaver");
+  const wasOn = saverVisible || (root && root.classList.contains("on"));
   saverVisible = false;
-  if (root) {
-    root.classList.remove("on");
-    root.hidden = true;
-    stopHomeFx(root);
-    const video = root.querySelector("video.saver-media");
-    if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
-  }
+  if (root) root.classList.remove("on");
+  if (saverHideTimer) clearTimeout(saverHideTimer);
+  if (wasOn) saverHideTimer = setTimeout(finishSaverHide, 700);
+  else finishSaverHide();
   armSaver();
 }
 
 function armSaver() {
   if (saverTimer) clearTimeout(saverTimer);
   saverTimer = null;
-  const mins = Number(settings.saverMinutes) || 0;
-  if (mins <= 0 || saverVisible) return;
+  const wait = saverWaitMs();
+  if (wait <= 0 || saverVisible) return;
   if (document.body.classList.contains("gate-lock")) return;
-  saverTimer = setTimeout(showSaver, mins * 60000);
+  saverTimer = setTimeout(showSaver, wait);
 }
 
 let saverBump = 0;
@@ -2245,19 +2328,40 @@ function noteSaverActivity() {
 
 function syncSaverFields() {
   const delay = document.getElementById("saverDelay");
-  if (delay) delay.value = String(Number(settings.saverMinutes) || 0);
+  if (delay && document.activeElement !== delay) delay.value = settings.saverDelay || "";
   const style = document.getElementById("saverStyle");
-  if (style) style.value = settings.saverStyle || "orbs";
+  if (style) style.value = ["orbs", "stars", "constellation", "rain"].includes(settings.saverStyle) ? settings.saverStyle : "orbs";
   const url = document.getElementById("saverUrl");
   if (url && document.activeElement !== url) url.value = settings.saverUrl || "";
-  const row = document.getElementById("saverUrlRow");
-  if (row) row.style.display = settings.saverStyle === "custom" ? "" : "none";
+}
+
+function commitSaverDelay() {
+  const el = document.getElementById("saverDelay");
+  if (!el) return;
+  const raw = el.value.trim();
+  if (!raw) {
+    settings.saverDelay = "";
+    settings.saverMinutes = 0;
+    save();
+    if (saverVisible) hideSaver();
+    else armSaver();
+    return;
+  }
+  const ms = parseVeilDuration(raw);
+  if (!ms) {
+    el.value = settings.saverDelay || "";
+    return;
+  }
+  settings.saverDelay = raw;
+  settings.saverMinutes = 0;
+  save();
+  armSaver();
 }
 
 function applySaverUrl() {
   const url = document.getElementById("saverUrl");
   if (url) settings.saverUrl = url.value.trim();
-  settings.saverStyle = "custom";
+  commitSaverDelay();
   save();
   syncSaverFields();
   if (saverVisible) renderSaverVisual();
@@ -2400,7 +2504,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -2884,14 +2988,12 @@ if (animStyle) animStyle.addEventListener("change", () => {
   settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
 });
 const saverDelay = document.getElementById("saverDelay");
-if (saverDelay) saverDelay.addEventListener("change", () => {
-  const n = Number(saverDelay.value);
-  settings.saverMinutes = Number.isFinite(n) && n > 0 ? n : 0;
-  save();
-  if (!settings.saverMinutes && saverVisible) hideSaver();
-  else armSaver();
-  syncSaverFields();
-});
+if (saverDelay) {
+  saverDelay.addEventListener("change", commitSaverDelay);
+  saverDelay.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); commitSaverDelay(); }
+  });
+}
 const saverStyleEl = document.getElementById("saverStyle");
 if (saverStyleEl) saverStyleEl.addEventListener("change", () => {
   settings.saverStyle = saverStyleEl.value || "orbs";
@@ -3435,6 +3537,7 @@ async function bootVeilApp() {
       customServers: settings.customServers,
       timeFormat: settings.timeFormat,
       saverMinutes: settings.saverMinutes,
+      saverDelay: settings.saverDelay,
       saverStyle: settings.saverStyle,
       saverUrl: settings.saverUrl,
       customOutline: settings.customOutline,

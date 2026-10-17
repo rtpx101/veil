@@ -267,8 +267,8 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
 .anim-opts.enabled{opacity:1;pointer-events:auto}
 .home-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
-#veilSaver{position:fixed;inset:0;z-index:90000;display:none;background:#050505}
-#veilSaver.on{display:block}
+#veilSaver{position:fixed;inset:0;z-index:90000;background:#050505;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .65s ease,visibility 0s linear .65s}
+#veilSaver.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .65s ease,visibility 0s linear 0s}
 #veilSaver [data-home-fx],#veilSaver .saver-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;pointer-events:none}
 
 .transport-row,.cloak-grid{display:flex;flex-wrap:wrap;gap:8px}
@@ -835,7 +835,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
   </header>
   <main class="viewport" id="viewport"></main>
 </div>
-<div id="veilSaver" hidden>
+<div id="veilSaver">
   <canvas data-home-fx></canvas>
   <img class="saver-media" alt="" hidden>
   <video class="saver-media" muted loop playsinline hidden></video>
@@ -858,6 +858,13 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
   <div class="panel-body">
 
     <div class="settings-cat">Customization</div>
+    <section class="setting-section">
+      <div class="setting-title">Appearance <button type="button" class="info-btn" data-info="appearance" title="About this option" aria-label="About Appearance"><img src="image/info.svg" alt=""></button></div>
+      <div class="switch-row">
+        <span class="switch-label">Light mode</span>
+        <button type="button" class="switch" id="lightModeSwitch" role="switch" aria-checked="false"></button>
+      </div>
+    </section>
     <section class="setting-section">
       <div class="setting-title">Site theme colors <button type="button" class="info-btn" data-info="theme" title="About this option" aria-label="About Site theme colors"><img src="image/info.svg" alt=""></button></div>
       <div class="preset-grid" id="themeGrid">
@@ -885,13 +892,6 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText" value="#f2f2f2"></div>
         <div class="input-row"><label class="input-label">Outline</label><input class="color-input" type="color" id="colorOutline" value="#2b2b2b"></div>
         <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
-      </div>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Appearance <button type="button" class="info-btn" data-info="appearance" title="About this option" aria-label="About Appearance"><img src="image/info.svg" alt=""></button></div>
-      <div class="switch-row">
-        <span class="switch-label">Light mode</span>
-        <button type="button" class="switch" id="lightModeSwitch" role="switch" aria-checked="false"></button>
       </div>
     </section>
     <section class="setting-section">
@@ -931,15 +931,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     <section class="setting-section">
       <div class="setting-title">Screen saver <button type="button" class="info-btn" data-info="screensaver" title="About this option" aria-label="About Screen saver"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><label class="input-label">Show after</label>
-        <select class="text-input" id="saverDelay">
-          <option value="0">Disabled</option>
-          <option value="1">1 minute</option>
-          <option value="5">5 minutes</option>
-          <option value="10">10 minutes</option>
-          <option value="15">15 minutes</option>
-          <option value="30">30 minutes</option>
-          <option value="60">1 hour</option>
-        </select>
+        <input class="text-input" id="saverDelay" placeholder="Blank = off. e.g. 30s, 5m, 1h;30m" autocomplete="off" spellcheck="false">
       </div>
       <div class="input-row"><label class="input-label">Wallpaper</label>
         <select class="text-input" id="saverStyle">
@@ -947,13 +939,10 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
           <option value="stars">Twinkling stars</option>
           <option value="constellation">Constellation</option>
           <option value="rain">Rain & storms</option>
-          <option value="custom">Custom URL</option>
         </select>
       </div>
-      <div id="saverUrlRow">
-        <div class="input-row"><input class="text-input" id="saverUrl" placeholder="Image, GIF, WebP, or video URL"></div>
-        <button class="primary-btn" id="applySaver" type="button">Apply screen saver</button>
-      </div>
+      <div class="input-row"><input class="text-input" id="saverUrl" placeholder="Image, GIF, WebP, or video URL"></div>
+      <button class="primary-btn" id="applySaver" type="button">Apply screen saver</button>
     </section>
 
     <div class="settings-cat">Privacy</div>
