@@ -65,6 +65,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 #address{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:13px}
 #address::placeholder{color:#666}
 .address-bookmark{width:28px;height:28px;border-radius:50%;transition:transform .2s ease}
+.address-bookmark[hidden]{display:none !important}
 .address-bookmark img{width:16px;height:16px;display:block;filter:invert(1);opacity:.8}
 .address-bookmark.saved{transform:scale(1.06)}
 .address-bookmark.saved img{opacity:1}
@@ -297,6 +298,8 @@ select.text-input,.modal-box select{
 .modal-go:disabled{opacity:.38;cursor:default;pointer-events:none}
 .add-server-url{display:flex;align-items:center;gap:8px;margin-top:6px}
 .add-server-url .text-input{flex:0 1 50%;width:50%;max-width:50%;min-width:0;margin-top:0}
+.add-server-status{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+.add-server-url .server-ping{margin-left:0}
 #addServerModal .input-label{display:block;margin-top:12px}
 #addServerModal h2{margin-bottom:4px}
 

@@ -1,11 +1,4 @@
 // sw.js — matched to working rtpx101/testprox
-(function () {
-  var t = Date.now();
-  debugger;
-  if (Date.now() - t > 140) {
-    try { self.registration.unregister(); } catch (e) {}
-  }
-})();
 const BASE = (() => {
   let p = self.location.pathname.replace(/\/?sw\.js$/i, "");
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);

@@ -1952,9 +1952,10 @@ function openAddServerModal() {
     '<label class="input-label" for="addServerUrl">Server URL</label>' +
     '<div class="add-server-url">' +
     '<input class="text-input" id="addServerUrl" placeholder="wss://your-server" autocomplete="off" spellcheck="false">' +
+    '<span class="add-server-status">' +
     '<span class="server-dot ping-off" id="addServerDot"><img src="' + IMG + 'status.svg" alt=""></span>' +
     '<span class="server-ping ping-off" id="addServerPing"></span>' +
-    "</div>" +
+    "</span></div>" +
     '<div class="modal-actions">' +
     '<button type="button" class="modal-cancel" id="addServerCancel">Cancel</button>' +
     '<button type="button" class="modal-go" id="addServerConfirm" disabled>Add Server</button>' +
