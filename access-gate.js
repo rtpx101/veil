@@ -8,18 +8,35 @@
   function kill() {
     if (dead) return;
     dead = true;
-    try { window.stop(); } catch (e) {}
-    try { document.documentElement.innerHTML = "<body style=\"margin:0;background:#000\"></body>"; } catch (e) {}
+    try {
+      document.documentElement.innerHTML = "<body style=\"margin:0;background:#000\"></body>";
+    } catch (e) {}
   }
   window.__veilKill = kill;
+  var baseW = null, baseH = null, baseDpr = 0;
   setInterval(function () {
-    var dw = Math.abs((window.outerWidth || 0) - (window.innerWidth || 0));
-    var dh = Math.abs((window.outerHeight || 0) - (window.innerHeight || 0));
-    if (dw > 240 || dh > 320) kill();
-    var t = performance.now();
-    debugger;
-    if (performance.now() - t > 140) kill();
-  }, 1600);
+    var ow = window.outerWidth || 0;
+    var oh = window.outerHeight || 0;
+    var iw = window.innerWidth || 0;
+    var ih = window.innerHeight || 0;
+    if (ow < 80 || oh < 80 || iw < 40 || ih < 40) return;
+    var dw = Math.max(0, ow - iw);
+    var dh = Math.max(0, oh - ih);
+    var dpr = window.devicePixelRatio || 1;
+    if (baseW == null || Math.abs(dpr - baseDpr) > 0.02) {
+      baseW = dw;
+      baseH = dh;
+      baseDpr = dpr;
+      return;
+    }
+    if (dw + 12 < baseW) baseW = dw;
+    if (dh + 12 < baseH) baseH = dh;
+    var growW = dw - baseW;
+    var growH = dh - baseH;
+    var halfW = (iw / ow) < 0.68 && (iw / ow) > 0.22 && growW > 180;
+    var halfH = (ih / oh) < 0.68 && (ih / oh) > 0.22 && growH > 180;
+    if (halfW || halfH) kill();
+  }, 700);
 })();
 (function () {
   try {
@@ -890,6 +907,10 @@
     signupBtn.onclick = function () {
       var email = (document.getElementById("signupEmail") || {}).value || "";
       var password = (document.getElementById("signupPass") || {}).value || "";
+      if (String(password).length < 4) {
+        setMsg("Password must be at least 4 characters.", true, true);
+        return;
+      }
       setMsg("Creating account…", false);
       api("/api/auth/signup", { email: email, password: password }).then(function (r) {
         var data = r.data || {};

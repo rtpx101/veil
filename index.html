@@ -10,7 +10,7 @@
 :root{
  --bg:#101010;--bg2:#151515;--bg3:#1b1b1b;--panel:#181818;--panel2:#202020;
  --border:#2b2b2b;--text:#f2f2f2;--muted:#888;--accent:#fff;--accentText:#111;--newtab:#101010;
- --danger:#ff6b6b;
+ --danger:#ff6b6b;--icon-invert:1;--page-icon-invert:1;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
@@ -37,8 +37,8 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .tab-close:hover{background:var(--panel2);color:var(--text)}
 .new-tab{width:30px;height:30px;flex:0 0 30px;min-width:30px;border-radius:8px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-left:2px;flex-shrink:0;border:0}
 .new-tab:hover{background:var(--panel2)}
-.new-tab img{width:14px;height:14px;display:block;filter:invert(1);opacity:.75}
-.tab-close img{width:12px;height:12px;display:block;filter:invert(1);opacity:.7}
+.new-tab img{width:14px;height:14px;display:block;filter:invert(var(--icon-invert,1));opacity:.75}
+.tab-close img{width:12px;height:12px;display:block;filter:invert(var(--icon-invert,1));opacity:.7}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal-box{width:min(360px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
@@ -66,7 +66,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 #address::placeholder{color:#666}
 .address-bookmark{width:28px;height:28px;border-radius:50%;transition:transform .2s ease}
 .address-bookmark[hidden]{display:none !important}
-.address-bookmark img{width:16px;height:16px;display:block;filter:invert(1);opacity:.8}
+.address-bookmark img{width:16px;height:16px;display:block;filter:invert(var(--icon-invert,1));opacity:.8}
 .address-bookmark.saved{transform:scale(1.06)}
 .address-bookmark.saved img{opacity:1}
 .right-tools{display:flex;gap:2px;flex:0 0 auto}
@@ -125,7 +125,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .quick-links.row2{margin-top:12px}
 .quick-link{width:56px;height:56px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease,border-color .15s ease}
 .quick-link:hover{transform:translateY(-3px);background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18)}
-.quick-link img{width:26px;height:26px;object-fit:contain;display:block;filter:invert(1)}
+.quick-link img{width:26px;height:26px;object-fit:contain;display:block;filter:invert(var(--page-icon-invert,1))}
 .quick-link.soon{opacity:.45;cursor:default}
 .quick-link.soon:hover{transform:none}
 .launch-btn{margin-top:30px;height:42px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;letter-spacing:.02em;transition:background .15s ease,transform .15s ease}
@@ -154,7 +154,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .menu.open{display:block}
 .menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
 .menu-item:hover{background:var(--panel2)}
-.menu-icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:0 0 20px}.menu-icon img{width:16px;height:16px;display:block;filter:invert(1);opacity:.85}
+.menu-icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:0 0 20px}.menu-icon img{width:16px;height:16px;display:block;filter:invert(var(--icon-invert,1));opacity:.85}
 .menu-separator{height:1px;background:var(--border);margin:6px 4px}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none}
 .backdrop.open{display:block}
@@ -164,7 +164,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .panel-header h2,.panel-head > span{font-size:16px;font-weight:600;color:var(--text)}
 .close-panel,[data-close-panel]{width:32px;height:32px;border-radius:8px;background:transparent;border:0;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 32px}
 .close-panel:hover,[data-close-panel]:hover{background:var(--panel2);color:var(--text)}
-.close-panel img,[data-close-panel] img{width:14px;height:14px;display:block;filter:invert(1);opacity:.85}
+.close-panel img,[data-close-panel] img{width:14px;height:14px;display:block;filter:invert(var(--icon-invert,1));opacity:.85}
 
 .close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
 .panel-body{padding:20px;overflow-y:auto}
@@ -191,7 +191,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .info-btn{width:18px;height:18px;padding:0;border:0;background:transparent;cursor:pointer;opacity:.5;display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;border-radius:50%}
 .info-btn:hover{opacity:1;background:rgba(255,255,255,.06)}
-.info-btn img{width:14px;height:14px;display:block;filter:invert(1);opacity:.9;pointer-events:none}
+.info-btn img{width:14px;height:14px;display:block;filter:invert(var(--icon-invert,1));opacity:.9;pointer-events:none}
 .modal-box.info-modal{width:min(400px,100%)}
 .modal-box.info-modal h2{font-size:15px;margin-bottom:10px;text-transform:none;letter-spacing:0}
 .modal-box.info-modal p{font-size:13px;line-height:1.55;color:var(--muted);margin:0 0 16px}
@@ -253,8 +253,8 @@ select.text-input,.modal-box select{
   display:inline-flex;align-items:center;justify-content:center;opacity:.7;border-radius:6px;
 }
 .server-edit:hover,.server-del:hover{opacity:1;background:rgba(255,255,255,.06)}
-.server-edit img{width:13px;height:13px;filter:invert(1);display:block}
-.server-del img{width:12px;height:12px;filter:invert(1);display:block}
+.server-edit img{width:13px;height:13px;filter:invert(var(--icon-invert,1));display:block}
+.server-del img{width:12px;height:12px;filter:invert(var(--icon-invert,1));display:block}
 
 
 
@@ -318,7 +318,7 @@ select.text-input,.modal-box select{
 .bookmark-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bookmark-url{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 .bookmark-delete{width:28px;height:28px;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0}
-.bookmark-delete img{width:12px;height:12px;display:block;filter:invert(1);opacity:.7}
+.bookmark-delete img{width:12px;height:12px;display:block;filter:invert(var(--icon-invert,1));opacity:.7}
 .bookmark-delete:hover img{opacity:1}
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:12px}
 .status{padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
@@ -539,7 +539,7 @@ body.boot-reveal #browser{
 .history-item{display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:10px}
 .history-item:hover{background:var(--panel2)}
 .history-item a{flex:1;color:var(--text);text-decoration:none;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
-.history-item button{width:28px;height:28px;border:0;background:transparent;cursor:pointer;padding:4px;filter:brightness(0) invert(1);opacity:.85}
+.history-item button{width:28px;height:28px;border:0;background:transparent;cursor:pointer;padding:4px;filter:brightness(0) invert(var(--icon-invert,1));opacity:.85}
 .history-item button:hover{opacity:1}
 .panel{animation:veilUp .28s ease}
 .menu.open{animation:veilUp .2s ease}
@@ -619,7 +619,7 @@ body.boot-reveal #browser{
 .game-player-title .gpt-diff b{color:var(--text);font-weight:700}
 .game-player-btn{width:34px;height:34px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto}
 .game-player-btn:hover{background:var(--panel2)}
-.game-player-btn img{width:16px;height:16px;filter:invert(1);opacity:.9;display:block}
+.game-player-btn img{width:16px;height:16px;filter:invert(var(--icon-invert,1));opacity:.9;display:block}
 .game-player-btn.gp-close{order:-1}
 .game-player-frame{flex:1;min-height:0;background:#111;position:relative}
 .game-player-frame iframe{width:100%;height:100%;border:0;display:block;background:#0a0a0a}
@@ -631,7 +631,7 @@ body.boot-reveal #browser{
 .game-note-tab.active{border-color:var(--accent);color:var(--text);background:var(--bg3)}
 .game-note-tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .game-note-x{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 16px;padding:0}
-.game-note-x img{width:10px;height:10px;display:block;filter:invert(1);opacity:.75}
+.game-note-x img{width:10px;height:10px;display:block;filter:invert(var(--icon-invert,1));opacity:.75}
 .game-note-x:hover{background:var(--panel2)}
 .game-note-add{width:28px;height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
 .game-note-add:hover{background:var(--panel2)}
@@ -671,7 +671,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 .game-info-detail p{margin:0;font-size:13px;line-height:1.6;color:var(--muted);white-space:pre-wrap}
 .game-info-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--text);cursor:pointer;font-size:12px;padding:4px 0;margin-bottom:10px}
 .game-info-back:hover{color:var(--accent)}
-.game-info-back img{width:14px;height:14px;filter:invert(1);opacity:.85}
+.game-info-back img{width:14px;height:14px;filter:invert(var(--icon-invert,1));opacity:.85}
 
 </style>
 </head>
@@ -881,6 +881,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 <div id="veilSaver">
   <canvas data-home-fx></canvas>
   <img class="saver-media" alt="" hidden>
+  <canvas class="saver-media saver-raster" hidden></canvas>
   <video class="saver-media" muted loop playsinline hidden></video>
 </div>
 
@@ -991,9 +992,17 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <div id="saverUrlRow">
           <div class="input-row"><input class="text-input" id="saverUrl" placeholder="Image, GIF, WebP, or video URL"></div>
         </div>
+        <div id="saverTuneRows">
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="saverSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="saverSpeedVal">1.00x</span></div>
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span><input type="range" id="saverCount" min="4" max="80" step="1" value="18"><span class="range-val" id="saverCountVal">18</span></div>
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="saverSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="saverSizeVal">1.00x</span></div>
+        </div>
         <div id="saverColorRows">
           <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="saverColorA" value="#7aa2ff"></div>
           <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="saverColorB" value="#b88cff"></div>
+        </div>
+        <div id="saverMediaSpeedRow" style="display:none">
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="saverMediaSpeed" min="0.25" max="3" step="0.05" value="1"><span class="range-val" id="saverMediaSpeedVal">1.00x</span></div>
         </div>
       </div>
     </section>
@@ -1103,6 +1112,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
       <div class="setting-title">Change username <button type="button" class="info-btn" data-info="username" title="About this option" aria-label="About Change username"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><input class="text-input" id="newUsername" placeholder="New display name"></div>
       <button class="primary-btn" id="saveUsername" type="button">Save username</button>
+      <p class="hint" id="usernameMsg"></p>
     </section>
     <section class="setting-section">
       <div class="setting-title">Change password <button type="button" class="info-btn" data-info="password" title="About this option" aria-label="About Change password"><img src="image/info.svg" alt=""></button></div>

@@ -6,18 +6,35 @@
   function kill() {
     if (dead) return;
     dead = true;
-    try { window.stop(); } catch (e) {}
-    try { document.documentElement.innerHTML = "<body style=\"margin:0;background:#000\"></body>"; } catch (e) {}
+    try {
+      document.documentElement.innerHTML = "<body style=\"margin:0;background:#000\"></body>";
+    } catch (e) {}
   }
   window.__veilKill = kill;
+  var baseW = null, baseH = null, baseDpr = 0;
   setInterval(function () {
-    var dw = Math.abs((window.outerWidth || 0) - (window.innerWidth || 0));
-    var dh = Math.abs((window.outerHeight || 0) - (window.innerHeight || 0));
-    if (dw > 240 || dh > 320) kill();
-    var t = performance.now();
-    debugger;
-    if (performance.now() - t > 140) kill();
-  }, 1600);
+    var ow = window.outerWidth || 0;
+    var oh = window.outerHeight || 0;
+    var iw = window.innerWidth || 0;
+    var ih = window.innerHeight || 0;
+    if (ow < 80 || oh < 80 || iw < 40 || ih < 40) return;
+    var dw = Math.max(0, ow - iw);
+    var dh = Math.max(0, oh - ih);
+    var dpr = window.devicePixelRatio || 1;
+    if (baseW == null || Math.abs(dpr - baseDpr) > 0.02) {
+      baseW = dw;
+      baseH = dh;
+      baseDpr = dpr;
+      return;
+    }
+    if (dw + 12 < baseW) baseW = dw;
+    if (dh + 12 < baseH) baseH = dh;
+    var growW = dw - baseW;
+    var growH = dh - baseH;
+    var halfW = (iw / ow) < 0.68 && (iw / ow) > 0.22 && growW > 180;
+    var halfH = (ih / oh) < 0.68 && (ih / oh) > 0.22 && growH > 180;
+    if (halfW || halfH) kill();
+  }, 700);
 })();
 
 /* Path layout matches working testprox: BASE has no trailing slash */
@@ -321,7 +338,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverEnabled: false, saverStyle: "orbs", saverUrl: "", saverColorA: "#7aa2ff", saverColorB: "#b88cff", customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverEnabled: false, saverStyle: "orbs", saverUrl: "", saverColorA: "#7aa2ff", saverColorB: "#b88cff", saverSpeed: 1, saverCount: 18, saverSize: 1, saverMediaSpeed: 1, customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -415,11 +432,11 @@ function loadProfile() {
   } catch {}
 }
 function saveProfile() {
+  const raw = JSON.stringify({ name: profile.name || "", password: profile.password || "", avatar: profile.avatar || "" });
+  try { localStorage.setItem(STORAGE.profile, raw); } catch (e) {}
   try {
-    const raw = JSON.stringify({ name: profile.name || "", password: profile.password || "", avatar: profile.avatar || "" });
-    localStorage.setItem(STORAGE.profile, raw);
-    COOKIE.set(STORAGE.profile, raw);
-  } catch {}
+    if (COOKIE.consent && raw.length < 3800) COOKIE.set(STORAGE.profile, raw);
+  } catch (e) {}
 }
 function migrateSettings() {
   if (!settings.wispId || settings.wispId === "default" || settings.wispId === "custom") {
@@ -441,6 +458,14 @@ function migrateSettings() {
   if (typeof settings.saverEnabled !== "boolean") settings.saverEnabled = !!parseVeilDuration(settings.saverDelay);
   if (!/^#[0-9a-fA-F]{6}$/.test(settings.saverColorA || "")) settings.saverColorA = "#7aa2ff";
   if (!/^#[0-9a-fA-F]{6}$/.test(settings.saverColorB || "")) settings.saverColorB = "#b88cff";
+  if (!Number.isFinite(Number(settings.saverSpeed))) settings.saverSpeed = 1;
+  if (!Number.isFinite(Number(settings.saverCount))) settings.saverCount = 18;
+  if (!Number.isFinite(Number(settings.saverSize))) settings.saverSize = 1;
+  if (!Number.isFinite(Number(settings.saverMediaSpeed))) settings.saverMediaSpeed = 1;
+  settings.saverSpeed = Math.max(0.25, Math.min(2.5, Number(settings.saverSpeed) || 1));
+  settings.saverCount = Math.max(4, Math.min(80, Math.round(Number(settings.saverCount) || 18)));
+  settings.saverSize = Math.max(0.4, Math.min(2.5, Number(settings.saverSize) || 1));
+  settings.saverMediaSpeed = Math.max(0.25, Math.min(3, Number(settings.saverMediaSpeed) || 1));
   if (settings.customPalette && typeof settings.customPalette !== "object") settings.customPalette = null;
   if (settings.theme === "custom" && !settings.customPalette) {
     settings.customPalette = {
@@ -523,19 +548,40 @@ function outlineColor(base) {
   if (channelDistance(c, base) < 32) c = mixHex(base, ink, 0.45);
   return c;
 }
+function contrastRatio(a, b) {
+  const hi = Math.max(relLuma(a), relLuma(b));
+  const lo = Math.min(relLuma(a), relLuma(b));
+  return (hi + 0.05) / (lo + 0.05);
+}
+function bestInk(bg) {
+  return relLuma(bg) > 0.58 ? "#141414" : "#f4f4f4";
+}
+function ensureContrast(fg, bg, min) {
+  if (contrastRatio(fg, bg) >= min) return fg;
+  return bestInk(bg);
+}
 function deriveCustomSurfaces() {
   if (!settings || settings.theme !== "custom") return;
   const bg = settings.bg || "#101010";
   const panel = settings.panel || "#181818";
-  const text = settings.text || "#f2f2f2";
-  const accent = settings.accent || "#ffffff";
+  let text = settings.text || "#f2f2f2";
+  let accent = settings.accent || "#ffffff";
+  text = ensureContrast(text, bg, 4.2);
+  if (contrastRatio(text, panel) < 3) text = bestInk(panel);
+  if (contrastRatio(accent, panel) < 1.45 && contrastRatio(accent, bg) < 1.45) {
+    accent = mixHex(accent, bestInk(panel), 0.62);
+  }
+  settings._ink = text;
+  settings._accentDraw = accent;
   settings.bg2 = mixHex(bg, panel, 0.7);
-  settings.bg3 = mixHex(panel, text, 0.09);
-  settings.panel2 = mixHex(panel, text, 0.12);
+  settings.bg3 = mixHex(panel, text, relLuma(panel) > 0.55 ? 0.06 : 0.1);
+  settings.panel2 = mixHex(panel, text, relLuma(panel) > 0.55 ? 0.08 : 0.14);
   settings.border = (/^#[0-9a-fA-F]{6}$/.test(settings.customOutline || "")) ? settings.customOutline : outlineColor(panel);
-  settings.muted = mixHex(text, bg, 0.46);
+  if (contrastRatio(settings.border, panel) < 1.15) settings.border = outlineColor(panel);
+  settings.muted = mixHex(text, bg, 0.42);
+  if (contrastRatio(settings.muted, panel) < 2) settings.muted = mixHex(text, panel, 0.38);
   settings.newtab = bg;
-  settings.accentText = relLuma(accent) > 0.62 ? "#111111" : "#f4f4f4";
+  settings.accentText = relLuma(accent) > 0.62 ? "#141414" : "#f7f7f7";
 }
 
 function colorfulHex(hex) {
@@ -581,9 +627,18 @@ function applyCSSVariables() {
   const keys = ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"];
   const src = {};
   keys.forEach((k) => { src[k] = settings[k]; });
+  if (settings.theme === "custom") {
+    if (settings._ink) src.text = settings._ink;
+    if (settings._accentDraw) src.accent = settings._accentDraw;
+    src.accentText = relLuma(src.accent) > 0.62 ? "#141414" : "#f7f7f7";
+  }
   const colors = src;
   const root = document.documentElement;
   keys.forEach((k) => root.style.setProperty("--" + k, colors[k]));
+  const panelL = relLuma(settings.panel || "#181818");
+  const pageL = relLuma(settings.bg || settings.newtab || "#101010");
+  root.style.setProperty("--icon-invert", panelL > 0.62 ? "0" : "1");
+  root.style.setProperty("--page-icon-invert", pageL > 0.62 ? "0" : "1");
   root.dataset.mode = "dark";
 }
 function isVideoUrl(url) {
@@ -2071,8 +2126,9 @@ function setupHomeFx(wrapper, opts) {
   resize();
   let style = (opts && opts.style) || settings.animStyle || "orbs";
   if (style === "waves" || style === "pulse") style = "rain";
-  const sizeMul = Math.max(0.4, Math.min(2.5, Number(settings.animSize) || 1));
-  let n = Number(settings.animCount);
+  const fxSpeed = Math.max(0.25, Math.min(2.5, Number((opts && opts.saverColors) ? settings.saverSpeed : settings.animSpeed) || 1));
+  const sizeMul = Math.max(0.4, Math.min(2.5, Number((opts && opts.saverColors) ? settings.saverSize : settings.animSize) || 1));
+  let n = Number((opts && opts.saverColors) ? settings.saverCount : settings.animCount);
   if (!Number.isFinite(n)) n = 18;
   n = Math.max(4, Math.min(80, Math.round(n)));
   if (style === "stars") n = Math.max(n, 12);
@@ -2137,7 +2193,7 @@ function setupHomeFx(wrapper, opts) {
   const draw = () => {
     if (!forced && !settings.animEnabled) return;
     // Base speed scale so 1x is calm (was too fast before)
-    const speed = (Number(settings.animSpeed) || 1) * 0.42;
+    const speed = fxSpeed * 0.42;
     state.t += 0.016 * speed;
     const w = canvas.width, h = canvas.height;
     const dpr = window.devicePixelRatio || 1;
@@ -2378,6 +2434,71 @@ function themeSurface(name, fallback) {
   return v || fallback;
 }
 
+function isTimedMedia(url) {
+  return /\.(mp4|webm|ogg|gif|webp)(\?|#|$)/i.test(url || "");
+}
+let saverFrameToken = 0;
+let saverFrameTimer = null;
+function stopSaverFrames() {
+  saverFrameToken++;
+  if (saverFrameTimer) { clearTimeout(saverFrameTimer); saverFrameTimer = null; }
+}
+function playSaverStill(url) {
+  const root = document.getElementById("veilSaver");
+  if (!root) return;
+  const img = root.querySelector("img.saver-media");
+  const raster = root.querySelector("canvas.saver-raster");
+  const speed = Math.max(0.25, Number(settings.saverMediaSpeed) || 1);
+  const animated = /\.(gif|webp)(\?|#|$)/i.test(url || "");
+  if (!animated || typeof ImageDecoder === "undefined") {
+    if (raster) raster.hidden = true;
+    if (img) { img.hidden = false; img.src = url; }
+    return;
+  }
+  const token = ++saverFrameToken;
+  const type = /\.webp(\?|#|$)/i.test(url) ? "image/webp" : "image/gif";
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("miss");
+    return res.arrayBuffer();
+  }).then(async (buf) => {
+    if (token !== saverFrameToken) return;
+    const dec = new ImageDecoder({ data: buf, type: type });
+    await dec.tracks.ready;
+    const track = dec.tracks.selectedTrack;
+    const count = Math.max(1, track.frameCount || 1);
+    if (count < 2) throw new Error("still");
+    if (img) img.hidden = true;
+    if (raster) raster.hidden = false;
+    const ctx = raster.getContext("2d");
+    let i = 0;
+    const step = async () => {
+      if (token !== saverFrameToken || !raster) return;
+      try {
+        const result = await dec.decode({ frameIndex: i });
+        const frame = result.image;
+        const box = root.getBoundingClientRect();
+        raster.width = Math.max(1, Math.floor(box.width));
+        raster.height = Math.max(1, Math.floor(box.height));
+        ctx.drawImage(frame, 0, 0, raster.width, raster.height);
+        const micros = frame.duration || 100000;
+        if (frame.close) frame.close();
+        const rate = Math.max(0.25, Number(settings.saverMediaSpeed) || 1);
+        i = (i + 1) % count;
+        saverFrameTimer = setTimeout(step, Math.max(16, (micros / 1000) / rate));
+      } catch (e) {
+        if (img) { img.hidden = false; img.src = url; }
+        if (raster) raster.hidden = true;
+      }
+    };
+    step();
+  }).catch(() => {
+    if (token !== saverFrameToken) return;
+    if (raster) raster.hidden = true;
+    if (img) { img.hidden = false; img.src = url; }
+  });
+  void speed;
+}
+
 function renderSaverVisual() {
   const root = document.getElementById("veilSaver");
   if (!root) return;
@@ -2386,7 +2507,10 @@ function renderSaverVisual() {
   const img = root.querySelector("img.saver-media");
   const video = root.querySelector("video.saver-media");
   stopHomeFx(root);
+  stopSaverFrames();
   if (img) { img.removeAttribute("src"); img.hidden = true; }
+  const raster = root.querySelector("canvas.saver-raster");
+  if (raster) raster.hidden = true;
   if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
   const style = settings.saverStyle || "orbs";
   const url = (settings.saverUrl || "").trim();
@@ -2395,7 +2519,12 @@ function renderSaverVisual() {
     if (isVideoUrl(url) && video) {
       video.hidden = false;
       video.src = url;
-      video.play().catch(() => {});
+      const rate = Math.max(0.25, Number(settings.saverMediaSpeed) || 1);
+      const applyRate = () => { try { video.playbackRate = rate; } catch (e) {} };
+      video.onloadedmetadata = applyRate;
+      video.play().then(applyRate).catch(() => {});
+    } else if (/\.(gif|webp)(\?|#|$)/i.test(url)) {
+      playSaverStill(url);
     } else if (img) {
       img.hidden = false;
       img.src = url;
@@ -2421,6 +2550,7 @@ function finishSaverHide() {
   const root = document.getElementById("veilSaver");
   if (!root || saverVisible) return;
   stopHomeFx(root);
+  stopSaverFrames();
   const video = root.querySelector("video.saver-media");
   if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
 }
@@ -2466,10 +2596,25 @@ function syncSaverFields() {
   const url = document.getElementById("saverUrl");
   if (url && document.activeElement !== url) url.value = settings.saverUrl || "";
   const custom = settings.saverStyle === "custom";
+  const timed = custom && isTimedMedia(settings.saverUrl || "");
   const urlRow = document.getElementById("saverUrlRow");
   const colorRows = document.getElementById("saverColorRows");
+  const tuneRows = document.getElementById("saverTuneRows");
+  const mediaRow = document.getElementById("saverMediaSpeedRow");
   if (urlRow) urlRow.style.display = custom ? "" : "none";
   if (colorRows) colorRows.style.display = custom ? "none" : "";
+  if (tuneRows) tuneRows.style.display = custom ? "none" : "";
+  if (mediaRow) mediaRow.style.display = timed ? "" : "none";
+  const setRange = (id, valId, value, digits) => {
+    const el = document.getElementById(id);
+    const lab = document.getElementById(valId);
+    if (el && document.activeElement !== el) el.value = String(value);
+    if (lab) lab.textContent = digits ? Number(value).toFixed(digits) + "x" : String(value);
+  };
+  setRange("saverSpeed", "saverSpeedVal", settings.saverSpeed || 1, 2);
+  setRange("saverCount", "saverCountVal", settings.saverCount || 18, 0);
+  setRange("saverSize", "saverSizeVal", settings.saverSize || 1, 2);
+  setRange("saverMediaSpeed", "saverMediaSpeedVal", settings.saverMediaSpeed || 1, 2);
   const ca = document.getElementById("saverColorA");
   const cb = document.getElementById("saverColorB");
   if (ca && document.activeElement !== ca) ca.value = safeColorValue(settings.saverColorA, "#7aa2ff");
@@ -2662,7 +2807,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverEnabled: settings.saverEnabled, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, saverColorA: settings.saverColorA, saverColorB: settings.saverColorB, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverEnabled: settings.saverEnabled, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, saverColorA: settings.saverColorA, saverColorB: settings.saverColorB, saverSpeed: settings.saverSpeed, saverCount: settings.saverCount, saverSize: settings.saverSize, saverMediaSpeed: settings.saverMediaSpeed, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -3179,6 +3324,7 @@ if (saverUrlEl) saverUrlEl.addEventListener("input", () => {
   save();
   if (saverUrlTimer) clearTimeout(saverUrlTimer);
   saverUrlTimer = setTimeout(() => {
+    syncSaverFields();
     if (saverVisible && settings.saverStyle === "custom") renderSaverVisual();
   }, 400);
 });
@@ -3188,8 +3334,39 @@ if (saverUrlEl) saverUrlEl.addEventListener("input", () => {
   el.addEventListener("input", () => {
     settings[id] = el.value;
     save();
+    if (saverVisible && settings.saverStyle !== "custom") renderSaverVisual();
   });
 });
+function bindSaverRange(id, key, digits, restart) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const paint = () => {
+    let n = Number(el.value);
+    if (!Number.isFinite(n)) n = 1;
+    if (key === "saverCount") n = Math.max(4, Math.min(80, Math.round(n)));
+    settings[key] = n;
+    const lab = document.getElementById(id + "Val");
+    if (lab) lab.textContent = digits ? n.toFixed(digits) + "x" : String(Math.round(n));
+  };
+  el.addEventListener("input", paint);
+  el.addEventListener("change", () => {
+    paint();
+    save();
+    if (!saverVisible) return;
+    if (key === "saverMediaSpeed") {
+      const video = document.querySelector("#veilSaver video.saver-media");
+      if (video && !video.hidden) {
+        try { video.playbackRate = settings.saverMediaSpeed; } catch (e) {}
+      } else renderSaverVisual();
+      return;
+    }
+    if (restart) renderSaverVisual();
+  });
+}
+bindSaverRange("saverSpeed", "saverSpeed", 2, true);
+bindSaverRange("saverCount", "saverCount", 0, true);
+bindSaverRange("saverSize", "saverSize", 2, true);
+bindSaverRange("saverMediaSpeed", "saverMediaSpeed", 2, false);
 ["mousemove", "mousedown", "keydown", "touchstart", "wheel"].forEach((ev) => {
   window.addEventListener(ev, noteSaverActivity, { passive: true, capture: true });
 });
@@ -3260,30 +3437,52 @@ if (maxRange) {
 
 on("saveUsername", () => {
   const name = (document.getElementById("newUsername")?.value || "").trim();
-  if (!name) { alert("Enter a name."); return; }
+  const msg = document.getElementById("usernameMsg");
+  const setMsg = (m, bad) => { if (msg) { msg.textContent = m; msg.style.color = bad ? "var(--danger)" : "var(--muted)"; } };
+  if (!name) { setMsg("Enter a display name.", true); return; }
   profile.name = name;
-  save();
+  saveProfile();
+  document.querySelectorAll(".welcome-line").forEach((el) => {
+    el.textContent = "Welcome to Veil, " + name + ".";
+  });
   const el = document.getElementById("newUsername");
   if (el) el.value = "";
   startWelcomeClock();
-  alert("Username updated.");
+  setMsg("Display name updated.", false);
 });
 document.getElementById("profileFile")?.addEventListener("change", (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  if (!/^image\//.test(file.type || "")) { alert("Choose an image."); return; }
-  if (file.size > 1400000) { alert("That picture is too large. Use one under 1.4 MB."); e.target.value = ""; return; }
+  if (!/^image\//.test(file.type || "")) return;
   const reader = new FileReader();
   reader.onload = () => {
-    profile.avatar = String(reader.result || "");
-    save();
-    paintProfilePreview();
+    const raw = String(reader.result || "");
+    const img = new Image();
+    img.onload = () => {
+      const max = 256;
+      const scale = Math.min(1, max / Math.max(img.width || 1, img.height || 1));
+      const w = Math.max(1, Math.round((img.width || 1) * scale));
+      const h = Math.max(1, Math.round((img.height || 1) * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      profile.avatar = canvas.toDataURL("image/jpeg", 0.82);
+      saveProfile();
+      paintProfilePreview();
+    };
+    img.onerror = () => {
+      profile.avatar = raw;
+      saveProfile();
+      paintProfilePreview();
+    };
+    img.src = raw;
   };
   reader.readAsDataURL(file);
 });
 on("profileClear", () => {
   profile.avatar = "";
-  save();
+  saveProfile();
   const input = document.getElementById("profileFile");
   if (input) input.value = "";
   paintProfilePreview();
@@ -3302,8 +3501,8 @@ on("savePassword", () => {
     setMsg("Current password is incorrect.", true);
     return;
   }
-  if (n1.length < 3) {
-    setMsg("New password is too short.", true);
+  if (n1.length < 4) {
+    setMsg("Password must be at least 4 characters.", true);
     return;
   }
   if (n1 !== n2) {
@@ -3311,7 +3510,7 @@ on("savePassword", () => {
     return;
   }
   profile.password = n1;
-  save();
+  saveProfile();
   ["curPassword", "newPassword", "newPassword2"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
@@ -3734,6 +3933,10 @@ async function bootVeilApp() {
       saverUrl: settings.saverUrl,
       saverColorA: settings.saverColorA,
       saverColorB: settings.saverColorB,
+      saverSpeed: settings.saverSpeed,
+      saverCount: settings.saverCount,
+      saverSize: settings.saverSize,
+      saverMediaSpeed: settings.saverMediaSpeed,
       customOutline: settings.customOutline,
       colorMode: settings.colorMode,
       customPalette: settings.customPalette
