@@ -156,8 +156,12 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 
 .close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
 .panel-body{padding:20px;overflow-y:auto}
-.settings-cat{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);opacity:.85;margin:28px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
-.settings-cat:first-child{margin-top:0}
+.settings-tabs{display:flex;align-items:stretch;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--panel);padding:0 6px}
+.settings-tab{flex:1 1 0;min-width:0;height:40px;padding:0 4px;background:transparent;color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.01em;cursor:pointer;border:0;border-bottom:2px solid transparent;border-radius:0;white-space:nowrap}
+.settings-tab:hover{color:var(--text)}
+.settings-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.settings-page{display:none}
+.settings-page.active{display:block}
 .setting-section{margin-bottom:22px}
 .panel-body{animation:panelIn .22s ease}
 @keyframes panelIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
@@ -188,6 +192,18 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .input-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .input-label{width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)}
 .text-input,select.text-input{flex:1;min-width:0;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 10px;font-size:12px}
+select.text-input,.modal-box select{
+  appearance:none;-webkit-appearance:none;
+  width:100%;
+  padding:0 32px 0 12px;
+  line-height:1;
+  background-color:var(--bg2);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.25 L6 6.25 L11 1.25' fill='none' stroke='%23999999' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+  background-size:12px 8px;
+}
+.input-row select.text-input{width:auto}
 .text-input:focus,select.text-input:focus{border-color:var(--accent)}
 .color-input{width:45px;height:36px;padding:3px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer}
 .primary-btn{width:100%;height:38px;border-radius:9px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:12px;font-weight:600;margin-top:4px}
@@ -861,18 +877,16 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 
 <aside class="panel" id="settingsPanel">
   <div class="panel-head"><span>Settings</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
+  <div class="settings-tabs" role="tablist">
+    <button type="button" class="settings-tab active" data-settings-tab="custom" role="tab">Customization</button>
+    <button type="button" class="settings-tab" data-settings-tab="privacy" role="tab">Privacy</button>
+    <button type="button" class="settings-tab" data-settings-tab="browser" role="tab">Browser</button>
+    <button type="button" class="settings-tab" data-settings-tab="account" role="tab">Account</button>
+  </div>
   <div class="panel-body">
-
-    <div class="settings-cat">Customization</div>
+    <div class="settings-page active" data-settings-page="custom">
     <section class="setting-section">
-      <div class="setting-title">Appearance <button type="button" class="info-btn" data-info="appearance" title="About this option" aria-label="About Appearance"><img src="image/info.svg" alt=""></button></div>
-      <div class="switch-row">
-        <span class="switch-label">Light mode</span>
-        <button type="button" class="switch" id="lightModeSwitch" role="switch" aria-checked="false"></button>
-      </div>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Site theme colors <button type="button" class="info-btn" data-info="theme" title="About this option" aria-label="About Site theme colors"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Theme colors <button type="button" class="info-btn" data-info="theme" title="About this option" aria-label="About Theme colors"><img src="image/info.svg" alt=""></button></div>
       <div class="preset-grid" id="themeGrid">
         <button class="preset" type="button" data-theme="scarlet"><div class="preset-name">Scarlet</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0606"></span><span class="preset-dot" style="background:#ff2a2a"></span><span class="preset-dot" style="background:#ffe0e0"></span></div></button>
         <button class="preset" type="button" data-theme="crimson"><div class="preset-name">Crimson</div><div class="preset-preview"><span class="preset-dot" style="background:#140808"></span><span class="preset-dot" style="background:#e63232"></span><span class="preset-dot" style="background:#ffd6d6"></span></div></button>
@@ -913,7 +927,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
       </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Home page animations <button type="button" class="info-btn" data-info="animations" title="About this option" aria-label="About Home page animations"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Live wallpaper <button type="button" class="info-btn" data-info="animations" title="About this option" aria-label="About Live wallpaper"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Enable animations</span>
         <button type="button" class="switch" id="animEnabledSwitch" role="switch" aria-checked="false"></button>
@@ -962,8 +976,9 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         </div>
       </div>
     </section>
+    </div>
 
-    <div class="settings-cat">Privacy</div>
+    <div class="settings-page" data-settings-page="privacy">
     <section class="setting-section">
       <div class="setting-title">Tab cloak <button type="button" class="info-btn" data-info="cloak" title="About this option" aria-label="About Tab cloak"><img src="image/info.svg" alt=""></button></div>
       <select class="text-input" id="cloakPresetSelect">
@@ -1012,8 +1027,9 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <button type="button" class="switch" id="confirmLeaveSwitch" role="switch" aria-checked="false"></button>
       </div>
     </section>
+    </div>
 
-    <div class="settings-cat">Browser</div>
+    <div class="settings-page" data-settings-page="browser">
     <section class="setting-section">
       <div class="setting-title">Search engine <button type="button" class="info-btn" data-info="search" title="About this option" aria-label="About Search engine"><img src="image/info.svg" alt=""></button></div>
       <select class="text-input" id="searchEngineSelect">
@@ -1049,8 +1065,9 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
       </div>
       <div class="status" id="engineStatus">Starting...</div>
     </section>
+    </div>
 
-    <div class="settings-cat">Misc</div>
+    <div class="settings-page" data-settings-page="account">
     <section class="setting-section">
       <div class="setting-title">Change username <button type="button" class="info-btn" data-info="username" title="About this option" aria-label="About Change username"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><input class="text-input" id="newUsername" placeholder="New display name"></div>
@@ -1065,11 +1082,11 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
       <p class="hint" id="passwordMsg"></p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Account <button type="button" class="info-btn" data-info="account" title="About this option" aria-label="About Account"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Sign out <button type="button" class="info-btn" data-info="account" title="About this option" aria-label="About Sign out"><img src="image/info.svg" alt=""></button></div>
       <button class="secondary-btn" id="signOutBtn" type="button">Sign out</button>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Clear cookies &amp; cache <button type="button" class="info-btn" data-info="cleardata" title="About this option" aria-label="About Clear cookies &amp; cache"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Clear local data <button type="button" class="info-btn" data-info="cleardata" title="About this option" aria-label="About Clear local data"><img src="image/info.svg" alt=""></button></div>
       <button class="secondary-btn" id="clearLocalData" type="button">Clear local data</button>
     </section>
     <section class="setting-section">
@@ -1077,9 +1094,10 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
       <button class="secondary-btn" id="resetSettings" type="button">Factory reset</button>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Admin <button type="button" class="info-btn" data-info="admin" title="About this option" aria-label="About Admin"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Admin panel <button type="button" class="info-btn" data-info="admin" title="About this option" aria-label="About Admin panel"><img src="image/info.svg" alt=""></button></div>
       <button class="secondary-btn" id="openAdminPanel" type="button">Open admin panel</button>
     </section>
+    </div>
   </div>
 </aside>
 

@@ -417,7 +417,7 @@ function migrateSettings() {
   if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.saverStyle)) settings.saverStyle = "orbs";
   if (typeof settings.saverUrl !== "string") settings.saverUrl = "";
   if (typeof settings.customOutline !== "string") settings.customOutline = "";
-  if (settings.colorMode !== "light" && settings.colorMode !== "dark") settings.colorMode = "dark";
+  if (settings.colorMode !== "dark") settings.colorMode = "dark";
   if (typeof settings.saverDelay !== "string") settings.saverDelay = "";
   if (!settings.saverDelay && Number(settings.saverMinutes) > 0) settings.saverDelay = String(Number(settings.saverMinutes)) + "m";
   if (typeof settings.saverEnabled !== "boolean") settings.saverEnabled = !!parseVeilDuration(settings.saverDelay);
@@ -563,10 +563,10 @@ function applyCSSVariables() {
   const keys = ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"];
   const src = {};
   keys.forEach((k) => { src[k] = settings[k]; });
-  const colors = settings.colorMode === "light" ? toLightPalette(src) : src;
+  const colors = src;
   const root = document.documentElement;
   keys.forEach((k) => root.style.setProperty("--" + k, colors[k]));
-  root.dataset.mode = settings.colorMode === "light" ? "light" : "dark";
+  root.dataset.mode = "dark";
 }
 function isVideoUrl(url) {
   return /\.(mp4|webm|ogg)(\?|#|$)/i.test(url || "");
@@ -2557,7 +2557,6 @@ function highlightTheme() {
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
     setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
-    setSwitch(document.getElementById("lightModeSwitch"), settings.colorMode === "light");
     const animOpts = document.getElementById("animOpts");
     if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
     const range = document.getElementById("maxLoadedTabs");
@@ -3085,11 +3084,16 @@ on("time24Switch", () => {
   settings.timeFormat = settings.timeFormat === "24" ? "12" : "24";
   save(); highlightTheme(); startWelcomeClock();
 });
-on("lightModeSwitch", () => {
-  settings.colorMode = settings.colorMode === "light" ? "dark" : "light";
-  save();
-  applyCSSVariables();
-  highlightTheme();
+document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const name = btn.getAttribute("data-settings-tab");
+    document.querySelectorAll("[data-settings-tab]").forEach((el) => {
+      el.classList.toggle("active", el === btn);
+    });
+    document.querySelectorAll("[data-settings-page]").forEach((page) => {
+      page.classList.toggle("active", page.getAttribute("data-settings-page") === name);
+    });
+  });
 });
 const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
