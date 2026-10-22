@@ -1126,15 +1126,19 @@ function fitHomeScale(wrapper) {
   const stage = wrapper.querySelector(".newtab-stage");
   const box = wrapper.querySelector(".newtab-overlay");
   if (!page || !stage || !box) return;
-  const pw = box.clientWidth || page.clientWidth || 1;
-  const ph = box.clientHeight || page.clientHeight || 1;
-  const s = Math.min(pw / HOME_DESIGN_W, ph / HOME_DESIGN_H);
-  const clamped = Math.max(0.45, Math.min(s, 1));
+  const naturalW = stage.offsetWidth || HOME_DESIGN_W;
+  const naturalH = stage.offsetHeight || HOME_DESIGN_H;
+  const pw = Math.max(1, box.clientWidth || page.clientWidth || 1);
+  const ph = Math.max(1, box.clientHeight || page.clientHeight || 1);
+  const s = Math.min(pw / naturalW, ph / naturalH);
+  const clamped = Math.max(0.38, Math.min(s, 1));
+  const extraW = naturalW * (1 - clamped);
+  const extraH = naturalH * (1 - clamped);
   stage.style.setProperty("--home-scale", String(clamped));
-  stage.style.marginLeft = (-HOME_DESIGN_W * (1 - clamped) / 2) + "px";
-  stage.style.marginRight = stage.style.marginLeft;
-  stage.style.marginTop = (-HOME_DESIGN_H * (1 - clamped) / 2) + "px";
-  stage.style.marginBottom = stage.style.marginTop;
+  stage.style.marginLeft = (-extraW / 2) + "px";
+  stage.style.marginRight = (-extraW / 2) + "px";
+  stage.style.marginTop = (-extraH / 2) + "px";
+  stage.style.marginBottom = (-extraH / 2) + "px";
 }
 
 function observeHomeScale(wrapper) {
@@ -1149,6 +1153,8 @@ function observeHomeScale(wrapper) {
   ro.observe(page);
   const box = wrapper.querySelector(".newtab-overlay");
   if (box) ro.observe(box);
+  const stage = wrapper.querySelector(".newtab-stage");
+  if (stage) ro.observe(stage);
   homeScaleObservers.set(wrapper, ro);
   window.addEventListener("resize", () => fitHomeScale(wrapper));
 }
@@ -1178,7 +1184,11 @@ function homepageHTML(pageId) {
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
     '</div></div></div>' +
-    '<div class="time-bar" id="timeBar">Time Remaining: …</div></div>'
+    '<div class="time-bar" id="timeBar">' +
+    '<span class="time-left">Time Remaining: …</span>' +
+    '<span class="time-battery" hidden><img alt="" width="18" height="18"><span class="time-battery-pct"></span></span>' +
+    '<span class="time-os"></span>' +
+    '</div></div>'
   );
 }
 
@@ -3816,12 +3826,107 @@ function formatAccessLeft(meta) {
   return meta.timeLeft || "—";
 }
 
+function detectOSName() {
+  const ua = navigator.userAgent || "";
+  let plat = "";
+  try { plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || ""; } catch (e) {}
+  if (/CrOS|Chromebook|Chrome OS/i.test(ua) || /Chrome OS/i.test(plat)) return "ChromeOS";
+  if (/Win/i.test(plat) || /Windows/i.test(ua)) return "WindowsOS";
+  if (/Mac/i.test(plat) || /Macintosh|Mac OS/i.test(ua)) return "MacOS";
+  if (/Linux|X11/i.test(plat) || /Linux/i.test(ua)) return "LinuxOS";
+  return "";
+}
+
+function batteryStep(level) {
+  const pct = Math.max(0, Math.min(100, Number(level) * 100));
+  return Math.max(0, Math.min(100, Math.round(pct / 5) * 5));
+}
+
+function batteryIcon(step, charging) {
+  const folder = charging ? "charging" : "normal";
+  const file = (charging ? "batteryCharge" : "battery") + step + ".svg";
+  return IMG + "battery/" + folder + "/" + file;
+}
+
+let batteryManager = null;
+let batteryKnown = false;
+function isNoBattery(batt) {
+  if (!batt || typeof batt.level !== "number") return true;
+  return batt.charging === true && batt.level >= 0.995 && batt.chargingTime === 0 && !isFinite(batt.dischargingTime);
+}
+function paintBattery() {
+  const slots = document.querySelectorAll(".time-battery");
+  if (!slots.length) return;
+  if (!batteryKnown) {
+    slots.forEach((el) => { el.hidden = true; });
+    return;
+  }
+  const none = isNoBattery(batteryManager);
+  const step = none ? 100 : batteryStep(batteryManager.level);
+  const src = batteryIcon(step, none ? true : !!batteryManager.charging);
+  slots.forEach((el) => {
+    const img = el.querySelector("img");
+    const pct = el.querySelector(".time-battery-pct");
+    if (img && img.getAttribute("src") !== src) img.src = src;
+    if (pct) {
+      pct.hidden = none;
+      pct.textContent = none ? "" : (step + "%");
+    }
+    el.hidden = false;
+  });
+}
+
+function startBattery() {
+  if (batteryKnown) return;
+  if (!navigator.getBattery) {
+    batteryKnown = true;
+    batteryManager = null;
+    paintBattery();
+    return;
+  }
+  navigator.getBattery().then((batt) => {
+    batteryManager = batt;
+    batteryKnown = true;
+    const tick = () => paintBattery();
+    tick();
+    batt.addEventListener("levelchange", tick);
+    batt.addEventListener("chargingchange", tick);
+    batt.addEventListener("chargingtimechange", tick);
+    batt.addEventListener("dischargingtimechange", tick);
+  }).catch(() => {
+    batteryKnown = true;
+    batteryManager = null;
+    paintBattery();
+  });
+}
+
 function updateAccessTimeBar() {
-  const bars = document.querySelectorAll("#timeBar, .time-bar");
+  const bars = document.querySelectorAll(".time-bar");
   if (!bars.length) return;
   const meta = (window.VeilAccess && window.VeilAccess.getMeta && window.VeilAccess.getMeta()) || null;
   const text = "Time Remaining: " + formatAccessLeft(meta);
-  bars.forEach((el) => { el.textContent = text; });
+  const os = detectOSName();
+  bars.forEach((el) => {
+    let left = el.querySelector(".time-left");
+    if (!left) {
+      el.textContent = "";
+      left = document.createElement("span");
+      left.className = "time-left";
+      const batt = document.createElement("span");
+      batt.className = "time-battery";
+      batt.hidden = true;
+      batt.innerHTML = '<img alt="" width="18" height="18"><span class="time-battery-pct"></span>';
+      const osEl = document.createElement("span");
+      osEl.className = "time-os";
+      el.appendChild(left);
+      el.appendChild(batt);
+      el.appendChild(osEl);
+    }
+    left.textContent = text;
+    const osEl = el.querySelector(".time-os");
+    if (osEl) osEl.textContent = os;
+  });
+  paintBattery();
 }
 
 setInterval(updateAccessTimeBar, 1000);
@@ -3891,6 +3996,7 @@ async function bootVeilApp() {
   startWelcomeClock();
   try { startLivePings(); } catch (e) {}
   try { armSaver(); } catch (e) {}
+  try { startBattery(); } catch (e) {}
   // Engine loads on first navigation (saves memory)
   // initEngine().then(() => pushAdblockToSW()).catch(() => {});
   setTimeout(syncAboutBlankChrome, 100);

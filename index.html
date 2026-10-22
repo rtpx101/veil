@@ -90,10 +90,10 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .page-loader-skip{height:38px;padding:0 18px;border-radius:999px;background:var(--accent);color:var(--accentText);font-size:13px;font-weight:650;cursor:pointer}
 .page-loader-skip:hover{filter:brightness(1.08)}
 
-.newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column}
+.newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column;--timebar-h:36px}
 .newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
 .newtab-media-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
-.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:0;box-sizing:border-box}
+.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px 0 var(--timebar-h);box-sizing:border-box}
 /* Fixed design stage — scaled as one unit so layout never squeezes or drops pieces */
 .newtab-stage{
   width:700px;
@@ -148,7 +148,13 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .lock-screen .lock-go{width:100%;height:44px;border-radius:12px;background:var(--accent);color:var(--accentText);font-weight:650;cursor:pointer}
 .lock-screen .lock-err{color:var(--danger);font-size:12px;min-height:18px;margin-bottom:8px}
 
-.time-bar{position:relative;flex-shrink:0;left:auto;right:auto;bottom:auto;height:36px;padding:0 14px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:2}
+.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,36px);padding:0 18px;display:flex;align-items:center;justify-content:center;gap:28px;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:3;box-sizing:border-box}
+.time-left,.time-os{white-space:nowrap}
+.time-battery{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.time-battery[hidden]{display:none !important}
+.time-battery img{width:18px;height:18px;display:block;filter:invert(var(--page-icon-invert,1));opacity:.9}
+.time-battery-pct{font-variant-numeric:tabular-nums;color:var(--muted)}
+.time-battery-pct[hidden]{display:none !important}
 
 .menu{position:fixed;top:88px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
 .menu.open{display:block}
@@ -552,7 +558,8 @@ body.boot-reveal #browser{
   .toolbar .icon-btn{width:30px;height:30px}
   .url-wrap{height:30px}
   .url-input{font-size:12px}
-  .time-bar{height:30px;font-size:11px;padding:0 10px}
+  .newtab-page{--timebar-h:30px}
+  .time-bar{font-size:11px;padding:0 10px;gap:16px}
   .settings-panel,.history-panel{width:min(100vw - 16px, 400px)}
 }
 /* Homepage scales via --home-scale; do not hide features on short viewports */
