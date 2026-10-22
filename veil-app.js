@@ -1122,23 +1122,29 @@ const homeScaleObservers = new WeakMap();
 
 function fitHomeScale(wrapper) {
   if (!wrapper || !wrapper.isConnected) return;
-  const page = wrapper.classList.contains("newtab-page") ? wrapper : wrapper.querySelector(".newtab-page");
   const stage = wrapper.querySelector(".newtab-stage");
   const box = wrapper.querySelector(".newtab-overlay");
-  if (!page || !stage || !box) return;
+  if (!stage || !box || stage.dataset.fitting === "1") return;
+  stage.dataset.fitting = "1";
+  const prevZoom = stage.style.zoom;
+  stage.style.zoom = "1";
+  stage.style.margin = "0";
+  stage.style.transform = "none";
   const naturalW = stage.offsetWidth || HOME_DESIGN_W;
   const naturalH = stage.offsetHeight || HOME_DESIGN_H;
-  const pw = Math.max(1, box.clientWidth || page.clientWidth || 1);
-  const ph = Math.max(1, box.clientHeight || page.clientHeight || 1);
-  const s = Math.min(pw / naturalW, ph / naturalH);
-  const clamped = Math.max(0.38, Math.min(s, 1));
-  const extraW = naturalW * (1 - clamped);
-  const extraH = naturalH * (1 - clamped);
-  stage.style.setProperty("--home-scale", String(clamped));
-  stage.style.marginLeft = (-extraW / 2) + "px";
-  stage.style.marginRight = (-extraW / 2) + "px";
-  stage.style.marginTop = (-extraH / 2) + "px";
-  stage.style.marginBottom = (-extraH / 2) + "px";
+  const cs = getComputedStyle(box);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const pw = Math.max(1, box.clientWidth - padX);
+  const ph = Math.max(1, box.clientHeight - padY);
+  let s = Math.min(pw / naturalW, ph / naturalH);
+  if (!isFinite(s) || s <= 0) s = 1;
+  s = Math.min(1, s);
+  const next = String(Math.round(s * 1000) / 1000);
+  stage.style.zoom = next;
+  stage.style.setProperty("--home-scale", next);
+  stage.dataset.fitting = "0";
+  if (prevZoom === next) return;
 }
 
 function observeHomeScale(wrapper) {
@@ -1153,8 +1159,7 @@ function observeHomeScale(wrapper) {
   ro.observe(page);
   const box = wrapper.querySelector(".newtab-overlay");
   if (box) ro.observe(box);
-  const stage = wrapper.querySelector(".newtab-stage");
-  if (stage) ro.observe(stage);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitHomeScale(wrapper));
   homeScaleObservers.set(wrapper, ro);
   window.addEventListener("resize", () => fitHomeScale(wrapper));
 }
@@ -1184,11 +1189,11 @@ function homepageHTML(pageId) {
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
     '</div></div></div>' +
-    '<div class="time-bar" id="timeBar">' +
+    '<div class="time-bar" id="timeBar"><div class="time-cluster">' +
     '<span class="time-left">Time Remaining: …</span>' +
     '<span class="time-battery" hidden><img alt="" width="18" height="18"><span class="time-battery-pct"></span></span>' +
     '<span class="time-os"></span>' +
-    '</div></div>'
+    '</div></div></div>'
   );
 }
 
@@ -3910,6 +3915,8 @@ function updateAccessTimeBar() {
     let left = el.querySelector(".time-left");
     if (!left) {
       el.textContent = "";
+      const cluster = document.createElement("div");
+      cluster.className = "time-cluster";
       left = document.createElement("span");
       left.className = "time-left";
       const batt = document.createElement("span");
@@ -3918,9 +3925,10 @@ function updateAccessTimeBar() {
       batt.innerHTML = '<img alt="" width="18" height="18"><span class="time-battery-pct"></span>';
       const osEl = document.createElement("span");
       osEl.className = "time-os";
-      el.appendChild(left);
-      el.appendChild(batt);
-      el.appendChild(osEl);
+      cluster.appendChild(left);
+      cluster.appendChild(batt);
+      cluster.appendChild(osEl);
+      el.appendChild(cluster);
     }
     left.textContent = text;
     const osEl = el.querySelector(".time-os");

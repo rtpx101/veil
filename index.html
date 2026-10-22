@@ -93,7 +93,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column;--timebar-h:36px}
 .newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
 .newtab-media-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
-.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px 0 var(--timebar-h);box-sizing:border-box}
+.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:12px 16px calc(var(--timebar-h) + 12px);box-sizing:border-box}
 /* Fixed design stage — scaled as one unit so layout never squeezes or drops pieces */
 .newtab-stage{
   width:700px;
@@ -102,9 +102,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
   display:flex;
   flex-direction:column;
   align-items:center;
-  transform:scale(var(--home-scale, 1));
-  transform-origin:center center;
-  will-change:transform;
+  zoom:var(--home-scale, 1);
 }
 .dev-banner{width:640px;max-width:640px;margin:0 auto 14px;text-align:center;font-size:clamp(18px,2.8vw,28px);font-weight:800;letter-spacing:.02em;line-height:1.25;color:#ff2a2a;text-transform:uppercase;text-shadow:0 0 18px rgba(255,42,42,.35);box-sizing:border-box}
 .welcome-bar{width:640px;max-width:640px;margin:0 auto 28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center;box-sizing:border-box}
@@ -148,9 +146,10 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .lock-screen .lock-go{width:100%;height:44px;border-radius:12px;background:var(--accent);color:var(--accentText);font-weight:650;cursor:pointer}
 .lock-screen .lock-err{color:var(--danger);font-size:12px;min-height:18px;margin-bottom:8px}
 
-.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,36px);padding:0 18px;display:flex;align-items:center;justify-content:center;gap:28px;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:3;box-sizing:border-box}
-.time-left,.time-os{white-space:nowrap}
-.time-battery{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,36px);padding:0 18px;display:flex;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
+.time-cluster{display:inline-flex;align-items:center;justify-content:center;gap:28px;max-width:100%}
+.time-left,.time-os,.time-battery{flex:0 0 auto;white-space:nowrap}
+.time-battery{display:inline-flex;align-items:center;gap:6px}
 .time-battery[hidden]{display:none !important}
 .time-battery img{width:18px;height:18px;display:block;filter:invert(var(--page-icon-invert,1));opacity:.9}
 .time-battery-pct{font-variant-numeric:tabular-nums;color:var(--muted)}
@@ -559,7 +558,8 @@ body.boot-reveal #browser{
   .url-wrap{height:30px}
   .url-input{font-size:12px}
   .newtab-page{--timebar-h:30px}
-  .time-bar{font-size:11px;padding:0 10px;gap:16px}
+  .time-bar{font-size:11px;padding:0 10px}
+  .time-cluster{gap:16px}
   .settings-panel,.history-panel{width:min(100vw - 16px, 400px)}
 }
 /* Homepage scales via --home-scale; do not hide features on short viewports */
