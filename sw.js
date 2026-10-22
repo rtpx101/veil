@@ -30,42 +30,27 @@ function isStaticAsset(path) {
 }
 
 /**
- * Only true double-proxy leaks — not normal /service/https%3A%2F%2Fexample.com
+ * Peel nested /veil/service/https://.../service/ wraps down to the real URL.
+ * Returns null when this is not a proxy path.
  */
-function unwrapDoubleProxy(pathname) {
-  if (!pathname.startsWith(PROXY_PREFIX)) return null;
-
-  let rest = pathname.slice(PROXY_PREFIX.length);
-  let decoded;
-  try {
-    decoded = decodeURIComponent(rest);
-  } catch {
-    return null;
-  }
-
-  const leakPrefix = ORIGIN + PROXY_PREFIX;
-  if (!decoded.startsWith(leakPrefix) && !decoded.startsWith(PROXY_PREFIX)) {
-    return null;
-  }
-
-  for (let i = 0; i < 5; i++) {
-    if (decoded.startsWith(leakPrefix)) {
-      decoded = decoded.slice(leakPrefix.length);
-      try { decoded = decodeURIComponent(decoded); } catch {}
-      continue;
+function peelServiceUrl(pathname) {
+  const marker = PROXY_PREFIX;
+  if (!pathname.startsWith(marker)) return null;
+  let rest = pathname.slice(marker.length);
+  for (let i = 0; i < 8; i++) {
+    let decoded = rest;
+    try { decoded = decodeURIComponent(rest); } catch (e) {}
+    if (!/^https?:\/\//i.test(decoded)) return null;
+    const originPrefix = ORIGIN + marker;
+    let next = null;
+    if (decoded.startsWith(originPrefix)) next = decoded.slice(originPrefix.length);
+    else if (decoded.startsWith(marker)) next = decoded.slice(marker.length);
+    else {
+      const at = decoded.indexOf(originPrefix);
+      if (at !== -1) next = decoded.slice(at + originPrefix.length);
     }
-    if (decoded.startsWith(ORIGIN + "/")) break;
-    if (decoded.startsWith(PROXY_PREFIX)) {
-      decoded = decoded.slice(PROXY_PREFIX.length);
-      try { decoded = decodeURIComponent(decoded); } catch {}
-      continue;
-    }
-    break;
-  }
-
-  if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
-    if (decoded.startsWith(leakPrefix) || decoded.includes(PROXY_PREFIX)) return null;
-    return decoded;
+    if (next == null) return decoded;
+    rest = next;
   }
   return null;
 }
@@ -81,16 +66,27 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       try {
-        const unwrapped = unwrapDoubleProxy(url.pathname);
-        if (unwrapped) {
-          const clean =
-            ORIGIN + PROXY_PREFIX + encodeURIComponent(unwrapped) + (url.hash || "");
-          if (clean !== url.href && !url.href.includes(encodeURIComponent(unwrapped))) {
-            return Response.redirect(clean, 302);
+        const real = peelServiceUrl(url.pathname);
+        if (real) {
+          const single = PROXY_PREFIX + encodeURIComponent(real);
+          const nested = url.pathname !== single;
+          const topDoc = event.request.mode === "navigate" && event.request.destination === "document";
+          if (topDoc) {
+            const back = ORIGIN + (BASE || "") + "/?open=" + encodeURIComponent(real);
+            return Response.redirect(back, 302);
+          }
+          if (nested) {
+            return Response.redirect(ORIGIN + single, 302);
           }
         }
 
+        // A loadConfig message can set .config without installing the codec.
+        // Clear it so loadConfig reads IndexedDB and sets prefix.
+        scramjet.config = undefined;
         await scramjet.loadConfig();
+        if (!scramjet.config || !scramjet.config.prefix) {
+          return fetch(event.request);
+        }
         if (scramjet.route(event)) {
           return await scramjet.fetch(event);
         }

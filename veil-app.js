@@ -692,25 +692,35 @@ function normalizeUrl(input) {
   return searchPrefix() + encodeURIComponent(value);
 }
 
-/** Never show https://...github.io/veil/service/... in the address bar */
+/** Collapse nested /service/ wraps back to the real site URL. */
 function unwrapProxyUrl(href) {
   if (!href || href === "about:blank") return href;
   try {
-    const u = new URL(href, location.origin);
+    let current = String(href);
+    const origin = location.origin;
     const marker = "/service/";
-    const idx = u.pathname.indexOf(marker);
-    if (idx === -1) return href;
-    let rest = u.pathname.slice(idx + marker.length);
-    if (!rest) return href;
-    for (let i = 0; i < 4; i++) {
-      try {
-        const next = decodeURIComponent(rest);
-        if (next === rest) break;
-        rest = next;
-      } catch { break; }
+    for (let i = 0; i < 8; i++) {
+      let u;
+      try { u = new URL(current, origin); } catch (e) { break; }
+      const idx = u.pathname.indexOf(marker);
+      if (idx === -1) break;
+      if (u.origin !== origin && !/github\.io$/i.test(u.hostname)) break;
+      let rest = u.pathname.slice(idx + marker.length);
+      if (u.search) rest += u.search;
+      if (u.hash) rest += u.hash;
+      let decoded = rest;
+      try { decoded = decodeURIComponent(rest); } catch (e) {}
+      if (!/^https?:\/\//i.test(decoded) || decoded === current) break;
+      current = decoded;
     }
-    if (rest.startsWith("http://") || rest.startsWith("https://")) return rest;
-  } catch {}
+    if (/^https?:\/\//i.test(current)) {
+      try {
+        const u = new URL(current);
+        if (u.origin === origin && u.pathname.indexOf(marker) !== -1) return href;
+      } catch (e) {}
+      return current;
+    }
+  } catch (e) {}
   return href;
 }
 
@@ -3994,6 +4004,12 @@ async function bootVeilApp() {
   // Always force a real home tab with content (fixes blank / guest-only shell)
   try {
     forceHomeTab();
+    const open = new URLSearchParams(location.search).get("open");
+    if (open) {
+      const target = unwrapProxyUrl(open) || open;
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+      if (/^https?:\/\//i.test(target)) navigate(target);
+    }
   } catch (e) {
     console.error("forceHomeTab", e);
     try { createTab(true); } catch (e2) {}
