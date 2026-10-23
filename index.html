@@ -662,8 +662,18 @@ body.boot-reveal #browser{
 .game-note-x:hover{background:var(--panel2)}
 .game-note-add{width:28px;height:28px;max-height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;overflow:hidden}
 .game-note-add:hover{background:var(--panel2)}
-.game-notes-tabs.is-menu{overflow:hidden}
-.game-note-menu{flex:1;min-width:0;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;padding:0 8px}
+.game-notes-tabs.is-menu{overflow:hidden;align-items:center}
+.game-note-menu{
+  flex:1;min-width:0;height:28px;border-radius:8px;border:1px solid var(--border);
+  background-color:var(--bg2);color:var(--text);font-size:12px;line-height:28px;
+  padding:0 26px 0 10px;margin:0;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.25 L6 6.25 L11 1.25' fill='none' stroke='%23999999' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 8px center;
+  background-size:10px 6px;
+}
+.game-notes-tabs.is-menu .game-note-x{margin-left:2px}
 .game-notes-editor{flex:1;display:flex;flex-direction:column;padding:8px;gap:8px;min-height:0}
 .game-note-title{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 10px;font-size:12px;box-sizing:border-box}
 html[data-mode="light"] .welcome-bar{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}
