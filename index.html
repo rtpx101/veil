@@ -90,11 +90,11 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .page-loader-skip{height:38px;padding:0 18px;border-radius:999px;background:var(--accent);color:var(--accentText);font-size:13px;font-weight:650;cursor:pointer}
 .page-loader-skip:hover{filter:brightness(1.08)}
 
-.newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column;--timebar-h:36px}
+.newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column;--timebar-h:56px}
 .newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
 .newtab-media-img,.newtab-raster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
 .newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:12px 16px calc(var(--timebar-h) + 12px);box-sizing:border-box}
-/* Fixed design stage — scaled as one unit so layout never squeezes or drops pieces */
+
 .newtab-stage{
   width:700px;
   max-width:none;
@@ -146,7 +146,8 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .lock-screen .lock-go{width:100%;height:44px;border-radius:12px;background:var(--accent);color:var(--accentText);font-weight:650;cursor:pointer}
 .lock-screen .lock-err{color:var(--danger);font-size:12px;min-height:18px;margin-bottom:8px}
 
-.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,36px);padding:0 18px;display:flex;align-items:center;justify-content:center;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
+.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,56px);padding:6px 14px 7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
+.time-dev{color:#ff2a2a;font-size:11px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;line-height:1.15;text-align:center}
 .time-cluster{display:inline-flex;align-items:center;justify-content:center;gap:28px;max-width:100%}
 .time-left,.time-os,.time-battery{flex:0 0 auto;white-space:nowrap}
 .time-battery{display:inline-flex;align-items:center;gap:6px}
@@ -163,8 +164,8 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .menu-separator{height:1px;background:var(--border);margin:6px 4px}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none}
 .backdrop.open{display:block}
-.panel{position:fixed;right:0;top:0;height:100%;width:min(430px,100%);background:var(--panel);border-left:1px solid var(--border);z-index:1200;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
-.panel.open{transform:translateX(0)}
+.panel{position:fixed;right:0;top:0;height:100%;width:min(430px,100%);background:var(--panel);border-left:1px solid var(--border);z-index:1200;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column;visibility:hidden;pointer-events:none}
+.panel.open{transform:translateX(0);visibility:visible;pointer-events:auto}
 .panel-header,.panel-head{height:56px;padding:0 16px 0 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
 .panel-header h2,.panel-head > span{font-size:16px;font-weight:600;color:var(--text)}
 .close-panel,[data-close-panel]{width:32px;height:32px;border-radius:8px;background:transparent;border:0;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 32px}
@@ -194,6 +195,7 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .search-box:focus-within{box-shadow:0 12px 40px rgba(0,0,0,.35);transform:translateY(-1px)}
 
 .setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ab-note{font-size:12px;color:var(--muted);line-height:1.45;margin:0 0 10px}
 .info-btn{width:18px;height:18px;padding:0;border:0;background:transparent;cursor:pointer;opacity:.5;display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;border-radius:50%}
 .info-btn:hover{opacity:1;background:rgba(255,255,255,.06)}
 .info-btn img{width:14px;height:14px;display:block;filter:invert(var(--icon-invert,1));opacity:.9;pointer-events:none}
@@ -275,7 +277,7 @@ select.text-input,.modal-box select{
 }
 .server-dot img,.status-dot img{
   width:10px;height:10px;display:block;
-  /* white SVG → tint via filter */
+  
   filter:brightness(0) invert(1);opacity:.55;
 }
 .server-dot.ping-good img,.status-dot.ping-good img{
@@ -347,7 +349,7 @@ select.text-input,.modal-box select{
 
 
 
-/* Access gate — matte (matches THEMES.matte) */
+
 #accessGate{
   position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;
   background:#101010;flex-direction:column;padding:24px;
@@ -448,10 +450,10 @@ body.gate-lock .panel,
 body.gate-lock .menu,
 body.gate-lock .backdrop{display:none!important}
 body.gate-lock{background:#101010}
-/* Gate visible immediately while locked — no flash of browser/panels */
+
 body.gate-lock #accessGate{display:flex!important}
 #accessGate{display:none}
-/* App loader stays visible during unlock (must not be hidden by gate-lock) */
+
 #veilAppLoad{
   position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;
   background:#0c0c0c;flex-direction:column;padding:28px;
@@ -460,7 +462,7 @@ body.gate-lock #accessGate{display:flex!important}
 #veilAppLoad.done{opacity:0;visibility:hidden;pointer-events:none}
 
 
-/* ——— Boot loader ——— */
+
 #veilBoot{
   position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;
   background:#070708;flex-direction:column;padding:28px;overflow:hidden;
@@ -534,7 +536,7 @@ body.boot-reveal #browser{
 }
 
 
-/* History panel */
+
 .history-panel{position:fixed;top:0;right:0;width:min(360px,100%);height:100%;background:var(--panel);
   border-left:1px solid var(--border);z-index:1200;display:none;flex-direction:column;padding:16px;
   animation:riseGate .3s ease}
@@ -557,10 +559,10 @@ body.boot-reveal #browser{
 .history-item a{flex:1;color:var(--text);text-decoration:none;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .history-item button{width:28px;height:28px;border:0;background:transparent;cursor:pointer;padding:4px;filter:brightness(0) invert(var(--icon-invert,1));opacity:.85}
 .history-item button:hover{opacity:1}
-.panel{animation:veilUp .28s ease}
 .menu.open{animation:veilUp .2s ease}
+.panel.open{animation:none}
 
-/* Smaller screens / low height */
+
 @media (max-width: 720px), (max-height: 640px) {
   .tabbar{height:36px;padding:0 4px}
   .tab{min-width:72px;max-width:140px;height:28px;font-size:11px;padding:0 8px}
@@ -568,19 +570,19 @@ body.boot-reveal #browser{
   .toolbar .icon-btn{width:30px;height:30px}
   .url-wrap{height:30px}
   .url-input{font-size:12px}
-  .newtab-page{--timebar-h:30px}
+  .newtab-page{--timebar-h:50px}
   .time-bar{font-size:11px;padding:0 10px}
   .time-cluster{gap:16px}
   .settings-panel,.history-panel{width:min(100vw - 16px, 400px)}
 }
-/* Homepage scales via --home-scale; do not hide features on short viewports */
+
 @media (max-width: 420px) {
   .tab{min-width:56px;max-width:100px}
   .toolbar .icon-btn#menuBtn{margin-left:0}
   .omnibox-form{gap:2px}
 }
 
-/* ——— Games page ——— */
+
 .games-page{width:100%;height:100%;overflow:auto;background:var(--bg);color:var(--text);position:relative}
 .games-hero{position:relative;width:100%;height:min(52vh,420px);min-height:260px;overflow:hidden;background:var(--bg3)}
 .games-hero-slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .6s ease}
@@ -712,115 +714,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     </div>
   </div>
 </div>
-<script>
-(function () {
-  var SUPPORT = "veilsupport01@gmail.com";
-  var WORKER = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
-  var sub = document.getElementById("bootSub");
-  var stepsEl = document.getElementById("bootSteps");
-  var boot = document.getElementById("veilBoot");
-  var steps = [];
-
-  function setSub(t) { if (sub) sub.textContent = t; }
-  function addStep(label, state) {
-    steps.push({ label: label, state: state || "run" });
-    renderSteps();
-  }
-  function setStep(i, state, label) {
-    if (!steps[i]) return;
-    steps[i].state = state;
-    if (label) steps[i].label = label;
-    renderSteps();
-  }
-  function renderSteps() {
-    if (!stepsEl) return;
-    stepsEl.innerHTML = steps.map(function (s) {
-      var mark = s.state === "ok" ? "✓ " : s.state === "fail" ? "✕ " : "· ";
-      return '<div class="' + s.state + '">' + mark + s.label + "</div>";
-    }).join("");
-  }
-
-  function fail(err) {
-    document.body.classList.add("boot-failed");
-    if (boot) boot.classList.add("err");
-    setSub("Something went wrong");
-    var msg = document.getElementById("bootErrorMsg");
-    if (msg) msg.textContent = String(err && err.message ? err.message : err || "Unknown error");
-    var retry = document.getElementById("bootRetry");
-    if (retry) retry.onclick = function () { location.reload(); };
-  }
-
-  function succeed() {
-    setSub("Ready");
-    document.body.classList.remove("booting");
-    /* Keep #veilBoot covering the page until access-gate.js dismisses it
-       after login/pending is painted — prevents menu/chrome flicker. */
-    try { window.__VEIL_BOOT_READY = true; } catch (e) {}
-    try { window.dispatchEvent(new CustomEvent("veil-boot-ready")); } catch (e) {}
-  }
-
-  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-  async function checkScripts() {
-    addStep("Page ready", "run");
-    await wait(80);
-    if (typeof window === "undefined") throw new Error("Browser environment missing");
-    setStep(0, "ok", "Page ready");
-  }
-
-  async function checkWorker() {
-    addStep("Checking access", "run");
-    setSub("Connecting…");
-    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var t = setTimeout(function () { try { ctrl && ctrl.abort(); } catch (e) {} }, 10000);
-    try {
-      var res = await fetch(WORKER + "/api/health", {
-        method: "GET",
-        signal: ctrl ? ctrl.signal : undefined,
-        cache: "no-store",
-      });
-      clearTimeout(t);
-      if (!res.ok) throw new Error("Checking access returned " + res.status);
-      var data = await res.json().catch(function () { return {}; });
-      if (!data.ok) throw new Error("Checking access is not healthy");
-      setStep(1, "ok", "Checking access");
-    } catch (e) {
-      clearTimeout(t);
-      setStep(1, "fail", "Checking access");
-      throw new Error("Could not reach access service. Check your connection, then try again. (" + (e.message || e) + ")");
-    }
-  }
-
-  async function checkAssets() {
-    addStep("Sign-in screen", "run");
-    setSub("Loading interface…");
-    await wait(120);
-    var gate = document.getElementById("accessGate");
-    if (!gate) throw new Error("Sign-in screen failed to load (missing access gate)");
-    setStep(2, "ok", "Sign-in screen");
-  }
-
-  async function run() {
-    try {
-      setSub("Getting ready…");
-      await checkScripts();
-      await checkWorker();
-      await checkAssets();
-      setSub("Almost there…");
-      await wait(280);
-      succeed();
-    } catch (e) {
-      fail(e);
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { run(); });
-  } else {
-    run();
-  }
-})();
-</script>
+<script>function _0x39cc(_0x1a413e,_0x27f735){var _0x19a3b1=_0x19a3();return _0x39cc=function(_0x39cced,_0x163abb){_0x39cced=_0x39cced-0x1db;var _0x1dfee1=_0x19a3b1[_0x39cced];if(_0x39cc['vAoBom']===undefined){var _0x9b80ce=function(_0x28405e){var _0x760466='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';var _0x1c5305='',_0x77f929='';for(var _0x459648=0x0,_0x72b175,_0x24be0b,_0x46dba9=0x0;_0x24be0b=_0x28405e['charAt'](_0x46dba9++);~_0x24be0b&&(_0x72b175=_0x459648%0x4?_0x72b175*0x40+_0x24be0b:_0x24be0b,_0x459648++%0x4)?_0x1c5305+=String['fromCharCode'](0xff&_0x72b175>>(-0x2*_0x459648&0x6)):0x0){_0x24be0b=_0x760466['indexOf'](_0x24be0b);}for(var _0x302fa1=0x0,_0x2e0de8=_0x1c5305['length'];_0x302fa1<_0x2e0de8;_0x302fa1++){_0x77f929+='%'+('00'+_0x1c5305['charCodeAt'](_0x302fa1)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0x77f929);};var _0x52eba4=function(_0x4dbb2f,_0x2ac0a7){var _0x1e9931=[],_0x656a45=0x0,_0x2d9917,_0x1a550b='';_0x4dbb2f=_0x9b80ce(_0x4dbb2f);var _0xdaffea;for(_0xdaffea=0x0;_0xdaffea<0x100;_0xdaffea++){_0x1e9931[_0xdaffea]=_0xdaffea;}for(_0xdaffea=0x0;_0xdaffea<0x100;_0xdaffea++){_0x656a45=(_0x656a45+_0x1e9931[_0xdaffea]+_0x2ac0a7['charCodeAt'](_0xdaffea%_0x2ac0a7['length']))%0x100,_0x2d9917=_0x1e9931[_0xdaffea],_0x1e9931[_0xdaffea]=_0x1e9931[_0x656a45],_0x1e9931[_0x656a45]=_0x2d9917;}_0xdaffea=0x0,_0x656a45=0x0;for(var _0x165759=0x0;_0x165759<_0x4dbb2f['length'];_0x165759++){_0xdaffea=(_0xdaffea+0x1)%0x100,_0x656a45=(_0x656a45+_0x1e9931[_0xdaffea])%0x100,_0x2d9917=_0x1e9931[_0xdaffea],_0x1e9931[_0xdaffea]=_0x1e9931[_0x656a45],_0x1e9931[_0x656a45]=_0x2d9917,_0x1a550b+=String['fromCharCode'](_0x4dbb2f['charCodeAt'](_0x165759)^_0x1e9931[(_0x1e9931[_0xdaffea]+_0x1e9931[_0x656a45])%0x100]);}return _0x1a550b;};_0x39cc['JvuPBr']=_0x52eba4,_0x1a413e=arguments,_0x39cc['vAoBom']=!![];}var _0x5c56a4=_0x19a3b1[0x0],_0x13b7a1=_0x39cced+_0x5c56a4,_0x2ce8b3=_0x1a413e[_0x13b7a1];return!_0x2ce8b3?(_0x39cc['NBBjmf']===undefined&&(_0x39cc['NBBjmf']=!![]),_0x1dfee1=_0x39cc['JvuPBr'](_0x1dfee1,_0x163abb),_0x1a413e[_0x13b7a1]=_0x1dfee1):_0x1dfee1=_0x2ce8b3,_0x1dfee1;},_0x39cc(_0x1a413e,_0x27f735);}function _0x19a3(){var _0x2a1400=['WQX7WQzJWPKRjvO/W4uPW7O','W45FW5xdSW9AW4jkka','W6aFuthdHCkEW58','a3WCmCkqtCkiWQtcSq','WQj8WPZcISozW6qBCCoB','iCoErmovm8osW7VcI8kLdG','cxmgn8kk','j8oyu8o1lmoeW5hcJ8k/h0JdGSoRWQu','fCkUFhldTseHW6bvbujOtgZdObhcVSkoW51O','WOtdH3RcLa','W6j7gmomW7pcUwZcTsNdIa','W7tdONO','W5b1emoDW77cRwJcVshdLe0','hwxcPComwMi9WPGoCti','ltpdHmoJfqrxhCorW40OkCo5fq','bmkXWRpdQ3BdPmko','vYldTCkbh18','WQxdNgXFpN9PtbTpW6JcL8kJ','r8kbpCkxW4xdJCksW6NcTSoSaW','W7jTAa','W4ikW5q5c8k/CMJcTq','ktRdKCovcI1tc8ol','WRZcJmojW5XkBWxdRxyB','WPaIbGNdNmorWO9QWQ0nW5NdKCoyySoXWRjw4Oo6','W69RW7hcTNldPsDuvmkzCbvN','WQhdIx3cLJZdPmkrWQVcMMtIGzy','W53cVSoeWP/dGW3cVdxcSW','DbBcGNG','jCkTCgtdSGuHW71g','ct7dLCofeGHuh8kFW5Gjm8ovaLK','W7rSEhBcOCk6f8o7W7VcMCokWRRcKSoD','BCk/t8kokgdcPtn4','pCoOfSkRgMBcKcHY','a1/cHX5aW77cKCkOnq','CWpdLtDLW6/cICkQymoFW7SOFSoec3RcRKLQz8ozyCktv3hcU2FcJmk5W48','WPpdQmk7WO03','vHaxiSo7W7BdISkl','axJdJ2OAou3cGCkq','vc7cIMKCleK','z3VdJSk4WPVdSLpdILpcRq','WOtdTCkPWOKZedBdRL3cICkquCoy','W4L6e8ksm8kpW6q','sSohDmobvfe','FaRcGMlcQdhdPmk9x8kiD8kX','EZDYW7b9WPr+wZTQWPWkW57cJW','WRZdKH8hW6aprmkRW5VdHf99DokcTa','aLVcIgW9WRhdN8o9i8ogW7S6D8oM','WOldS8k1WO07cJi','utJdSmkqdeu0WPSp','iCoTwSoRWRZdJ8kQW43cNmoHd8oRgvZdLdtcIq','W6z6WQz5W4O9ouSJW4rGW6HeWRdcHazKjmkzWQHZW4FcGG','WQy/paVdTCkwmCoUW4tcR8oP','W7FcImodWRG','wcDaemkLxmkeWR/cTW','W5FcVCokW5FcL0JdPw/cNbaiACoCca','WPmOsa','stpdP8kgc0S/','c8owWQ3dPKBcGW','WRCWWQ7dRG','WRtdJSkcW6hdSSkFW7yyuvlcM8ktqa','WQOOdGhdQSoiWOC4WQ8gW5/dQ8oFDSo8','ECouWRXbqtiBW68H','h8kLWRBcUSkGECk1WRhdTmoJhH9DWOm','WR0HxCklpmo2sh3dVwW7Aq3dG8ky','FSorWROueNnkW6OWW4hcNMGS','nComW5nqqqxdRY0PgHXEv8oIW4bFc8k3dCoYWPJcUJxcGvHoW5C','WO3cHSoDW5rxhb/dO3zEWOPDW6StW5fGqmoLW53cRxa5W58XW63dJSoGECkaWRBdVKxdTeddISkTzw4UWR0KD8kuFSo8cqrvsgJcTCk0hSkmnx/cHmkZW6dcHK1kEmkpceLFWOqqicNdKW','cZFdPmkCruq/WP8hrWi','xWNcGhNcNJFcTSkMrCkGDSkZ4OoO','W6iXW4q','rhpdJSkZW5RdRa','yWldLZOJW6/cICoTm8oDW6OUFSoz','W7eRW5lcOc8AWPr8WP8xWOa','nmoyx8oea8ooW5lcNSk0bx4','W4r7fmkh','dCkuWOtdMLNdN3eZtdmLF8ouWO3cICo6amkLW5aTW70/WReZW4i','W4uQW4hcTCoxW6eLoSohW7bZEvi','nmkEl0pdQq'];_0x19a3=function(){return _0x2a1400;};return _0x19a3();}(function(_0x41ca0b,_0x3ea8a4){var _0x5507dc={_0x469276:0x1f9,_0x5f5db8:'o3XS',_0x12e29f:0x1f2,_0x25992e:'Wu[l',_0x23d8de:'JAw3',_0x1f0ba9:0x1f0,_0x5e11b5:'Smgf',_0x23f494:0x213,_0x440b44:')#$L',_0x499824:0x20b,_0x7658bc:'NyPu',_0x45a32b:'Ry7k',_0x481b74:0x215,_0x5050c6:'6KTi'},_0x428226=_0x39cc,_0x191b1b=_0x41ca0b();while(!![]){try{var _0x2abb54=-parseInt(_0x428226(_0x5507dc._0x469276,_0x5507dc._0x5f5db8))/0x1*(parseInt(_0x428226(_0x5507dc._0x12e29f,_0x5507dc._0x25992e))/0x2)+parseInt(_0x428226(0x1e7,_0x5507dc._0x23d8de))/0x3*(-parseInt(_0x428226(_0x5507dc._0x1f0ba9,_0x5507dc._0x5e11b5))/0x4)+-parseInt(_0x428226(_0x5507dc._0x23f494,_0x5507dc._0x440b44))/0x5+parseInt(_0x428226(_0x5507dc._0x499824,_0x5507dc._0x7658bc))/0x6*(parseInt(_0x428226(0x20d,_0x5507dc._0x45a32b))/0x7)+parseInt(_0x428226(_0x5507dc._0x481b74,'#Qn]'))/0x8*(-parseInt(_0x428226(0x220,'M16c'))/0x9)+-parseInt(_0x428226(0x1e5,'1nfl'))/0xa*(-parseInt(_0x428226(0x1f8,_0x5507dc._0x5050c6))/0xb)+parseInt(_0x428226(0x206,'o3XS'))/0xc;if(_0x2abb54===_0x3ea8a4)break;else _0x191b1b['push'](_0x191b1b['shift']());}catch(_0x3db245){_0x191b1b['push'](_0x191b1b['shift']());}}}(_0x19a3,0x530d0),(function(){var _0x4bf4d6={_0x36e49c:0x20a,_0x4f4be2:'5[6W',_0x22c7c1:'NyPu',_0x35f087:0x1f7,_0x45d4db:'Bdu]',_0x4a14ad:'i(P]',_0x1fcf9a:'1#[f'},_0x48eb9f={_0x2ff829:0x205,_0x3df3a4:0x21c,_0x66894c:'lDl#'},_0x31aa4c={_0x416bd1:0x1ef,_0x30a6df:'5[6W',_0x1d42fa:0x1dd},_0x151ebc={_0x2fa995:0x217,_0x5d8473:0x208,_0x56a938:'1nfl',_0xe50e69:0x21b,_0x2d9e7b:'1nfl',_0x253890:'N!#d',_0x4cc0ab:0x223,_0x39bfbd:0x1e8,_0xddfa48:'1nfl',_0xafe7b7:'lDl#',_0x1d55dc:'i(P]'},_0x2c79e5={_0x509f66:0x1ff,_0x495654:'N!#d',_0x3dd4d0:0x219},_0x514d24={_0x2bf104:0x222,_0x424dcc:'!B3s',_0x4370f7:'NRBe',_0x9dfb38:'ejla',_0x517410:'ZfzX'},_0x501dbf={_0x2eba9d:'7)uX',_0xdb8d88:0x1eb,_0x392d87:0x1e4,_0x6e10f6:'@m6r',_0x42d03e:0x1e0,_0x767859:0x221,_0xf53f40:'I)jR',_0x351078:0x224,_0x31f620:0x216,_0x1d06ef:'dcv&',_0x5049db:'[R7n'},_0x1c0c84={_0xbb5558:0x1db,_0x381863:0x212,_0xe8a043:'Smgf'},_0x533e64={_0x453360:')#$L'},_0x553dd6=_0x39cc,_0x52eba4=_0x553dd6(_0x4bf4d6._0x36e49c,'unxp'),_0x28405e=(localStorage['getItem'](_0x553dd6(0x214,_0x4bf4d6._0x4f4be2))||'https://veil-access.retropixel404.workers.dev')['replace'](/\/$/,''),_0x760466=document[_0x553dd6(0x1e6,'NRBe')]('bootSub'),_0x1c5305=document[_0x553dd6(0x1f6,_0x4bf4d6._0x22c7c1)](_0x553dd6(_0x4bf4d6._0x35f087,'6KTi')),_0x77f929=document['getElementById'](_0x553dd6(0x1fc,_0x4bf4d6._0x45d4db)),_0x459648=[];function _0x72b175(_0xdaffea){if(_0x760466)_0x760466['textContent']=_0xdaffea;}function _0x24be0b(_0x165759,_0x33dbe8){var _0x3a9dbf=_0x553dd6;_0x459648[_0x3a9dbf(0x20c,_0x533e64._0x453360)]({'label':_0x165759,'state':_0x33dbe8||_0x3a9dbf(0x1e3,'geCv')}),_0x302fa1();}function _0x46dba9(_0x46dd9b,_0x59cf5e,_0x3946b6){var _0x45332c=_0x553dd6;if(!_0x459648[_0x46dd9b])return;_0x459648[_0x46dd9b][_0x45332c(0x1fb,'ejla')]=_0x59cf5e;if(_0x3946b6)_0x459648[_0x46dd9b]['label']=_0x3946b6;_0x302fa1();}function _0x302fa1(){var _0x3a5c68={_0x1e8270:'VQla',_0xdae6a0:0x226,_0x488b83:'unxp',_0x672c35:'QUjI',_0x5522e0:'JAw3'},_0x2db5c7=_0x553dd6;if(!_0x1c5305)return;_0x1c5305[_0x2db5c7(_0x1c0c84._0xbb5558,'Ry7k')]=_0x459648[_0x2db5c7(0x20f,'yCJ4')](function(_0x287b10){var _0x1c976b=_0x2db5c7,_0x462bb8=_0x287b10['state']==='ok'?'✓\x20':_0x287b10['state']===_0x1c976b(0x1e1,_0x3a5c68._0x1e8270)?'✕\x20':'·\x20';return _0x1c976b(_0x3a5c68._0xdae6a0,_0x3a5c68._0x488b83)+_0x287b10[_0x1c976b(0x225,_0x3a5c68._0x672c35)]+'\x22>'+_0x462bb8+_0x287b10['label']+_0x1c976b(0x211,_0x3a5c68._0x5522e0);})[_0x2db5c7(_0x1c0c84._0x381863,_0x1c0c84._0xe8a043)]('');}function _0x2e0de8(_0x1bcfaa){var _0x17fa8c=_0x553dd6;document['body'][_0x17fa8c(0x1f4,_0x501dbf._0x2eba9d)][_0x17fa8c(_0x501dbf._0xdb8d88,'NyPu')](_0x17fa8c(_0x501dbf._0x392d87,_0x501dbf._0x6e10f6));if(_0x77f929)_0x77f929['classList']['add']('err');_0x72b175(_0x17fa8c(_0x501dbf._0x42d03e,_0x501dbf._0x2eba9d));var _0x1c394b=document[_0x17fa8c(0x204,'bpc4')](_0x17fa8c(0x203,'lDl#'));if(_0x1c394b)_0x1c394b[_0x17fa8c(_0x501dbf._0x767859,'M(Zi')]=String(_0x1bcfaa&&_0x1bcfaa['message']?_0x1bcfaa[_0x17fa8c(0x1fe,_0x501dbf._0xf53f40)]:_0x1bcfaa||_0x17fa8c(_0x501dbf._0x351078,'mzre'));var _0x59d4cc=document[_0x17fa8c(_0x501dbf._0x31f620,_0x501dbf._0x1d06ef)](_0x17fa8c(0x1ec,_0x501dbf._0x5049db));if(_0x59d4cc)_0x59d4cc[_0x17fa8c(0x201,'!B3s')]=function(){var _0x387bf4=_0x17fa8c;location[_0x387bf4(0x202,'Li#]')]();};}function _0x4dbb2f(){var _0x406ad0=_0x553dd6;_0x72b175('Ready'),document[_0x406ad0(_0x514d24._0x2bf104,_0x514d24._0x424dcc)][_0x406ad0(0x1ed,_0x514d24._0x4370f7)]['remove'](_0x406ad0(0x207,_0x514d24._0x9dfb38));try{window[_0x406ad0(0x209,_0x514d24._0x517410)]=!![];}catch(_0x2a8f44){}try{window[_0x406ad0(0x200,'ejla')](new CustomEvent('veil-boot-ready'));}catch(_0x569071){}}function _0x2ac0a7(_0x1148b4){return new Promise(function(_0x124336){setTimeout(_0x124336,_0x1148b4);});}async function _0x1e9931(){var _0x38db2b=_0x553dd6;_0x24be0b(_0x38db2b(_0x2c79e5._0x509f66,_0x2c79e5._0x495654),'run'),await _0x2ac0a7(0x50);if(typeof window==='undefined')throw new Error(_0x38db2b(_0x2c79e5._0x3dd4d0,'W2RT'));_0x46dba9(0x0,'ok',_0x38db2b(0x1e2,'@m6r'));}async function _0x656a45(){var _0x15eefa=_0x553dd6;_0x24be0b(_0x15eefa(_0x151ebc._0x2fa995,'yCJ4'),'run'),_0x72b175(_0x15eefa(0x1f1,'VQla'));var _0x2f73b6=typeof AbortController!==_0x15eefa(_0x151ebc._0x5d8473,_0x151ebc._0x56a938)?new AbortController():null,_0x4f6935=setTimeout(function(){try{_0x2f73b6&&_0x2f73b6['abort']();}catch(_0x534f27){}},0x2710);try{var _0x10c03b=await fetch(_0x28405e+_0x15eefa(_0x151ebc._0xe50e69,_0x151ebc._0x2d9e7b),{'method':'GET','signal':_0x2f73b6?_0x2f73b6[_0x15eefa(0x21e,_0x151ebc._0x253890)]:undefined,'cache':'no-store'});clearTimeout(_0x4f6935);if(!_0x10c03b['ok'])throw new Error(_0x15eefa(_0x151ebc._0x4cc0ab,'^wZ@')+_0x10c03b[_0x15eefa(_0x151ebc._0x39bfbd,_0x151ebc._0xddfa48)]);var _0x5abc69=await _0x10c03b[_0x15eefa(0x1f3,_0x151ebc._0xafe7b7)]()[_0x15eefa(0x1de,'Ry7k')](function(){return{};});if(!_0x5abc69['ok'])throw new Error(_0x15eefa(0x1fa,'o3XS'));_0x46dba9(0x1,'ok',_0x15eefa(0x1f5,'NRBe'));}catch(_0x51c594){clearTimeout(_0x4f6935),_0x46dba9(0x1,'fail','Checking\x20access');throw new Error(_0x15eefa(0x21a,_0x151ebc._0x1d55dc)+(_0x51c594[_0x15eefa(0x210,'1nfl')]||_0x51c594)+')');}}async function _0x2d9917(){var _0x4240fa=_0x553dd6;_0x24be0b(_0x4240fa(0x21f,'o3XS'),_0x4240fa(0x21d,'mzre')),_0x72b175(_0x4240fa(_0x31aa4c._0x416bd1,_0x31aa4c._0x30a6df)),await _0x2ac0a7(0x78);var _0x522af3=document[_0x4240fa(0x1df,'M(Zi')](_0x4240fa(_0x31aa4c._0x1d42fa,'M(Zi'));if(!_0x522af3)throw new Error('Sign-in\x20screen\x20failed\x20to\x20load\x20(missing\x20access\x20gate)');_0x46dba9(0x2,'ok','Sign-in\x20screen');}async function _0x1a550b(){var _0xd66871=_0x553dd6;try{_0x72b175(_0xd66871(_0x48eb9f._0x2ff829,']vNu')),await _0x1e9931(),await _0x656a45(),await _0x2d9917(),_0x72b175(_0xd66871(_0x48eb9f._0x3df3a4,_0x48eb9f._0x66894c)),await _0x2ac0a7(0x118),_0x4dbb2f();}catch(_0x38540b){_0x2e0de8(_0x38540b);}}document[_0x553dd6(0x1ee,_0x4bf4d6._0x4a14ad)]===_0x553dd6(0x228,_0x4bf4d6._0x1fcf9a)?document['addEventListener']('DOMContentLoaded',function(){_0x1a550b();}):_0x1a550b();}()));</script>
 <div id="accessGate">
   <div class="box" id="gateAuthBox">
     <h1>Veil</h1>
@@ -1063,6 +957,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     </section>
     <section class="setting-section">
       <div class="setting-title">About:blank launch <button type="button" class="info-btn" data-info="aboutblank" title="About this option" aria-label="About About:blank launch"><img src="image/info.svg" alt=""></button></div>
+      <p class="ab-note">Opening the tab in about:blank is an experimental option and will close if you reload it in any way. Other than that, it should work fine.</p>
       <select class="text-input" id="launchModeSelect">
         <option value="manual">Manual - only when I choose Launch</option>
         <option value="auto">Auto - open about:blank once on start</option>
@@ -1119,7 +1014,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
         <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
-      <div class="status" id="engineStatus">Starting...</div>
+      <div class="status" id="engineStatus">Libcurl</div>
     </section>
     </div>
 
@@ -1181,7 +1076,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 </aside>
 
 </div>
-<!-- Browser engine loads only after access is validated -->
+
 <script src="access-gate.js"></script>
 </body>
 </html>
