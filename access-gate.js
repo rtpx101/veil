@@ -620,17 +620,17 @@
     window.__VEIL_UNLOCKING = true;
     stopPendingPoll();
 
-    /* Show browser loader immediately on entry/refresh, then load engine */
-    var loadStarted = Date.now();
-    var loader = ensureAppLoader();
-    dismissBoot(true);
+    /* Keep the entry screen up while the browser loads — don't swap in a second loader */
+    var bootEl = document.getElementById("veilBoot");
+    var keepBoot = bootEl && !bootEl.classList.contains("done") && !bootEl.classList.contains("err");
+    if (!keepBoot) dismissBoot(true);
 
     if (gate) gate.style.display = "none";
     var bl = document.getElementById("accessBlocked");
     if (bl) bl.style.display = "none";
 
-    var sub = document.getElementById("veilAppLoadSub");
     function setLoadMsg(t) {
+      var sub = document.getElementById("bootSub");
       if (sub) sub.textContent = t;
     }
 
@@ -665,39 +665,21 @@
         } catch (e) {
           console.error(e);
         }
-        /* Keep loader visible long enough for the animation to actually play */
-        var minShow = 750;
-        var elapsed = Date.now() - loadStarted;
-        var waitMore = Math.max(0, minShow - elapsed);
+        if (keepBoot) dismissBoot(false);
+        window.__VEIL_UNLOCKING = false;
         setTimeout(function () {
-          if (loader) {
-            loader.classList.add("done");
-            loader.style.opacity = "0";
-            loader.style.visibility = "hidden";
-            setTimeout(function () {
-              try {
-                if (loader.parentNode) loader.parentNode.removeChild(loader);
-              } catch (e) {}
-            }, 500);
-          }
           document.body.classList.remove("boot-reveal");
-          window.__VEIL_UNLOCKING = false;
-        }, waitMore + 350);
+        }, 700);
       })
       .catch(function (err) {
         window.__VEIL_UNLOCKING = false;
         setLoadMsg("Could not load Veil");
-        if (loader) {
-          loader.innerHTML =
-            '<div class="boot-card"><div class="boot-title">Veil</div>' +
-            '<div class="boot-error" style="display:block">' +
-            "<h3>Couldn’t load the browser</h3>" +
-            "<p>" +
-            String((err && err.message) || err) +
-            "</p>" +
-            "<p>Email support: <a href=\"mailto:veilsupport01@gmail.com\">veilsupport01@gmail.com</a></p>" +
-            '<button type="button" class="boot-retry" onclick="location.reload()">Try again</button>' +
-            "</div></div>";
+        if (bootEl) {
+          bootEl.classList.add("err");
+          var msg = document.getElementById("bootErrorMsg");
+          if (msg) msg.textContent = String((err && err.message) || err);
+          var retry = document.getElementById("bootRetry");
+          if (retry) retry.onclick = function () { location.reload(); };
         }
       });
   }

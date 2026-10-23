@@ -3232,52 +3232,42 @@ function openAboutBlank(kind) {
     console.info("[veil] already inside about:blank - skip");
     return;
   }
-  const appUrl = location.origin + REPO_PATH + (REPO_PATH.endsWith("/") ? "" : "/") + "?ab=1";
-  // Always start as Veil; tab cloak overwrites via postMessage({ type: "veil-chrome" })
-  const abTitle = "Veil";
-  const abIcon = absFaviconUrl(FAVI);
+  const appUrl = location.href.split("#")[0];
+  const safeSrc = appUrl.replace(/"/g, "");
   const shell = `<!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8" />
-<title>${abTitle}</title>
-<link rel="icon" id="veil-ab-icon" href="${abIcon.replace(/"/g, "")}">
 <style>
 html, body {
-  margin: 0; padding: 0; width: 100%; height: 100%;
-  overflow: hidden; background: #000;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
 }
 iframe {
-  position: fixed; top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  border: none; margin: 0; padding: 0;
-  display: block; background: #000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: block;
+  background: #000;
 }
 </style>
 </head>
 <body>
-<iframe id="veilFrame" src="${appUrl}" allow="fullscreen; clipboard-read; clipboard-write"></iframe>
-<script>
-window.addEventListener("message", function (e) {
-  if (!e.data || e.data.type !== "veil-chrome") return;
-  try {
-    if (e.data.title) document.title = e.data.title;
-    if (e.data.icon) {
-      var link = document.getElementById("veil-ab-icon") || document.querySelector("link[rel~='icon']") || document.createElement("link");
-      link.id = "veil-ab-icon";
-      link.rel = "icon";
-      link.href = e.data.icon;
-      if (!link.parentNode) document.head.appendChild(link);
-    }
-  } catch (err) {}
-});
-</script>
+<iframe src="${safeSrc}"></iframe>
 </body>
 </html>`;
 
   let w;
   if (kind === "window") {
-    w = window.open("", "", "width=1100,height=700,resizable=yes");
+    w = window.open("", "", "width=1100,height=700,resizable=yes,scrollbars=yes");
   } else {
     w = window.open("about:blank");
   }
@@ -3286,21 +3276,8 @@ window.addEventListener("message", function (e) {
     return;
   }
   try {
-    w.document.open();
     w.document.write(shell);
     w.document.close();
-    setTimeout(syncAboutBlankChrome, 50);
-    setTimeout(syncAboutBlankChrome, 400);
-    // Avoid two open app tabs: leave this original tab on a neutral page
-    if (kind !== "window") {
-      setTimeout(function () {
-        try {
-          if (w && !w.closed) {
-            location.replace("about:blank");
-          }
-        } catch (e) {}
-      }, 250);
-    }
   } catch (err) {
     console.error(err);
     alert("Could not write about:blank shell.");
@@ -4044,7 +4021,8 @@ function paintBattery() {
     if (img && img.getAttribute("src") !== src) img.src = src;
     if (pct) {
       pct.hidden = none;
-      pct.textContent = none ? "" : (step + "%");
+      const actual = Math.max(0, Math.min(100, Math.round(Number(batteryManager.level) * 100)));
+      pct.textContent = none ? "" : (actual + "%");
     }
     el.hidden = false;
   });
@@ -4250,6 +4228,7 @@ async function bootVeilApp() {
       }
       showActiveOnly();
       renderChrome();
+      if (settings.launchMode === "auto" && !isInsideAboutBlank()) openAboutBlank("tab");
     } catch (e) {}
   }, 200);
 }
