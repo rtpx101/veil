@@ -268,7 +268,7 @@
       try {
         if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl);
       } catch (e) {}
-    }, 400);
+    }, 760);
   }
 
   function setBodyLocked(locked) {

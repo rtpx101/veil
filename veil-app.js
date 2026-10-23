@@ -668,12 +668,78 @@ function isVideoUrl(url) {
   return /\.(mp4|webm|ogg)(\?|#|$)/i.test(url || "");
 }
 
+const homeFrameState = new WeakMap();
+function stopHomeFrames(el) {
+  const st = homeFrameState.get(el);
+  if (!st) return;
+  st.token++;
+  if (st.timer) { clearTimeout(st.timer); st.timer = null; }
+}
+function playHomeAnimated(el, url) {
+  stopHomeFrames(el);
+  const st = { token: 1, timer: null };
+  homeFrameState.set(el, st);
+  let raster = el.querySelector("canvas.newtab-raster");
+  if (!raster) {
+    raster = document.createElement("canvas");
+    raster.className = "newtab-raster";
+    el.insertBefore(raster, el.firstChild);
+  }
+  const fallback = () => {
+    if (st.token !== homeFrameState.get(el)?.token) return;
+    raster.remove();
+    const img = document.createElement("img");
+    img.className = "newtab-media-img";
+    img.src = url;
+    img.alt = "";
+    el.insertBefore(img, el.firstChild);
+  };
+  if (typeof ImageDecoder === "undefined") { fallback(); return; }
+  const type = /\.webp(\?|#|$)/i.test(url) ? "image/webp" : "image/gif";
+  const token = st.token;
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("miss");
+    return res.arrayBuffer();
+  }).then(async (buf) => {
+    if (token !== homeFrameState.get(el)?.token) return;
+    const dec = new ImageDecoder({ data: buf, type: type });
+    await dec.tracks.ready;
+    const track = dec.tracks.selectedTrack;
+    const count = Math.max(1, track.frameCount || 1);
+    if (count < 2) throw new Error("still");
+    const ctx = raster.getContext("2d");
+    let i = 0;
+    const step = async () => {
+      if (token !== homeFrameState.get(el)?.token || !raster.isConnected) return;
+      try {
+        const result = await dec.decode({ frameIndex: i });
+        const frame = result.image;
+        const box = el.getBoundingClientRect();
+        const w = Math.max(1, Math.floor(box.width || el.clientWidth || 1));
+        const h = Math.max(1, Math.floor(box.height || el.clientHeight || 1));
+        if (raster.width !== w) raster.width = w;
+        if (raster.height !== h) raster.height = h;
+        ctx.drawImage(frame, 0, 0, w, h);
+        const micros = frame.duration || 100000;
+        if (frame.close) frame.close();
+        const rate = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1));
+        i = (i + 1) % count;
+        st.timer = setTimeout(step, Math.max(16, (micros / 1000) / rate));
+      } catch (e) {
+        fallback();
+      }
+    };
+    step();
+  }).catch(() => fallback());
+}
+
 function applyNewTabBackground() {
   const custom = !!settings.animEnabled && settings.animStyle === "custom";
   const url = custom ? (settings.backgroundUrl || "").trim() : "";
   const rate = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1));
   document.querySelectorAll(".newtab-page").forEach((el) => {
-    el.querySelectorAll(".newtab-media, .newtab-media-img").forEach((n) => n.remove());
+    stopHomeFrames(el);
+    el.querySelectorAll(".newtab-media, .newtab-media-img, .newtab-raster").forEach((n) => n.remove());
     el.style.backgroundImage = "none";
     if (!url) return;
     if (isVideoUrl(url)) {
@@ -685,10 +751,13 @@ function applyNewTabBackground() {
       v.muted = true;
       v.playsInline = true;
       v.setAttribute("playsinline", "");
-      try { v.playbackRate = rate; } catch (e) {}
-      v.addEventListener("loadedmetadata", () => { try { v.playbackRate = rate; } catch (e) {} });
+      const applyRate = () => { try { v.playbackRate = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1)); } catch (e) {} };
+      v.addEventListener("loadedmetadata", applyRate);
+      v.addEventListener("play", applyRate);
       el.insertBefore(v, el.firstChild);
-      v.play().catch(() => {});
+      v.play().then(applyRate).catch(() => {});
+    } else if (/\.(gif|webp)(\?|#|$)/i.test(url)) {
+      playHomeAnimated(el, url);
     } else {
       const img = document.createElement("img");
       img.className = "newtab-media-img";
@@ -697,6 +766,7 @@ function applyNewTabBackground() {
       el.insertBefore(img, el.firstChild);
     }
   });
+  void rate;
 }
 
 function imgIcon(name) { return '<img src="' + IMG + name + '" alt="">'; }
@@ -3671,7 +3741,9 @@ if (animMediaSpeedEl) {
   animMediaSpeedEl.addEventListener("change", () => {
     paintMedia();
     save();
-    applyNewTabBackground();
+    document.querySelectorAll(".newtab-page video.newtab-media").forEach((v) => {
+      try { v.playbackRate = settings.animMediaSpeed; } catch (e) {}
+    });
   });
 }
 on("applyCloak", applyCloak);
