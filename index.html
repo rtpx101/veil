@@ -619,8 +619,14 @@ body.boot-reveal #browser{
 .games-row.filtering-done{opacity:1;transform:none;transition:opacity .28s ease,transform .28s ease}
 .game-tile{border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:hidden;cursor:pointer;transition:transform .18s ease,border-color .18s ease,opacity .28s ease,box-shadow .18s ease;opacity:1;animation:gameTileIn .32s ease both}
 .game-tile:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.28)}
-.game-tile .thumb{width:100%;aspect-ratio:1;background:var(--bg3);overflow:hidden}
+.game-tile .thumb{width:100%;aspect-ratio:1;background:var(--bg3);overflow:hidden;position:relative}
 .game-tile .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.tile-tools{position:absolute;top:8px;left:8px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .16s ease;z-index:2}
+.game-tile:hover .tile-tools,.game-tile:focus-within .tile-tools{opacity:1;pointer-events:auto}
+.tile-tool{width:28px;height:28px;border:0;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.tile-tool:hover{background:rgba(0,0,0,.82)}
+.tile-tool img{width:14px;height:14px;display:block;filter:invert(1);opacity:.92}
+.tile-tool.on img{filter:invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg);opacity:1}
 .game-tile .meta{padding:8px 9px 10px}
 .game-tile .meta .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
@@ -646,7 +652,8 @@ body.boot-reveal #browser{
 .game-notes{width:0;overflow:hidden;border-left:0;background:var(--bg2);display:flex;flex-direction:column;min-height:0;transition:width .2s ease}
 .game-player.notes-open .game-notes{width:300px;border-left:1px solid var(--border)}
 .game-notes-header{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
-.game-notes-tabs{display:flex;align-items:center;gap:4px;padding:8px;border-bottom:1px solid var(--border);overflow-x:auto;flex-wrap:nowrap}
+.game-notes-tabs{display:flex;align-items:center;gap:4px;padding:8px;border-bottom:1px solid var(--border);overflow-x:auto;flex-wrap:nowrap;min-height:44px;box-sizing:border-box}
+.game-note-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
 .game-note-tab{height:28px;display:inline-flex;align-items:center;gap:4px;padding:0 6px 0 8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:11px;cursor:pointer;max-width:120px;flex:0 0 auto}
 .game-note-tab.active{border-color:var(--accent);color:var(--text);background:var(--bg3)}
 .game-note-tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -656,7 +663,7 @@ body.boot-reveal #browser{
 .game-note-add{width:28px;height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
 .game-note-add:hover{background:var(--panel2)}
 .game-notes-tabs.is-menu{overflow:hidden}
-.game-note-menu{flex:1;min-width:0;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12px;padding:0 8px}
+.game-note-menu{flex:1;min-width:0;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;padding:0 8px}
 .game-notes-editor{flex:1;display:flex;flex-direction:column;padding:8px;gap:8px;min-height:0}
 .game-note-title{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 10px;font-size:12px;box-sizing:border-box}
 html[data-mode="light"] .welcome-bar{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}
@@ -678,20 +685,22 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 .game-notes-actions{display:flex;gap:8px}
 .game-note-action{height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12px;cursor:pointer}
 .modal-overlay.game-info-modal{z-index:5200;background:rgba(0,0,0,.78)}
-.game-info-box{width:min(420px,100%);max-height:min(70vh,520px);overflow:auto}
-.game-info-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
-.game-info-top h2{margin:0;font-size:17px;font-weight:700}
-.game-info-meta{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 14px}
-.game-info-meta span{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--muted)}
-.game-info-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.game-info-choice{height:48px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;font-weight:550;cursor:pointer;transition:border-color .15s ease,background .15s ease}
-.game-info-choice:hover{border-color:var(--accent);background:var(--panel2)}
-.game-info-detail{animation:veilFade .2s ease}
-.game-info-detail h3{margin:8px 0 10px;font-size:15px;font-weight:650}
-.game-info-detail p{margin:0;font-size:13px;line-height:1.6;color:var(--muted);white-space:pre-wrap}
-.game-info-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--text);cursor:pointer;font-size:12px;padding:4px 0;margin-bottom:10px}
-.game-info-back:hover{color:var(--accent)}
-.game-info-back img{width:14px;height:14px;filter:invert(var(--icon-invert,1));opacity:.85}
+.game-info-box{width:min(560px,100%);max-height:min(84vh,720px);overflow:auto;padding:0;display:flex;flex-direction:column}
+.game-info-hero{position:relative;height:168px;flex:0 0 168px;background:var(--bg3)}
+.game-info-hero img{width:100%;height:100%;object-fit:cover;display:block}
+.game-info-hero-shade{position:absolute;inset:0;background:linear-gradient(transparent 20%,rgba(0,0,0,.82) 100%)}
+.game-info-x{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.45);border-radius:8px}
+.game-info-x img{filter:invert(1)}
+.game-info-hero-copy{position:absolute;left:16px;right:16px;bottom:14px}
+.game-info-hero-copy h2{margin:0 0 8px;font-size:22px;font-weight:750;letter-spacing:-.02em;color:#fff}
+.game-info-meta{display:flex;flex-wrap:wrap;gap:6px}
+.game-info-meta span{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.4);color:#fff}
+.game-info-sections{display:flex;flex-direction:column;gap:12px;padding:16px 16px 8px}
+.game-info-sec{padding:12px 12px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2)}
+.game-info-sec h3{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.game-info-sec p{margin:0;font-size:13px;line-height:1.55;color:var(--text);white-space:pre-wrap}
+.game-info-foot{padding:8px 16px 16px}
+.game-info-foot .games-play-btn{width:100%}
 
 </style>
 </head>
