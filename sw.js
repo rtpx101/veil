@@ -55,6 +55,43 @@ function peelServiceUrl(pathname) {
   return null;
 }
 
+function isNestedProxy(pathname) {
+  if (!pathname.startsWith(PROXY_PREFIX)) return false;
+  let rest = pathname.slice(PROXY_PREFIX.length);
+  let decoded = rest;
+  try { decoded = decodeURIComponent(rest); } catch (e) { return false; }
+  const originPrefix = ORIGIN + PROXY_PREFIX;
+  return decoded.startsWith(originPrefix) || decoded.includes(originPrefix);
+}
+
+function isCdnMedia(real, request) {
+  let host = "";
+  try { host = new URL(real).hostname; } catch (e) { return false; }
+  if (!/^(images|videos|downloads)\.ctfassets\.net$|^github\.githubassets\.com$|^avatars\.githubusercontent\.com$|^camo\.githubusercontent\.com$|^media\.githubusercontent\.com$|^private-user-images\.githubusercontent\.com$|^opengraph\.githubassets\.com$|^user-images\.githubusercontent\.com$/i.test(host)) {
+    return false;
+  }
+  const dest = request.destination;
+  if (dest === "document" || dest === "script" || dest === "style" || dest === "worker") return false;
+  if (dest === "image" || dest === "video" || dest === "audio" || dest === "font") return true;
+  return /\.(png|jpe?g|gif|webp|avif|svg|mp4|webm|mov|m4v|mp3|woff2?|ttf|otf)(\?|#|$)/i.test(real);
+}
+
+async function fetchCdn(real, request) {
+  const headers = new Headers();
+  const accept = request.headers.get("accept");
+  const range = request.headers.get("range");
+  if (accept) headers.set("accept", accept);
+  if (range) headers.set("range", range);
+  try {
+    const res = await fetch(real, { method: request.method, headers: headers, redirect: "follow", credentials: "omit" });
+    if (res && (res.ok || res.status === 206)) return res;
+  } catch (e) {}
+  try {
+    return await fetch(real, { mode: "no-cors", credentials: "omit", redirect: "follow" });
+  } catch (e) {}
+  return null;
+}
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
@@ -68,15 +105,17 @@ self.addEventListener("fetch", (event) => {
       try {
         const real = peelServiceUrl(url.pathname);
         if (real) {
-          const single = PROXY_PREFIX + encodeURIComponent(real);
-          const nested = url.pathname !== single;
           const topDoc = event.request.mode === "navigate" && event.request.destination === "document";
           if (topDoc) {
             const back = ORIGIN + (BASE || "") + "/?open=" + encodeURIComponent(real);
             return Response.redirect(back, 302);
           }
-          if (nested) {
-            return Response.redirect(ORIGIN + single, 302);
+          if (isNestedProxy(url.pathname)) {
+            return Response.redirect(ORIGIN + PROXY_PREFIX + encodeURIComponent(real), 302);
+          }
+          if (isCdnMedia(real, event.request)) {
+            const direct = await fetchCdn(real, event.request);
+            if (direct) return direct;
           }
         }
 
