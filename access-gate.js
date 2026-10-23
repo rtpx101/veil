@@ -9,10 +9,26 @@
     if (dead) return;
     dead = true;
     try {
-      document.documentElement.innerHTML = "<body style=\"margin:0;background:#000\"></body>";
+      document.documentElement.innerHTML = "<head><title>Veil</title></head><body style=\"margin:0;background:#000\"></body>";
     } catch (e) {}
   }
   window.__veilKill = kill;
+  function docked() {
+    var ow = window.outerWidth || 0;
+    var oh = window.outerHeight || 0;
+    var iw = window.innerWidth || 0;
+    var ih = window.innerHeight || 0;
+    if (ow < 240 || oh < 240 || iw < 40 || ih < 40) return false;
+    var side = (iw / ow) < 0.72 && (iw / ow) > 0.18 && (ow - iw) > 160;
+    var bottom = (ih / oh) < 0.62 && (ih / oh) > 0.18 && (oh - ih) > 240;
+    return side || bottom;
+  }
+  try {
+    var mark = new Image();
+    Object.defineProperty(mark, "id", { get: function () { kill(); return ""; } });
+    console.log(mark);
+  } catch (e) {}
+  if (docked()) kill();
   var baseW = null, baseH = null, baseDpr = 0;
   setInterval(function () {
     var ow = window.outerWidth || 0;

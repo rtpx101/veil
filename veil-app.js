@@ -7,10 +7,26 @@
     if (dead) return;
     dead = true;
     try {
-      document.documentElement.innerHTML = "<body style=\"margin:0;background:#000\"></body>";
+      document.documentElement.innerHTML = "<head><title>Veil</title></head><body style=\"margin:0;background:#000\"></body>";
     } catch (e) {}
   }
   window.__veilKill = kill;
+  function docked() {
+    var ow = window.outerWidth || 0;
+    var oh = window.outerHeight || 0;
+    var iw = window.innerWidth || 0;
+    var ih = window.innerHeight || 0;
+    if (ow < 240 || oh < 240 || iw < 40 || ih < 40) return false;
+    var side = (iw / ow) < 0.72 && (iw / ow) > 0.18 && (ow - iw) > 160;
+    var bottom = (ih / oh) < 0.62 && (ih / oh) > 0.18 && (oh - ih) > 240;
+    return side || bottom;
+  }
+  try {
+    var mark = new Image();
+    Object.defineProperty(mark, "id", { get: function () { kill(); return ""; } });
+    console.log(mark);
+  } catch (e) {}
+  if (docked()) kill();
   var baseW = null, baseH = null, baseDpr = 0;
   setInterval(function () {
     var ow = window.outerWidth || 0;
@@ -338,7 +354,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverEnabled: false, saverStyle: "orbs", saverUrl: "", saverColorA: "#7aa2ff", saverColorB: "#b88cff", saverSpeed: 1, saverCount: 18, saverSize: 1, saverMediaSpeed: 1, customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animMediaSpeed: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverDelay: "", saverEnabled: false, saverStyle: "orbs", saverUrl: "", saverColorA: "#7aa2ff", saverColorB: "#b88cff", saverSpeed: 1, saverCount: 18, saverSize: 1, saverMediaSpeed: 1, customOutline: "", colorMode: "dark", customPalette: null, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -450,6 +466,13 @@ function migrateSettings() {
   if (settings.saverMinutes == null || !Number.isFinite(Number(settings.saverMinutes))) settings.saverMinutes = 0;
   settings.saverMinutes = Number(settings.saverMinutes) || 0;
   if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.saverStyle)) settings.saverStyle = "orbs";
+  if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.animStyle)) settings.animStyle = "orbs";
+  if (typeof settings.backgroundUrl !== "string") settings.backgroundUrl = "";
+  if (settings.animMediaSpeed == null || !Number.isFinite(Number(settings.animMediaSpeed))) settings.animMediaSpeed = 1;
+  if ((settings.backgroundUrl || "").trim() && !settings.animEnabled) {
+    settings.animStyle = "custom";
+    settings.animEnabled = true;
+  }
   if (typeof settings.saverUrl !== "string") settings.saverUrl = "";
   if (typeof settings.customOutline !== "string") settings.customOutline = "";
   if (settings.colorMode !== "dark") settings.colorMode = "dark";
@@ -646,7 +669,9 @@ function isVideoUrl(url) {
 }
 
 function applyNewTabBackground() {
-  const url = (settings.backgroundUrl || "").trim();
+  const custom = !!settings.animEnabled && settings.animStyle === "custom";
+  const url = custom ? (settings.backgroundUrl || "").trim() : "";
+  const rate = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1));
   document.querySelectorAll(".newtab-page").forEach((el) => {
     el.querySelectorAll(".newtab-media, .newtab-media-img").forEach((n) => n.remove());
     el.style.backgroundImage = "none";
@@ -660,10 +685,11 @@ function applyNewTabBackground() {
       v.muted = true;
       v.playsInline = true;
       v.setAttribute("playsinline", "");
+      try { v.playbackRate = rate; } catch (e) {}
+      v.addEventListener("loadedmetadata", () => { try { v.playbackRate = rate; } catch (e) {} });
       el.insertBefore(v, el.firstChild);
       v.play().catch(() => {});
     } else {
-      // images, gif, webp, etc.
       const img = document.createElement("img");
       img.className = "newtab-media-img";
       img.src = url;
@@ -1230,8 +1256,8 @@ const SETTINGS_INFO = {
     body: "Shows the home-page clock as 24-hour time instead of AM/PM."
   },
   animations: {
-    title: "Home page animations",
-    body: "Adds a moving background on the home page (orbs, stars, rain, and more)."
+    title: "Live wallpaper",
+    body: "Adds a moving background on the home page. Pick a Veil animation and set its speed, amount, size, and colors, or choose Custom URL for an image, GIF, WebP, or video. A speed slider appears for video, GIF, and WebP."
   },
   screensaver: {
     title: "Screen saver",
@@ -2134,6 +2160,10 @@ function setupHomeFx(wrapper, opts) {
   stopHomeFx(wrapper);
   const canvas = wrapper.querySelector("[data-home-fx]");
   if (!canvas) return;
+  if (!forced && settings.animStyle === "custom") {
+    canvas.style.display = "none";
+    return;
+  }
   if (!forced && (!settings.animEnabled || !COOKIE.consent)) {
     canvas.style.display = "none";
     return;
@@ -2404,6 +2434,7 @@ function setSwitch(el, on) {
 }
 
 function refreshHomeFxAll() {
+  applyNewTabBackground();
   document.querySelectorAll(".page").forEach((pageEl) => {
     const id = pageEl.dataset.pageId;
     const tab = tabs.find((x) => x.id === id);
@@ -2814,6 +2845,24 @@ function highlightTheme() {
       asz.value = String(settings.animSize || 1);
       if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "x";
     }
+    const animStyles = ["orbs", "stars", "constellation", "rain", "custom"];
+    if (style) style.value = animStyles.includes(settings.animStyle) ? settings.animStyle : "orbs";
+    const animCustom = settings.animStyle === "custom";
+    const animTimed = animCustom && isTimedMedia(settings.backgroundUrl || "");
+    const animUrlRow = document.getElementById("animUrlRow");
+    const animTune = document.getElementById("animTuneRows");
+    const animColors = document.getElementById("animColorRows");
+    const animMedia = document.getElementById("animMediaSpeedRow");
+    if (animUrlRow) animUrlRow.style.display = animCustom ? "" : "none";
+    if (animTune) animTune.style.display = animCustom ? "none" : "";
+    if (animColors) animColors.style.display = animCustom ? "none" : "";
+    if (animMedia) animMedia.style.display = animTimed ? "" : "none";
+    const bgUrl = document.getElementById("backgroundUrl");
+    if (bgUrl && document.activeElement !== bgUrl) bgUrl.value = settings.backgroundUrl || "";
+    const ams = document.getElementById("animMediaSpeed");
+    const amsVal = document.getElementById("animMediaSpeedVal");
+    if (ams && document.activeElement !== ams) ams.value = String(settings.animMediaSpeed || 1);
+    if (amsVal) amsVal.textContent = Number(settings.animMediaSpeed || 1).toFixed(2) + "x";
     syncSaverFields();
     paintProfilePreview();
   } catch (e) {
@@ -2832,7 +2881,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverEnabled: settings.saverEnabled, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, saverColorA: settings.saverColorA, saverColorB: settings.saverColorB, saverSpeed: settings.saverSpeed, saverCount: settings.saverCount, saverSize: settings.saverSize, saverMediaSpeed: settings.saverMediaSpeed, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, animMediaSpeed: settings.animMediaSpeed, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverDelay: settings.saverDelay, saverEnabled: settings.saverEnabled, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, saverColorA: settings.saverColorA, saverColorB: settings.saverColorB, saverSpeed: settings.saverSpeed, saverCount: settings.saverCount, saverSize: settings.saverSize, saverMediaSpeed: settings.saverMediaSpeed, customOutline: settings.customOutline, colorMode: settings.colorMode, customPalette: settings.customPalette };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -2871,7 +2920,9 @@ function applyCustomColors() {
 function applyBackground() {
   const el = document.getElementById("backgroundUrl");
   if (el) settings.backgroundUrl = el.value.trim();
-  save(); applyNewTabBackground();
+  save();
+  highlightTheme();
+  applyNewTabBackground();
 }
 function applyCloakPreset(id) {
   const p = resolveCloakPreset(id);
@@ -3318,7 +3369,10 @@ document.querySelectorAll("[data-settings-tab]").forEach((btn) => {
 });
 const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
-  settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
+  settings.animStyle = animStyle.value || "orbs";
+  save();
+  highlightTheme();
+  refreshHomeFxAll();
 });
 on("saverEnabledSwitch", () => {
   settings.saverEnabled = !settings.saverEnabled;
@@ -3587,6 +3641,39 @@ on("applyColors", applyCustomColors);
 on("transportEpoxy", () => setTransport("epoxy"));
 on("transportLibcurl", () => setTransport("libcurl"));
 on("applyBackground", applyBackground);
+let bgUrlTimer = null;
+const backgroundUrlEl = document.getElementById("backgroundUrl");
+if (backgroundUrlEl) backgroundUrlEl.addEventListener("input", () => {
+  settings.backgroundUrl = backgroundUrlEl.value.trim();
+  save();
+  if (bgUrlTimer) clearTimeout(bgUrlTimer);
+  bgUrlTimer = setTimeout(() => {
+    highlightTheme();
+    applyNewTabBackground();
+  }, 350);
+});
+const animMediaSpeedEl = document.getElementById("animMediaSpeed");
+if (animMediaSpeedEl) {
+  const paintMedia = () => {
+    let n = Number(animMediaSpeedEl.value);
+    if (!Number.isFinite(n)) n = 1;
+    n = Math.max(0.25, Math.min(3, n));
+    settings.animMediaSpeed = n;
+    const lab = document.getElementById("animMediaSpeedVal");
+    if (lab) lab.textContent = n.toFixed(2) + "x";
+  };
+  animMediaSpeedEl.addEventListener("input", () => {
+    paintMedia();
+    document.querySelectorAll(".newtab-page video.newtab-media").forEach((v) => {
+      try { v.playbackRate = settings.animMediaSpeed; } catch (e) {}
+    });
+  });
+  animMediaSpeedEl.addEventListener("change", () => {
+    paintMedia();
+    save();
+    applyNewTabBackground();
+  });
+}
 on("applyCloak", applyCloak);
 on("resetSettings", resetSettings);
 on("clearLocalData", () => { clearLocalData(); });
@@ -4051,7 +4138,7 @@ async function bootVeilApp() {
       animStyle: settings.animStyle,
       animSpeed: settings.animSpeed,
       animCount: settings.animCount,
-      animSize: settings.animSize,
+      animSize: settings.animSize, animMediaSpeed: settings.animMediaSpeed,
       animColorA: settings.animColorA,
       animColorB: settings.animColorB,
       customServers: settings.customServers,

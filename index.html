@@ -944,11 +944,6 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
       </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Home page background <button type="button" class="info-btn" data-info="background" title="About this option" aria-label="About Home page background"><img src="image/info.svg" alt=""></button></div>
-      <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
-      <button class="primary-btn" id="applyBackground" type="button">Apply background</button>
-    </section>
-    <section class="setting-section">
       <div class="setting-title">24-hour time <button type="button" class="info-btn" data-info="time24" title="About this option" aria-label="About 24-hour time"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Use 24-hour clock</span>
@@ -967,14 +962,26 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
             <option value="orbs">Floating orbs</option>
             <option value="stars">Twinkling stars</option>
             <option value="constellation">Constellation</option>
-            <option value="rain">Rain &amp; storms</option>
+            <option value="rain">Rain & storms</option>
+            <option value="custom">Custom URL</option>
           </select>
         </div>
-        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="animSpeedVal">1.00x</span></div>
-        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span><input type="range" id="animCount" min="4" max="80" step="1" value="18"><span class="range-val" id="animCountVal">18</span></div>
-        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
-        <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
-        <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
+        <div id="animUrlRow" style="display:none">
+          <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
+        </div>
+        <div id="animTuneRows">
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="animSpeedVal">1.00x</span></div>
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span><input type="range" id="animCount" min="4" max="80" step="1" value="18"><span class="range-val" id="animCountVal">18</span></div>
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
+        </div>
+        <div id="animColorRows">
+          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
+          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
+        </div>
+        <div id="animMediaSpeedRow" style="display:none">
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animMediaSpeed" min="0.25" max="3" step="0.05" value="1"><span class="range-val" id="animMediaSpeedVal">1.00x</span></div>
+        </div>
+
       </div>
     </section>
     <section class="setting-section">
