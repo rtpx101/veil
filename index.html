@@ -623,9 +623,9 @@ body.boot-reveal #browser{
 .game-tile .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .tile-tools{position:absolute;top:8px;left:8px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .16s ease;z-index:2}
 .game-tile:hover .tile-tools,.game-tile:focus-within .tile-tools{opacity:1;pointer-events:auto}
-.tile-tool{width:28px;height:28px;border:0;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.tile-tool{width:30px;height:30px;border:0;border-radius:8px;background:rgba(0,0,0,.62);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;overflow:hidden}
 .tile-tool:hover{background:rgba(0,0,0,.82)}
-.tile-tool img{width:14px;height:14px;display:block;filter:invert(1);opacity:.92}
+.tile-tool img{width:13px;height:13px;max-width:13px;max-height:13px;display:block;object-fit:contain;filter:invert(1);opacity:.92}
 .tile-tool.on img{filter:invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg);opacity:1}
 .game-tile .meta{padding:8px 9px 10px}
 .game-tile .meta .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -650,17 +650,17 @@ body.boot-reveal #browser{
 .game-player-frame{flex:1;min-height:0;background:#111;position:relative}
 .game-player-frame iframe{width:100%;height:100%;border:0;display:block;background:#0a0a0a}
 .game-notes{width:0;overflow:hidden;border-left:0;background:var(--bg2);display:flex;flex-direction:column;min-height:0;transition:width .2s ease}
-.game-player.notes-open .game-notes{width:300px;border-left:1px solid var(--border)}
-.game-notes-header{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
-.game-notes-tabs{display:flex;align-items:center;gap:4px;padding:8px;border-bottom:1px solid var(--border);overflow-x:auto;flex-wrap:nowrap;min-height:44px;box-sizing:border-box}
+.game-player.notes-open .game-notes{width:300px;border-left:1px solid var(--border);overflow:hidden}
+.game-notes-header{height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;background:var(--bg2)}
+.game-notes-tabs{display:flex;align-items:center;gap:4px;padding:8px;border-bottom:1px solid var(--border);overflow:hidden;flex-wrap:nowrap;height:44px;flex:0 0 44px;box-sizing:border-box;background:var(--bg2)}
 .game-note-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
-.game-note-tab{height:28px;display:inline-flex;align-items:center;gap:4px;padding:0 6px 0 8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:11px;cursor:pointer;max-width:120px;flex:0 0 auto}
+.game-note-tab{height:28px;max-height:28px;display:inline-flex;align-items:center;gap:4px;padding:0 6px 0 8px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:11px;cursor:pointer;max-width:120px;flex:0 0 auto;overflow:hidden}
 .game-note-tab.active{border-color:var(--accent);color:var(--text);background:var(--bg3)}
 .game-note-tab-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.game-note-x{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 16px;padding:0}
-.game-note-x img{width:10px;height:10px;display:block;filter:invert(var(--icon-invert,1));opacity:.75}
+.game-note-x{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 16px;padding:0;overflow:hidden}
+.game-note-x img,.game-note-add img,.game-notes-header img{width:12px;height:12px;max-width:12px;max-height:12px;display:block;object-fit:contain;filter:invert(var(--icon-invert,1));opacity:.8}
 .game-note-x:hover{background:var(--panel2)}
-.game-note-add{width:28px;height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.game-note-add{width:28px;height:28px;max-height:28px;flex:0 0 28px;border-radius:8px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;overflow:hidden}
 .game-note-add:hover{background:var(--panel2)}
 .game-notes-tabs.is-menu{overflow:hidden}
 .game-note-menu{flex:1;min-width:0;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;padding:0 8px}
