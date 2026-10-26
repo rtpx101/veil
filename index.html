@@ -194,7 +194,42 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .profile-actions{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
 .profile-actions input[type=file]{font-size:12px;color:var(--muted)}
 .setting-section{margin-bottom:22px}
-.panel-body{animation:panelIn .22s ease}
+.quick-link{position:relative}
+.chat-alert{position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--panel);display:none}
+.chat-alert.on{display:block}
+.tab{position:relative}
+.tab .chat-alert{top:6px;right:22px}
+.chat-page{width:100%;height:100%;background:var(--bg);color:var(--text)}
+.chat-app{display:flex;height:100%;min-height:0}
+.chat-side{width:230px;flex:0 0 230px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;gap:4px;padding:12px;overflow:auto}
+.chat-room{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 8px;border-radius:9px;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.chat-room img{width:16px;height:16px;filter:invert(var(--icon-invert,1));opacity:.85}
+.chat-room.on,.chat-room:hover{background:var(--panel2)}
+.chat-label{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.chat-mini{width:26px;height:26px;border:0;border-radius:7px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.chat-mini img{width:15px;height:15px;filter:invert(var(--icon-invert,1))}
+.chat-add{display:flex;flex-direction:column;gap:6px}
+.chat-add[hidden]{display:none}
+.chat-code{margin-top:auto;padding-top:12px;color:var(--muted);font-size:12px;line-height:1.4}
+.chat-code b{color:var(--text);font-weight:650}
+.chat-main{flex:1;min-width:0;display:flex;flex-direction:column;padding:14px}
+.chat-head{display:flex;align-items:center;gap:10px;height:42px}
+.chat-head h2{font-size:16px;font-weight:650}
+.chat-admin-label{font-size:12px;color:var(--muted)}
+.chat-log{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:8px 0}
+.chat-line{max-width:min(560px,88%);padding:8px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--border)}
+.chat-line.mine{align-self:flex-end;background:var(--panel2)}
+.chat-who{background:none;border:0;padding:0;color:var(--text);font-weight:650;cursor:pointer}
+.chat-email{font-size:12px;color:var(--muted);margin-top:2px}
+.chat-text{font-size:13px;line-height:1.4;word-break:break-word;margin-top:3px}
+.chat-compose{display:flex;gap:8px}
+.chat-compose .text-input{margin:0}
+.chat-compose .primary-btn{width:auto;padding:0 14px;margin:0}
+.chat-hint{font-size:12px;color:var(--muted);min-height:16px;margin-top:6px}
+.chat-setup{height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+.chat-setup-card{width:min(420px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px}
+.chat-setup-card h2{font-size:20px;margin-bottom:8px}
+.chat-setup-card p{color:var(--muted);font-size:13px;line-height:1.45;margin-bottom:12px}
 @keyframes panelIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
 .chrome{transition:background .25s ease,border-color .25s ease}
 .tab{transition:background .15s ease,color .15s ease,flex-basis .2s ease}
@@ -841,6 +876,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     <button type="button" class="settings-tab" data-settings-tab="privacy" role="tab">Privacy</button>
     <button type="button" class="settings-tab" data-settings-tab="browser" role="tab">Browser</button>
     <button type="button" class="settings-tab" data-settings-tab="account" role="tab">Account</button>
+    <button type="button" class="settings-tab" data-settings-tab="chat" role="tab">Chat</button>
   </div>
   <div class="panel-body">
     <div class="settings-page active" data-settings-page="custom">
@@ -1042,6 +1078,37 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
       <div class="status" id="engineStatus">Libcurl</div>
+    </section>
+    </div>
+
+    <div class="settings-page" data-settings-page="chat">
+    <section class="setting-section">
+      <div class="setting-title">Profile</div>
+      <div class="profile-row">
+        <div class="profile-frame"><img class="profile-preview is-ph" id="chatPfpPreview" src="image/profileplaceholder.png" alt=""></div>
+        <div class="profile-actions">
+          <input type="file" id="chatPfpFile" accept="image/png,image/jpeg,image/webp,image/gif">
+          <button class="secondary-btn" id="chatPfpClear" type="button">Use default picture</button>
+        </div>
+      </div>
+      <div class="input-row"><input class="text-input" id="chatUsername" maxlength="24" placeholder="Username"></div>
+      <button class="primary-btn" id="saveChatUsername" type="button">Save username</button>
+      <p class="hint" id="chatUsernameMsg"></p>
+      <p class="hint">Friend code: <b id="chatFriendCodeView"></b></p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Messages</div>
+      <div class="switch-row">
+        <span class="switch-label">Show a dot when a message arrives</span>
+        <button type="button" class="switch" id="chatNotifySwitch" role="switch" aria-checked="true"></button>
+      </div>
+    </section>
+    <section class="setting-section" id="chatAdminRow" hidden>
+      <div class="setting-title">Admin mode</div>
+      <div class="switch-row">
+        <span class="switch-label">Click a name to see their email</span>
+        <button type="button" class="switch" id="chatAdminSwitch" role="switch" aria-checked="false"></button>
+      </div>
     </section>
     </div>
 
