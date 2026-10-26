@@ -4,91 +4,111 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Veil Admin</title>
-  <link rel="icon" id="favicon" href="../image/favi.png" />
+  <script src="../veil-guard.js"></script>
+  <link rel="icon" href="../image/favi.png" />
   <style>
-    :root { --bg:#101010; --panel:#181818; --border:#2b2b2b; --text:#f0f0f0; --muted:#888; --accent:#fff; }
+    :root { --bg:#0e0e0e; --card:#171717; --line:rgba(255,255,255,.08); --text:#f3f3f3; --muted:#8d8d8d; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-    .wrap { max-width: 720px; margin: 0 auto; padding: 28px 16px 60px; }
-    h1 { font-size: 22px; margin-bottom: 6px; }
-    .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
-    .card h2 { font-size: 14px; margin-bottom: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-    input, select, button {
-      font: inherit; border-radius: 8px; border: 1px solid var(--border); background: #141414; color: var(--text);
-      height: 40px; padding: 0 12px; width: 100%;
-    }
-    button { cursor: pointer; font-weight: 600; }
-    button.primary { background: #fff; color: #111; border: 0; }
+    body { min-height: 100vh; font-family: system-ui, -apple-system, sans-serif; background: radial-gradient(900px 320px at 50% -10%, rgba(255,255,255,.05), transparent 55%), var(--bg); color: var(--text); }
+    button, input, select { font: inherit; color: inherit; }
+    .wrap { width: min(860px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 70px; }
+    .view { display: none; }
+    .view.show { display: block; animation: rise .35s ease; }
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .login-card, .panel { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px; }
+    .login-card { width: min(420px, 100%); margin: 12vh auto 0; }
+    .mark { width: 52px; height: 52px; border-radius: 16px; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; background: #111; border: 1px solid var(--line); }
+    .mark img { width: 30px; height: 30px; }
+    h1 { text-align: center; font-size: 26px; letter-spacing: -.03em; }
+    .sub { text-align: center; color: var(--muted); font-size: 13px; margin: 6px 0 18px; }
+    input, select, button { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: #101010; padding: 0 12px; }
+    button { cursor: pointer; }
+    button.primary { background: #f4f4f4; color: #111; border: 0; font-weight: 700; }
     button.primary:hover { filter: brightness(.95); }
-    button.danger { background: #3a1515; border-color: #5a2020; color: #ffb0b0; }
+    button.danger { background: #3a1717; color: #ffb4b4; border-color: #5a2424; }
+    .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .top h1 { text-align: left; font-size: 28px; }
+    .top p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .ghost { background: transparent; color: var(--text); width: auto; padding: 0 14px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+    .filters button { width: auto; padding: 0 12px; background: #121212; color: var(--muted); }
+    .filters button.on { background: #f4f4f4; color: #111; border-color: transparent; }
+    .filters b { font-weight: 700; margin-left: 6px; }
     .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .row > * { flex: 1; min-width: 120px; }
-    .msg { font-size: 13px; min-height: 18px; margin-top: 8px; color: var(--muted); }
-    .msg.ok { color: #9dff90; }
-    .msg.err { color: #ff7b7b; }
-    .view { display: none; }
-    .view.show { display: block; }
-    .user {
-      border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer;
-      background: #141414;
-    }
-    .user:hover, .user.open { border-color: #444; background: #1a1a1a; }
-    .user-email { font-size: 14px; font-weight: 600; }
-    .user-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
-    .badge {
-      display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-left: 6px;
-      background: #222; color: var(--muted);
-    }
-    .badge.pending { background: #3a3010; color: #ffd56b; }
-    .badge.allowed { background: #1a3a20; color: #9dff90; }
-    .badge.banned { background: #3a1515; color: #ff7b7b; }
-    .badge.expired { background: #2a2a2a; color: #aaa; }
-    .badge.unverified { background: #1a2a3a; color: #7eb8ff; }
-    .badge.google { background: #222; color: #bbb; }
-    .detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-    .user.open .detail { display: block; }
-    label.hint { font-size: 12px; color: var(--muted); display: block; margin: 8px 0 4px; }
-    #brand { display: none; }
-    #brand.show { display: block; }
+    .user { border: 1px solid var(--line); border-radius: 16px; background: #121212; margin-bottom: 10px; overflow: hidden; }
+    .user-main { width: 100%; height: auto; text-align: left; background: transparent; border: 0; padding: 14px 16px; border-radius: 0; }
+    .user-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .user-email { font-weight: 680; }
+    .user-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; background: #222; color: #aaa; text-transform: lowercase; }
+    .badge.pending { background: #3a3014; color: #ffd56a; }
+    .badge.allowed { background: #16321c; color: #9dffb0; }
+    .badge.banned { background: #3a1717; color: #ff9d9d; }
+    .badge.unverified { background: #16283a; color: #8ec5ff; }
+    .badge.expired { background: #242424; color: #bbb; }
+    .detail { display: none; padding: 0 16px 16px; }
+    .user.open .detail { display: block; animation: rise .22s ease; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .meta-grid div { background: #0e0e0e; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+    .meta-grid span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+    label { display: block; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin: 10px 0 6px; }
+    .actions button { flex: 1; }
+    .empty { color: var(--muted); padding: 18px 4px; }
+    .global { margin-top: 14px; }
+    .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(12px); opacity: 0; pointer-events: none; background: #1c1c1c; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; font-size: 13px; transition: .2s ease; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.ok { color: #b6ffb0; }
+    .toast.err { color: #ff9d9d; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: flex; align-items: center; justify-content: center; padding: 18px; opacity: 0; transition: opacity .18s ease; z-index: 20; }
+    .modal.open { opacity: 1; }
+    .modal-card { width: min(420px, 100%); background: #171717; border: 1px solid var(--line); border-radius: 18px; padding: 20px; transform: translateY(8px); transition: transform .18s ease; }
+    .modal.open .modal-card { transform: none; }
+    .modal-card h3 { font-size: 18px; margin-bottom: 8px; }
+    .modal-card p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .modal-actions button { flex: 1; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div id="brand">
-      <h1>Veil Admin</h1>
-      <p class="sub">Grant · ban · invalidate · revoke</p>
-    </div>
-
-    <div id="loginView" class="view show">
-      <div class="card">
-        <h2>Admin login</h2>
-        <input type="password" id="adminPass" placeholder="Admin password" autocomplete="current-password" />
-        <div class="row" style="margin-top:10px">
-          <button class="primary" type="button" id="loginBtn">Enter</button>
-        </div>
-        <div class="msg" id="loginMsg"></div>
+    <section id="loginView" class="view show">
+      <div class="login-card">
+        <div class="mark"><img src="../image/favi.png" alt=""></div>
+        <h1>Admin</h1>
+        <p class="sub">Manage who can enter Veil.</p>
+        <input id="adminPass" type="password" placeholder="Admin password" autocomplete="current-password" />
+        <button class="primary" id="loginBtn" type="button" style="width:100%;margin-top:10px">Enter</button>
       </div>
-    </div>
-
-    <div id="appView" class="view">
-      <div class="card">
-        <h2>Users</h2>
+    </section>
+    <section id="appView" class="view">
+      <div class="top">
+        <div>
+          <h1>Accounts</h1>
+          <p>Grant time, ban, verify, or remove an account.</p>
+        </div>
+        <button class="ghost" id="signOutBtn" type="button">Sign out</button>
+      </div>
+      <div class="panel">
         <div class="row">
-          <input type="search" id="userSearch" placeholder="Search email…" />
-          <button type="button" id="refreshUsers" style="flex:0 0 auto;width:auto;padding:0 16px">Refresh</button>
+          <input id="userSearch" type="search" placeholder="Search email" />
+          <button id="refreshUsers" type="button" style="flex:0 0 auto;width:auto;padding:0 16px">Refresh</button>
         </div>
-        <div id="userList" style="margin-top:12px"></div>
-        <div class="msg" id="userMsg"></div>
+        <div class="filters">
+          <button type="button" class="on" data-filter="all">All <b data-count="all">0</b></button>
+          <button type="button" data-filter="pending">Pending <b data-count="pending">0</b></button>
+          <button type="button" data-filter="allowed">Allowed <b data-count="allowed">0</b></button>
+          <button type="button" data-filter="unverified">Unverified <b data-count="unverified">0</b></button>
+          <button type="button" data-filter="banned">Banned <b data-count="banned">0</b></button>
+        </div>
+        <div id="userList"></div>
       </div>
-
-      <div class="card">
-        <h2>Global</h2>
-        <button type="button" id="signoutAll">Kick everyone online</button>
-        <div class="msg" id="globalMsg"></div>
+      <div class="panel global">
+        <button class="danger" id="signoutAll" type="button" style="width:100%">Sign everyone out</button>
       </div>
-    </div>
+    </section>
   </div>
+  <div class="toast" id="toast"></div>
   <script src="admin.js"></script>
 </body>
 </html>

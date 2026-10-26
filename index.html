@@ -140,7 +140,9 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .signup-card .signup-err{color:var(--danger);font-size:12px;margin-top:10px;min-height:16px}
 .lock-overlay{position:fixed;inset:0;z-index:90000;background:#070708;display:flex;align-items:center;justify-content:center;padding:24px;animation:veilFade .4s ease}
 .lock-screen{width:min(420px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
-.lock-avatar{width:112px;height:112px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.14);background:#141414;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.lock-avatar-frame{width:128px;height:128px;border-radius:50%;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:#141414;box-shadow:0 18px 50px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+.lock-avatar{width:100%;height:100%;object-fit:cover;border:0;border-radius:0;display:block}
+.lock-avatar.is-ph{transform:scale(1.62)}
 .lock-name{margin-top:16px;font-size:22px;font-weight:650;letter-spacing:-.02em}
 .lock-clock{margin-top:10px;font-size:44px;font-weight:620;letter-spacing:-.04em;font-variant-numeric:tabular-nums;line-height:1}
 .lock-date{margin-top:6px;margin-bottom:22px;font-size:13px;color:var(--muted)}
@@ -148,10 +150,12 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .lock-screen .lock-go{width:100%;height:44px;border-radius:12px;background:var(--accent);color:var(--accentText);font-weight:650;cursor:pointer}
 .lock-screen .lock-err{color:var(--danger);font-size:12px;min-height:18px;margin-bottom:8px}
 
-.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,56px);padding:11px 14px 3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
+.time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,56px);padding:20px 22px 4px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;gap:4px;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
 .time-dev{color:#ff2a2a;font-size:11px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;line-height:1.15;text-align:center}
-.time-cluster{display:inline-flex;align-items:center;justify-content:center;gap:0;max-width:100%}
-.time-dot{margin:0 14px;color:var(--muted);opacity:.7;font-weight:700;line-height:1}
+.time-cluster{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;width:100%;column-gap:16px}
+.time-left{justify-self:start;text-align:left}
+.time-mid{justify-self:center}
+.time-os{justify-self:end;text-align:right}
 .time-left,.time-os,.time-battery{flex:0 0 auto;white-space:nowrap}
 .time-battery{display:inline-flex;align-items:center;gap:6px}
 .time-battery[hidden]{display:none !important}
@@ -184,7 +188,9 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .settings-page{display:none}
 .settings-page.active{display:block;animation:veilUp .28s ease}
 .profile-row{display:flex;align-items:center;gap:12px}
-.profile-preview{width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--border);background:var(--bg2);flex:0 0 64px}
+.profile-frame{width:72px;height:72px;border-radius:50%;overflow:hidden;border:1px solid var(--border);background:var(--bg2);flex:0 0 72px;display:flex;align-items:center;justify-content:center}
+.profile-preview{width:100%;height:100%;object-fit:cover;border:0;border-radius:0;background:transparent;display:block}
+.profile-preview.is-ph{transform:scale(1.62)}
 .profile-actions{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
 .profile-actions input[type=file]{font-size:12px;color:var(--muted)}
 .setting-section{margin-bottom:22px}
@@ -355,86 +361,75 @@ select.text-input,.modal-box select{
 
 #accessGate{
   position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;
-  background:#101010;flex-direction:column;padding:24px;
+  background:
+    radial-gradient(900px 420px at 50% -10%, rgba(255,255,255,.06), transparent 60%),
+    #0c0c0c;
+  flex-direction:column;padding:24px;
 }
-
-
-
 #accessGate .box{
-  position:relative;z-index:1;width:min(440px,92vw);background:#181818;border:1px solid #2b2b2b;
-  border-radius:14px;padding:36px 28px 32px;text-align:center;
-  animation:riseGate .4s ease both;
+  position:relative;z-index:1;width:min(420px,92vw);background:#161616;border:1px solid rgba(255,255,255,.08);
+  border-radius:22px;padding:28px 26px 22px;text-align:left;
+  box-shadow:0 30px 80px rgba(0,0,0,.45);
+  animation:riseGate .45s cubic-bezier(.2,.8,.2,1) both;
 }
-#accessGate h1{font-size:24px;font-weight:650;margin-bottom:8px;color:#f2f2f2}
-#accessGate .gate-sub{font-size:14px;color:#888;margin-bottom:16px;line-height:1.55}
-#accessGate .otp-row{
-  display:flex;justify-content:center;gap:8px;margin:4px 0 14px;
-}
+#accessGate .gate-mark{width:54px;height:54px;border-radius:16px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;background:#111;border:1px solid rgba(255,255,255,.08);overflow:hidden}
+#accessGate .gate-mark img{width:34px;height:34px;display:block}
+#accessGate h1{font-size:26px;font-weight:680;margin:0 0 6px;color:#f4f4f4;text-align:center;letter-spacing:-.03em}
+#accessGate .gate-sub{font-size:13px;color:#8d8d8d;margin:0 0 18px;line-height:1.5;text-align:center}
+#accessGate .otp-row{display:flex;justify-content:center;gap:8px;margin:6px 0 16px}
 #accessGate .otp-digit{
-  width:42px;height:48px;border-radius:10px;border:1px solid #2b2b2b;background:#151515;
-  color:#f2f2f2;font-size:20px;font-weight:600;text-align:center;padding:0;
-  outline:none;box-sizing:border-box;margin:0;
-  caret-color:#f2f2f2;
+  width:46px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:#101010;
+  color:#f4f4f4;font-size:22px;font-weight:650;text-align:center;padding:0;margin:0;
+  outline:none;box-sizing:border-box;caret-color:#fff;transition:border-color .2s ease, transform .2s ease;
 }
-#accessGate .otp-digit:focus{border-color:#f2f2f2}
+#accessGate .otp-digit:focus{border-color:#fff;transform:translateY(-1px)}
 #accessGate .otp-row.otp-bad .otp-digit{border-color:#ff5c5c;animation:otpShake .28s ease}
 @keyframes otpShake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 #accessGate .gate-sub.hidden-sub{display:none!important}
+#accessGate .field{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#777;margin:0 0 6px}
 #accessGate input{
-  width:100%;height:44px;border-radius:10px;border:1px solid #2b2b2b;background:#151515;
-  color:#f2f2f2;padding:0 14px;margin-bottom:10px;text-align:left;letter-spacing:normal;
-  font-size:14px;outline:none;box-sizing:border-box;
+  width:100%;height:46px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:#101010;
+  color:#f4f4f4;padding:0 14px;margin:0 0 12px;text-align:left;letter-spacing:normal;
+  font-size:14px;outline:none;box-sizing:border-box;transition:border-color .2s ease, background .2s ease;
 }
-#accessGate input:focus{border-color:#444}
+#accessGate input:focus{border-color:rgba(255,255,255,.45);background:#141414}
 #accessGate .gate-btn{
-  width:100%;height:44px;border:0;border-radius:10px;background:#ffffff;color:#111111;
+  width:100%;height:46px;border:0;border-radius:12px;background:#f4f4f4;color:#111;
   font-weight:700;cursor:pointer;font-size:14px;margin-top:4px;
+  transition:transform .18s ease, filter .18s ease;
 }
-#accessGate .gate-btn:hover{filter:brightness(.95)}
+#accessGate .gate-btn:hover{filter:brightness(.95);transform:translateY(-1px)}
+#accessGate .gate-btn:active{transform:translateY(0)}
 #accessGate .gate-btn.secondary{background:#1c1c1c;color:#ddd;border:1px solid #333;margin-top:8px}
-#accessGate .gate-btn.linkish{background:transparent;color:#888;height:auto;padding:10px 0;font-weight:500;font-size:13px}
-#accessGate .gate-btn.linkish:hover{color:#ccc;filter:none}
-#accessGate .amsg{font-size:13px;min-height:18px;margin-top:12px;color:#888}
-#accessGate .gate-tabs{display:flex;gap:6px;margin-bottom:14px}
-#accessGate .gate-tab{flex:1;height:36px;border-radius:8px;border:1px solid #2a2a2a;background:#141414;color:#888;font-size:13px;cursor:pointer}
-#accessGate .gate-tab.active{border-color:#555;background:#1c1c1c;color:#f0f0f0}
+#accessGate .gate-btn.linkish{background:transparent;color:#888;height:auto;padding:12px 0 0;font-weight:500;font-size:13px}
+#accessGate .gate-btn.linkish:hover{color:#ddd;filter:none;transform:none}
+#accessGate .amsg{font-size:13px;min-height:18px;margin-top:12px;color:#9a9a9a;text-align:center}
+#accessGate .gate-tabs{display:flex;gap:4px;margin-bottom:16px;padding:4px;border-radius:14px;background:#101010;border:1px solid rgba(255,255,255,.06)}
+#accessGate .gate-tab{flex:1;height:36px;border-radius:10px;border:0;background:transparent;color:#888;font-size:13px;cursor:pointer;transition:background .2s ease, color .2s ease}
+#accessGate .gate-tab.active{background:#242424;color:#f4f4f4}
 #accessGate .gate-panel{display:none}
-#accessGate .gate-panel.active{display:block}
+#accessGate .gate-panel.active{display:block;animation:gateIn .28s ease}
+@keyframes gateIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #accessGate.checking .box{visibility:hidden}
 #accessGate.is-blocked .box{transition:opacity .3s ease,filter .3s ease}
-#accessGate .pending-box{padding:4px 0 0}
+#accessGate .pending-box{padding:8px 0 0;text-align:center}
 #accessGate .pending-icon{
-  width:48px;height:48px;margin:0 auto 14px;border-radius:14px;
-  border:1px solid #2a2a2a;background:#141414;display:flex;align-items:center;justify-content:center;
-  line-height:0;
+  width:64px;height:64px;margin:0 auto 16px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.08);background:#101010;display:flex;align-items:center;justify-content:center;
 }
-#accessGate .pending-icon img{
-  width:14px;height:14px;display:block;
-  filter:brightness(0) invert(1);opacity:.7;
-}
-#accessGate .pending-icon.status-wait img{
-  filter:brightness(0) saturate(100%) invert(72%) sepia(45%) saturate(600%) hue-rotate(340deg) brightness(105%);opacity:1;
-}
-#accessGate .pending-icon.status-ok img{
-  filter:brightness(0) saturate(100%) invert(78%) sepia(47%) saturate(500%) hue-rotate(55deg) brightness(105%);opacity:1;
-}
-#accessGate .pending-box h2{font-size:18px;margin-bottom:6px;color:#f0f0f0;font-weight:650}
-#accessGate .pending-email{font-size:12px;color:#aaa;margin:0 0 12px;word-break:break-all}
-#accessGate .pending-box p{color:#888;font-size:13px;line-height:1.55;margin:0 0 10px}
+#accessGate .pending-icon img{width:18px;height:18px;display:block;filter:brightness(0) invert(1);opacity:.75}
+#accessGate .pending-box h2{font-size:22px;margin-bottom:6px;color:#f4f4f4;font-weight:680;letter-spacing:-.03em}
+#accessGate .pending-email{font-size:13px;color:#bbb;margin:0 0 12px;word-break:break-all}
+#accessGate .pending-box p{color:#8d8d8d;font-size:13px;line-height:1.55;margin:0 0 10px}
 #accessGate .pending-hint{font-size:12px;color:#666;margin-bottom:16px!important}
-#accessGate .pending-box .gate-btn.secondary{margin-top:4px}
-
 #accessGate .google-wrap{width:100%}
 #accessGate .google-btn-host{display:flex;justify-content:center;min-height:40px}
-#accessGate .gate-or{
-  text-align:center;color:#666;font-size:12px;margin:12px 0 4px;
-  position:relative
-}
-#accessGate .gate-or::before,#accessGate .gate-or::after{
-  content:"";position:absolute;top:50%;width:38%;height:1px;background:#2a2a2a
-}
+#accessGate .gate-or{text-align:center;color:#666;font-size:12px;margin:4px 0 14px;position:relative}
+#accessGate .gate-or::before,#accessGate .gate-or::after{content:"";position:absolute;top:50%;width:38%;height:1px;background:#2a2a2a}
 #accessGate .gate-or::before{left:0}
 #accessGate .gate-or::after{right:0}
+@keyframes riseGate{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+
 #accessBlocked{
   display:none;position:fixed;inset:0;z-index:100000;
   align-items:center;justify-content:center;padding:24px;
@@ -446,7 +441,6 @@ select.text-input,.modal-box select{
 }
 #accessBlocked h2{font-size:20px;font-weight:650;margin:0 0 12px;color:#f2f2f2}
 #accessBlocked .blocked-time{font-size:14px;line-height:1.55;color:#888;margin:0}
-@keyframes riseGate{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 body.gate-lock #browser,
 body.gate-lock #app,
 body.gate-lock .panel,
@@ -742,24 +736,29 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 <script>function _0x39cc(_0x1a413e,_0x27f735){var _0x19a3b1=_0x19a3();return _0x39cc=function(_0x39cced,_0x163abb){_0x39cced=_0x39cced-0x1db;var _0x1dfee1=_0x19a3b1[_0x39cced];if(_0x39cc['vAoBom']===undefined){var _0x9b80ce=function(_0x28405e){var _0x760466='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';var _0x1c5305='',_0x77f929='';for(var _0x459648=0x0,_0x72b175,_0x24be0b,_0x46dba9=0x0;_0x24be0b=_0x28405e['charAt'](_0x46dba9++);~_0x24be0b&&(_0x72b175=_0x459648%0x4?_0x72b175*0x40+_0x24be0b:_0x24be0b,_0x459648++%0x4)?_0x1c5305+=String['fromCharCode'](0xff&_0x72b175>>(-0x2*_0x459648&0x6)):0x0){_0x24be0b=_0x760466['indexOf'](_0x24be0b);}for(var _0x302fa1=0x0,_0x2e0de8=_0x1c5305['length'];_0x302fa1<_0x2e0de8;_0x302fa1++){_0x77f929+='%'+('00'+_0x1c5305['charCodeAt'](_0x302fa1)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0x77f929);};var _0x52eba4=function(_0x4dbb2f,_0x2ac0a7){var _0x1e9931=[],_0x656a45=0x0,_0x2d9917,_0x1a550b='';_0x4dbb2f=_0x9b80ce(_0x4dbb2f);var _0xdaffea;for(_0xdaffea=0x0;_0xdaffea<0x100;_0xdaffea++){_0x1e9931[_0xdaffea]=_0xdaffea;}for(_0xdaffea=0x0;_0xdaffea<0x100;_0xdaffea++){_0x656a45=(_0x656a45+_0x1e9931[_0xdaffea]+_0x2ac0a7['charCodeAt'](_0xdaffea%_0x2ac0a7['length']))%0x100,_0x2d9917=_0x1e9931[_0xdaffea],_0x1e9931[_0xdaffea]=_0x1e9931[_0x656a45],_0x1e9931[_0x656a45]=_0x2d9917;}_0xdaffea=0x0,_0x656a45=0x0;for(var _0x165759=0x0;_0x165759<_0x4dbb2f['length'];_0x165759++){_0xdaffea=(_0xdaffea+0x1)%0x100,_0x656a45=(_0x656a45+_0x1e9931[_0xdaffea])%0x100,_0x2d9917=_0x1e9931[_0xdaffea],_0x1e9931[_0xdaffea]=_0x1e9931[_0x656a45],_0x1e9931[_0x656a45]=_0x2d9917,_0x1a550b+=String['fromCharCode'](_0x4dbb2f['charCodeAt'](_0x165759)^_0x1e9931[(_0x1e9931[_0xdaffea]+_0x1e9931[_0x656a45])%0x100]);}return _0x1a550b;};_0x39cc['JvuPBr']=_0x52eba4,_0x1a413e=arguments,_0x39cc['vAoBom']=!![];}var _0x5c56a4=_0x19a3b1[0x0],_0x13b7a1=_0x39cced+_0x5c56a4,_0x2ce8b3=_0x1a413e[_0x13b7a1];return!_0x2ce8b3?(_0x39cc['NBBjmf']===undefined&&(_0x39cc['NBBjmf']=!![]),_0x1dfee1=_0x39cc['JvuPBr'](_0x1dfee1,_0x163abb),_0x1a413e[_0x13b7a1]=_0x1dfee1):_0x1dfee1=_0x2ce8b3,_0x1dfee1;},_0x39cc(_0x1a413e,_0x27f735);}function _0x19a3(){var _0x2a1400=['WQX7WQzJWPKRjvO/W4uPW7O','W45FW5xdSW9AW4jkka','W6aFuthdHCkEW58','a3WCmCkqtCkiWQtcSq','WQj8WPZcISozW6qBCCoB','iCoErmovm8osW7VcI8kLdG','cxmgn8kk','j8oyu8o1lmoeW5hcJ8k/h0JdGSoRWQu','fCkUFhldTseHW6bvbujOtgZdObhcVSkoW51O','WOtdH3RcLa','W6j7gmomW7pcUwZcTsNdIa','W7tdONO','W5b1emoDW77cRwJcVshdLe0','hwxcPComwMi9WPGoCti','ltpdHmoJfqrxhCorW40OkCo5fq','bmkXWRpdQ3BdPmko','vYldTCkbh18','WQxdNgXFpN9PtbTpW6JcL8kJ','r8kbpCkxW4xdJCksW6NcTSoSaW','W7jTAa','W4ikW5q5c8k/CMJcTq','ktRdKCovcI1tc8ol','WRZcJmojW5XkBWxdRxyB','WPaIbGNdNmorWO9QWQ0nW5NdKCoyySoXWRjw4Oo6','W69RW7hcTNldPsDuvmkzCbvN','WQhdIx3cLJZdPmkrWQVcMMtIGzy','W53cVSoeWP/dGW3cVdxcSW','DbBcGNG','jCkTCgtdSGuHW71g','ct7dLCofeGHuh8kFW5Gjm8ovaLK','W7rSEhBcOCk6f8o7W7VcMCokWRRcKSoD','BCk/t8kokgdcPtn4','pCoOfSkRgMBcKcHY','a1/cHX5aW77cKCkOnq','CWpdLtDLW6/cICkQymoFW7SOFSoec3RcRKLQz8ozyCktv3hcU2FcJmk5W48','WPpdQmk7WO03','vHaxiSo7W7BdISkl','axJdJ2OAou3cGCkq','vc7cIMKCleK','z3VdJSk4WPVdSLpdILpcRq','WOtdTCkPWOKZedBdRL3cICkquCoy','W4L6e8ksm8kpW6q','sSohDmobvfe','FaRcGMlcQdhdPmk9x8kiD8kX','EZDYW7b9WPr+wZTQWPWkW57cJW','WRZdKH8hW6aprmkRW5VdHf99DokcTa','aLVcIgW9WRhdN8o9i8ogW7S6D8oM','WOldS8k1WO07cJi','utJdSmkqdeu0WPSp','iCoTwSoRWRZdJ8kQW43cNmoHd8oRgvZdLdtcIq','W6z6WQz5W4O9ouSJW4rGW6HeWRdcHazKjmkzWQHZW4FcGG','WQy/paVdTCkwmCoUW4tcR8oP','W7FcImodWRG','wcDaemkLxmkeWR/cTW','W5FcVCokW5FcL0JdPw/cNbaiACoCca','WPmOsa','stpdP8kgc0S/','c8owWQ3dPKBcGW','WRCWWQ7dRG','WRtdJSkcW6hdSSkFW7yyuvlcM8ktqa','WQOOdGhdQSoiWOC4WQ8gW5/dQ8oFDSo8','ECouWRXbqtiBW68H','h8kLWRBcUSkGECk1WRhdTmoJhH9DWOm','WR0HxCklpmo2sh3dVwW7Aq3dG8ky','FSorWROueNnkW6OWW4hcNMGS','nComW5nqqqxdRY0PgHXEv8oIW4bFc8k3dCoYWPJcUJxcGvHoW5C','WO3cHSoDW5rxhb/dO3zEWOPDW6StW5fGqmoLW53cRxa5W58XW63dJSoGECkaWRBdVKxdTeddISkTzw4UWR0KD8kuFSo8cqrvsgJcTCk0hSkmnx/cHmkZW6dcHK1kEmkpceLFWOqqicNdKW','cZFdPmkCruq/WP8hrWi','xWNcGhNcNJFcTSkMrCkGDSkZ4OoO','W6iXW4q','rhpdJSkZW5RdRa','yWldLZOJW6/cICoTm8oDW6OUFSoz','W7eRW5lcOc8AWPr8WP8xWOa','nmoyx8oea8ooW5lcNSk0bx4','W4r7fmkh','dCkuWOtdMLNdN3eZtdmLF8ouWO3cICo6amkLW5aTW70/WReZW4i','W4uQW4hcTCoxW6eLoSohW7bZEvi','nmkEl0pdQq'];_0x19a3=function(){return _0x2a1400;};return _0x19a3();}(function(_0x41ca0b,_0x3ea8a4){var _0x5507dc={_0x469276:0x1f9,_0x5f5db8:'o3XS',_0x12e29f:0x1f2,_0x25992e:'Wu[l',_0x23d8de:'JAw3',_0x1f0ba9:0x1f0,_0x5e11b5:'Smgf',_0x23f494:0x213,_0x440b44:')#$L',_0x499824:0x20b,_0x7658bc:'NyPu',_0x45a32b:'Ry7k',_0x481b74:0x215,_0x5050c6:'6KTi'},_0x428226=_0x39cc,_0x191b1b=_0x41ca0b();while(!![]){try{var _0x2abb54=-parseInt(_0x428226(_0x5507dc._0x469276,_0x5507dc._0x5f5db8))/0x1*(parseInt(_0x428226(_0x5507dc._0x12e29f,_0x5507dc._0x25992e))/0x2)+parseInt(_0x428226(0x1e7,_0x5507dc._0x23d8de))/0x3*(-parseInt(_0x428226(_0x5507dc._0x1f0ba9,_0x5507dc._0x5e11b5))/0x4)+-parseInt(_0x428226(_0x5507dc._0x23f494,_0x5507dc._0x440b44))/0x5+parseInt(_0x428226(_0x5507dc._0x499824,_0x5507dc._0x7658bc))/0x6*(parseInt(_0x428226(0x20d,_0x5507dc._0x45a32b))/0x7)+parseInt(_0x428226(_0x5507dc._0x481b74,'#Qn]'))/0x8*(-parseInt(_0x428226(0x220,'M16c'))/0x9)+-parseInt(_0x428226(0x1e5,'1nfl'))/0xa*(-parseInt(_0x428226(0x1f8,_0x5507dc._0x5050c6))/0xb)+parseInt(_0x428226(0x206,'o3XS'))/0xc;if(_0x2abb54===_0x3ea8a4)break;else _0x191b1b['push'](_0x191b1b['shift']());}catch(_0x3db245){_0x191b1b['push'](_0x191b1b['shift']());}}}(_0x19a3,0x530d0),(function(){var _0x4bf4d6={_0x36e49c:0x20a,_0x4f4be2:'5[6W',_0x22c7c1:'NyPu',_0x35f087:0x1f7,_0x45d4db:'Bdu]',_0x4a14ad:'i(P]',_0x1fcf9a:'1#[f'},_0x48eb9f={_0x2ff829:0x205,_0x3df3a4:0x21c,_0x66894c:'lDl#'},_0x31aa4c={_0x416bd1:0x1ef,_0x30a6df:'5[6W',_0x1d42fa:0x1dd},_0x151ebc={_0x2fa995:0x217,_0x5d8473:0x208,_0x56a938:'1nfl',_0xe50e69:0x21b,_0x2d9e7b:'1nfl',_0x253890:'N!#d',_0x4cc0ab:0x223,_0x39bfbd:0x1e8,_0xddfa48:'1nfl',_0xafe7b7:'lDl#',_0x1d55dc:'i(P]'},_0x2c79e5={_0x509f66:0x1ff,_0x495654:'N!#d',_0x3dd4d0:0x219},_0x514d24={_0x2bf104:0x222,_0x424dcc:'!B3s',_0x4370f7:'NRBe',_0x9dfb38:'ejla',_0x517410:'ZfzX'},_0x501dbf={_0x2eba9d:'7)uX',_0xdb8d88:0x1eb,_0x392d87:0x1e4,_0x6e10f6:'@m6r',_0x42d03e:0x1e0,_0x767859:0x221,_0xf53f40:'I)jR',_0x351078:0x224,_0x31f620:0x216,_0x1d06ef:'dcv&',_0x5049db:'[R7n'},_0x1c0c84={_0xbb5558:0x1db,_0x381863:0x212,_0xe8a043:'Smgf'},_0x533e64={_0x453360:')#$L'},_0x553dd6=_0x39cc,_0x52eba4=_0x553dd6(_0x4bf4d6._0x36e49c,'unxp'),_0x28405e=(localStorage['getItem'](_0x553dd6(0x214,_0x4bf4d6._0x4f4be2))||'https://veil-access.retropixel404.workers.dev')['replace'](/\/$/,''),_0x760466=document[_0x553dd6(0x1e6,'NRBe')]('bootSub'),_0x1c5305=document[_0x553dd6(0x1f6,_0x4bf4d6._0x22c7c1)](_0x553dd6(_0x4bf4d6._0x35f087,'6KTi')),_0x77f929=document['getElementById'](_0x553dd6(0x1fc,_0x4bf4d6._0x45d4db)),_0x459648=[];function _0x72b175(_0xdaffea){if(_0x760466)_0x760466['textContent']=_0xdaffea;}function _0x24be0b(_0x165759,_0x33dbe8){var _0x3a9dbf=_0x553dd6;_0x459648[_0x3a9dbf(0x20c,_0x533e64._0x453360)]({'label':_0x165759,'state':_0x33dbe8||_0x3a9dbf(0x1e3,'geCv')}),_0x302fa1();}function _0x46dba9(_0x46dd9b,_0x59cf5e,_0x3946b6){var _0x45332c=_0x553dd6;if(!_0x459648[_0x46dd9b])return;_0x459648[_0x46dd9b][_0x45332c(0x1fb,'ejla')]=_0x59cf5e;if(_0x3946b6)_0x459648[_0x46dd9b]['label']=_0x3946b6;_0x302fa1();}function _0x302fa1(){var _0x3a5c68={_0x1e8270:'VQla',_0xdae6a0:0x226,_0x488b83:'unxp',_0x672c35:'QUjI',_0x5522e0:'JAw3'},_0x2db5c7=_0x553dd6;if(!_0x1c5305)return;_0x1c5305[_0x2db5c7(_0x1c0c84._0xbb5558,'Ry7k')]=_0x459648[_0x2db5c7(0x20f,'yCJ4')](function(_0x287b10){var _0x1c976b=_0x2db5c7,_0x462bb8=_0x287b10['state']==='ok'?'✓\x20':_0x287b10['state']===_0x1c976b(0x1e1,_0x3a5c68._0x1e8270)?'✕\x20':'·\x20';return _0x1c976b(_0x3a5c68._0xdae6a0,_0x3a5c68._0x488b83)+_0x287b10[_0x1c976b(0x225,_0x3a5c68._0x672c35)]+'\x22>'+_0x462bb8+_0x287b10['label']+_0x1c976b(0x211,_0x3a5c68._0x5522e0);})[_0x2db5c7(_0x1c0c84._0x381863,_0x1c0c84._0xe8a043)]('');}function _0x2e0de8(_0x1bcfaa){var _0x17fa8c=_0x553dd6;document['body'][_0x17fa8c(0x1f4,_0x501dbf._0x2eba9d)][_0x17fa8c(_0x501dbf._0xdb8d88,'NyPu')](_0x17fa8c(_0x501dbf._0x392d87,_0x501dbf._0x6e10f6));if(_0x77f929)_0x77f929['classList']['add']('err');_0x72b175(_0x17fa8c(_0x501dbf._0x42d03e,_0x501dbf._0x2eba9d));var _0x1c394b=document[_0x17fa8c(0x204,'bpc4')](_0x17fa8c(0x203,'lDl#'));if(_0x1c394b)_0x1c394b[_0x17fa8c(_0x501dbf._0x767859,'M(Zi')]=String(_0x1bcfaa&&_0x1bcfaa['message']?_0x1bcfaa[_0x17fa8c(0x1fe,_0x501dbf._0xf53f40)]:_0x1bcfaa||_0x17fa8c(_0x501dbf._0x351078,'mzre'));var _0x59d4cc=document[_0x17fa8c(_0x501dbf._0x31f620,_0x501dbf._0x1d06ef)](_0x17fa8c(0x1ec,_0x501dbf._0x5049db));if(_0x59d4cc)_0x59d4cc[_0x17fa8c(0x201,'!B3s')]=function(){var _0x387bf4=_0x17fa8c;location[_0x387bf4(0x202,'Li#]')]();};}function _0x4dbb2f(){var _0x406ad0=_0x553dd6;_0x72b175('Ready'),document[_0x406ad0(_0x514d24._0x2bf104,_0x514d24._0x424dcc)][_0x406ad0(0x1ed,_0x514d24._0x4370f7)]['remove'](_0x406ad0(0x207,_0x514d24._0x9dfb38));try{window[_0x406ad0(0x209,_0x514d24._0x517410)]=!![];}catch(_0x2a8f44){}try{window[_0x406ad0(0x200,'ejla')](new CustomEvent('veil-boot-ready'));}catch(_0x569071){}}function _0x2ac0a7(_0x1148b4){return new Promise(function(_0x124336){setTimeout(_0x124336,_0x1148b4);});}async function _0x1e9931(){var _0x38db2b=_0x553dd6;_0x24be0b(_0x38db2b(_0x2c79e5._0x509f66,_0x2c79e5._0x495654),'run'),await _0x2ac0a7(0x50);if(typeof window==='undefined')throw new Error(_0x38db2b(_0x2c79e5._0x3dd4d0,'W2RT'));_0x46dba9(0x0,'ok',_0x38db2b(0x1e2,'@m6r'));}async function _0x656a45(){var _0x15eefa=_0x553dd6;_0x24be0b(_0x15eefa(_0x151ebc._0x2fa995,'yCJ4'),'run'),_0x72b175(_0x15eefa(0x1f1,'VQla'));var _0x2f73b6=typeof AbortController!==_0x15eefa(_0x151ebc._0x5d8473,_0x151ebc._0x56a938)?new AbortController():null,_0x4f6935=setTimeout(function(){try{_0x2f73b6&&_0x2f73b6['abort']();}catch(_0x534f27){}},0x2710);try{var _0x10c03b=await fetch(_0x28405e+_0x15eefa(_0x151ebc._0xe50e69,_0x151ebc._0x2d9e7b),{'method':'GET','signal':_0x2f73b6?_0x2f73b6[_0x15eefa(0x21e,_0x151ebc._0x253890)]:undefined,'cache':'no-store'});clearTimeout(_0x4f6935);if(!_0x10c03b['ok'])throw new Error(_0x15eefa(_0x151ebc._0x4cc0ab,'^wZ@')+_0x10c03b[_0x15eefa(_0x151ebc._0x39bfbd,_0x151ebc._0xddfa48)]);var _0x5abc69=await _0x10c03b[_0x15eefa(0x1f3,_0x151ebc._0xafe7b7)]()[_0x15eefa(0x1de,'Ry7k')](function(){return{};});if(!_0x5abc69['ok'])throw new Error(_0x15eefa(0x1fa,'o3XS'));_0x46dba9(0x1,'ok',_0x15eefa(0x1f5,'NRBe'));}catch(_0x51c594){clearTimeout(_0x4f6935),_0x46dba9(0x1,'fail','Checking\x20access');throw new Error(_0x15eefa(0x21a,_0x151ebc._0x1d55dc)+(_0x51c594[_0x15eefa(0x210,'1nfl')]||_0x51c594)+')');}}async function _0x2d9917(){var _0x4240fa=_0x553dd6;_0x24be0b(_0x4240fa(0x21f,'o3XS'),_0x4240fa(0x21d,'mzre')),_0x72b175(_0x4240fa(_0x31aa4c._0x416bd1,_0x31aa4c._0x30a6df)),await _0x2ac0a7(0x78);var _0x522af3=document[_0x4240fa(0x1df,'M(Zi')](_0x4240fa(_0x31aa4c._0x1d42fa,'M(Zi'));if(!_0x522af3)throw new Error('Sign-in\x20screen\x20failed\x20to\x20load\x20(missing\x20access\x20gate)');_0x46dba9(0x2,'ok','Sign-in\x20screen');}async function _0x1a550b(){var _0xd66871=_0x553dd6;try{_0x72b175(_0xd66871(_0x48eb9f._0x2ff829,']vNu')),await _0x1e9931(),await _0x656a45(),await _0x2d9917(),_0x72b175(_0xd66871(_0x48eb9f._0x3df3a4,_0x48eb9f._0x66894c)),await _0x2ac0a7(0x118),_0x4dbb2f();}catch(_0x38540b){_0x2e0de8(_0x38540b);}}document[_0x553dd6(0x1ee,_0x4bf4d6._0x4a14ad)]===_0x553dd6(0x228,_0x4bf4d6._0x1fcf9a)?document['addEventListener']('DOMContentLoaded',function(){_0x1a550b();}):_0x1a550b();}()));</script>
 <div id="accessGate">
   <div class="box" id="gateAuthBox">
+    <div class="gate-mark"><img src="image/favi.png" alt=""></div>
     <h1>Veil</h1>
     <p class="gate-sub" id="gateSub">Sign in to continue</p>
     <div class="gate-tabs">
       <button type="button" class="gate-tab active" data-gate-tab="login">Log in</button>
       <button type="button" class="gate-tab" data-gate-tab="signup">Sign up</button>
     </div>
-    <div id="googleSignInWrap" class="google-wrap" style="display:none;margin-bottom:14px">
+    <div id="googleSignInWrap" class="google-wrap" style="display:none">
       <div id="googleSignInBtn" class="google-btn-host"></div>
       <p class="gate-or">or</p>
     </div>
     <div class="gate-panel active" id="panelLogin">
-      <input id="loginEmail" type="email" placeholder="Email" autocomplete="username" />
+      <label class="field" for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" placeholder="you@email.com" autocomplete="username" />
+      <label class="field" for="loginPass">Password</label>
       <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password" />
       <button type="button" class="gate-btn" id="loginBtn">Log in</button>
     </div>
     <div class="gate-panel" id="panelSignup">
-      <input id="signupEmail" type="email" placeholder="Email" autocomplete="email" />
-      <input id="signupPass" type="password" placeholder="Password (min 6)" autocomplete="new-password" />
+      <label class="field" for="signupEmail">Email</label>
+      <input id="signupEmail" type="email" placeholder="you@email.com" autocomplete="email" />
+      <label class="field" for="signupPass">Password</label>
+      <input id="signupPass" type="password" placeholder="At least 4 characters" autocomplete="new-password" />
       <button type="button" class="gate-btn" id="signupBtn">Create account</button>
     </div>
     <div class="gate-panel" id="panelVerify">
@@ -779,10 +778,10 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     <div class="gate-panel" id="panelPending">
       <div class="pending-box">
         <div class="pending-icon status-wait" aria-hidden="true"><img src="image/status.svg" alt=""></div>
-        <h2 id="pendingTitle">Almost there</h2>
+        <h2 id="pendingTitle">Waiting for access</h2>
         <p class="pending-email" id="pendingEmail"></p>
-        <p id="pendingText">We’re waiting for an admin to approve your account. This usually doesn’t take long.</p>
-        <p class="pending-hint" id="pendingHint">You can leave this page open — we’ll check for you every few seconds.</p>
+        <p id="pendingText">Your email is confirmed. An admin still needs to grant access before you can enter.</p>
+        <p class="pending-hint" id="pendingHint">Leave this page open. Veil checks for you every few seconds.</p>
         <button type="button" class="gate-btn secondary" id="pendingRefreshBtn">Check status</button>
         <button type="button" class="gate-btn linkish" id="pendingLogoutBtn">Use a different account</button>
       </div>
@@ -987,6 +986,10 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <option value="manual">Manual - only when I choose Launch</option>
         <option value="auto">Auto - open about:blank once on start</option>
       </select>
+      <div class="switch-row">
+        <span class="switch-label">Close this tab after it opens</span>
+        <button type="button" class="switch" id="closeOriginSwitch" role="switch" aria-checked="false"></button>
+      </div>
       <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
     </section>
         <section class="setting-section">
@@ -1047,7 +1050,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     <section class="setting-section">
       <div class="setting-title">Profile picture <button type="button" class="info-btn" data-info="avatar" title="About this option" aria-label="About Profile picture"><img src="image/info.svg" alt=""></button></div>
       <div class="profile-row">
-        <img class="profile-preview" id="profilePreview" src="image/profileplaceholder.png" alt="">
+        <div class="profile-frame"><img class="profile-preview is-ph" id="profilePreview" src="image/profileplaceholder.png" alt=""></div>
         <div class="profile-actions">
           <input type="file" id="profileFile" accept="image/png,image/jpeg,image/webp,image/gif">
           <button class="secondary-btn" id="profileClear" type="button">Use default picture</button>
