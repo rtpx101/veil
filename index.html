@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Veil</title>
 <script src="veil-guard.js"></script>
+<script src="veil-call.js"></script>
 <link id="favicon" rel="icon" href="image/favi.png">
 <style>
 :root{
@@ -251,6 +252,36 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .veil-toast.ok{color:#9dffb0}
 .veil-toast.wait{color:#ffd56a}
 .veil-toast.bad{color:#ff9d9d}
+.call-slot{display:flex;align-items:center;gap:4px;margin-left:8px}
+.call-btn{width:34px;height:34px;border-radius:8px;border:0;background:transparent;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.call-btn:hover{background:var(--panel2)}
+.call-btn.off{color:var(--danger,#ff6b6b)}
+.call-btn svg{width:18px;height:18px;display:block}
+.call-btn.hang{background:#ed4245;color:#fff;border-radius:999px;width:42px}
+.call-btn.hang:hover{background:#c03538}
+.call-stage{position:relative;flex:0 0 240px;min-height:200px;display:flex;align-items:center;justify-content:center;background:var(--bg);border-bottom:1px solid var(--border);animation:veilUp .28s ease;overflow:hidden}
+.call-stage.is-float{position:fixed;right:16px;bottom:16px;width:min(360px,calc(100vw - 32px));height:220px;flex:none;z-index:1400;border:1px solid var(--border);border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.call-tile{position:relative;display:flex;align-items:center;justify-content:center}
+.call-tile.remote{width:148px;height:148px}
+.call-tile.self{position:absolute;left:12px;bottom:58px;width:72px;height:72px}
+.call-tile.talking{box-shadow:0 0 0 3px #3ba55d;border-radius:50%}
+.call-ava,.call-video{width:100%;height:100%;border-radius:50%;object-fit:cover;background:var(--panel2)}
+.call-ava{display:none}
+.call-ava.on{display:block}
+.call-video{display:none;background:#000}
+.call-video.on{display:block}
+.call-tile.self .call-ava,.call-tile.self .call-video{border:2px solid var(--border)}
+.call-caption{position:absolute;left:0;right:0;bottom:-22px;text-align:center;font-size:13px;font-weight:650}
+.call-status{position:absolute;top:10px;left:0;right:0;text-align:center;color:var(--muted);font-size:12px}
+.call-bar{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:8px}
+.call-ring{position:fixed;inset:0;z-index:4500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:16px}
+.call-ring-card{width:min(320px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;text-align:center;animation:veilUp .28s ease}
+.call-ring-card img{width:72px;height:72px;border-radius:50%;object-fit:cover;margin-bottom:10px;background:var(--bg2)}
+.call-ring-card h3{font-size:18px;margin-bottom:4px}
+.call-ring-card p{color:var(--muted);font-size:13px;margin-bottom:14px}
+.call-ring-actions{display:flex;gap:8px}
+.call-ring-actions .secondary-btn,.call-ring-actions .primary-btn{flex:1;margin:0}
+
 @keyframes panelIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
 .chrome{transition:background .25s ease,border-color .25s ease}
 .tab{transition:background .15s ease,color .15s ease,flex-basis .2s ease}
