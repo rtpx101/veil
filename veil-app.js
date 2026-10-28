@@ -1709,7 +1709,7 @@ async function goFrame(value2, extra) {
       }
     }
   };
-  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|client error \(IO|SSL connect error|curl error 35/i.test(value);
+  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|client error \(IO|SSL connect error|curl error 35|could not open this page/i.test(value);
   const style = () => {
     try {
       const ratio = btn.element || btn.frame || btn;
@@ -2911,7 +2911,7 @@ function fillWispSelect() {
     const body = settings.wispId === value.id;
     const token = body ? " selected" : "";
     const user = value.custom && body ? "<span class=\"server-actions\"><span class=\"server-edit\" data-edit=\"" + value.id + "\" title=\"Rename\"><img src=\"" + IMG + "pencil.svg\" alt=\"\"></span><span class=\"server-del\" data-del=\"" + value.id + "\" title=\"Remove\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></span></span>" : "";
-    return "<button type=\"button\" class=\"server-row" + token + "\" data-server-id=\"" + value.id + "\"><span class=\"server-dot ping-wait\" data-dot=\"" + value.id + "\"><img src=\"" + IMG + "status.svg\" alt=\"\"></span><span class=\"server-name\">" + escapeHTML(value.name) + "<span class=\"server-ping\" data-ping=\"" + value.id + "\">...</span>" + user + "</button>";
+    return "<button type=\"button\" class=\"server-row" + token + "\" data-server-id=\"" + value.id + "\"><span class=\"server-dot ping-wait\" data-dot=\"" + value.id + "\"><img src=\"" + IMG + "status.svg\" alt=\"\"></span><span class=\"server-name\">" + escapeHTML(value.name) + "</span><span class=\"server-ping\" data-ping=\"" + value.id + "\">...</span>" + user + "</button>";
   }).join("") + "<button type=\"button\" class=\"server-row server-add\" id=\"addCustomServer\">+ Custom Server</button>";
   serverList.querySelectorAll("[data-server-id]").forEach(value2 => {
     value2.addEventListener("click", value => {

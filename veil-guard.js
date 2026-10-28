@@ -5,7 +5,12 @@
 
   /* Second address for a saved server, keyed by the id the page already stores.
      The list keeps showing that name. Leave a server out when it only has one address. */
-  var OTHER = {};
+  var OTHER = {
+    va1: "wss://serv-1-va-backup.onrender.com/",
+    va2: "wss://serv-2-va-backup.onrender.com/",
+    oh3: "wss://serv-3-oh-backup.onrender.com/",
+    or4: "wss://serv-4-or-backup.onrender.com/"
+  };
 
   var DOTS_KEY = "veil_msg_dots";
   var picked = "";
@@ -79,21 +84,44 @@
     return "";
   }
 
+  function serverForUrl(url) {
+    if (typeof allWispServers !== "function") return null;
+    var clean = cleanUrl(url);
+    if (!clean) return null;
+    var all = allWispServers();
+    for (var i = 0; i < all.length; i++) {
+      var pair = addressPair(all[i]);
+      if (clean === pair.normal || (pair.other && clean === pair.other)) return all[i];
+    }
+    return null;
+  }
+
   function resolveAddress() {
     var server = selectedServer();
     if (!server) return Promise.resolve("");
     var active = preferred(server);
     var other = fallback(server, active);
+    if (!active) return Promise.resolve("");
     if (!other || typeof probeWisp !== "function") {
       picked = active;
       return Promise.resolve(active);
     }
     return probeWisp(active).then(function (ok) {
-      picked = ok ? active : other;
-      return picked;
+      if (ok) {
+        picked = active;
+        return active;
+      }
+      return probeWisp(other).then(function (ok2) {
+        if (ok2) {
+          picked = other;
+          return other;
+        }
+        picked = "";
+        return "";
+      });
     }).catch(function () {
-      picked = other;
-      return picked;
+      picked = "";
+      return "";
     });
   }
 
@@ -234,15 +262,14 @@
   function hookApp() {
     if (typeof currentWisp !== "function" || currentWisp.__hooked) return false;
     var original = currentWisp;
+    var originalUse = typeof useWorkingWisp === "function" ? useWorkingWisp : null;
+    var originalPing = typeof pingWisp === "function" ? pingWisp : null;
 
     function hookedCurrent() {
       if (picked) return picked;
       var server = selectedServer();
       var url = server ? preferred(server) : "";
-      if (url) {
-        resolveAddress();
-        return url;
-      }
+      if (url) return url;
       return original();
     }
     hookedCurrent.__hooked = true;
@@ -250,9 +277,26 @@
 
     window.useWorkingWisp = function () {
       return resolveAddress().then(function (url) {
-        return url || original();
+        if (url) return url;
+        if (originalUse) return originalUse();
+        return original();
       });
     };
+
+    if (originalPing && !originalPing.__hooked) {
+      function hookedPing(url, timeout) {
+        var server = serverForUrl(url);
+        if (!server) return originalPing(url, timeout);
+        var first = preferred(server);
+        var second = fallback(server, first);
+        return originalPing(first, timeout).then(function (res) {
+          if (!res || !res.offline || !second || second === first) return res;
+          return originalPing(second, timeout);
+        });
+      }
+      hookedPing.__hooked = true;
+      window.pingWisp = hookedPing;
+    }
 
     if (typeof chatProfile === "function" && !chatProfile.__hooked) {
       var originalProfile = chatProfile;
