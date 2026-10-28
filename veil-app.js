@@ -2934,7 +2934,7 @@ function fillWispSelect() {
     const body = settings.wispId === value.id;
     const token = body ? " selected" : "";
     const user = value.custom && body ? "<span class=\"server-actions\"><span class=\"server-edit\" data-edit=\"" + value.id + "\" title=\"Rename\"><img src=\"" + IMG + "pencil.svg\" alt=\"\"></span><span class=\"server-del\" data-del=\"" + value.id + "\" title=\"Remove\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></span></span>" : "";
-    return "<button type=\"button\" class=\"server-row" + token + "\" data-server-id=\"" + value.id + "\"><span class=\"server-dot ping-wait\" data-dot=\"" + value.id + "\"><img src=\"" + IMG + "status.svg\" alt=\"\"></span><span class=\"server-name\">" + escapeHTML(value.name) + "<span class=\"server-ping\" data-ping=\"" + value.id + "\">...</span>" + user + "</button>";
+    return "<button type=\"button\" class=\"server-row" + token + "\" data-server-id=\"" + value.id + "\"><span class=\"server-dot ping-wait\" data-dot=\"" + value.id + "\"><img src=\"" + IMG + "status.svg\" alt=\"\"></span><span class=\"server-name\">" + escapeHTML(value.name) + "</span><span class=\"server-ping\" data-ping=\"" + value.id + "\">...</span>" + user + "</button>";
   }).join("") + "<button type=\"button\" class=\"server-row server-add\" id=\"addCustomServer\">+ Custom Server</button>";
   serverList.querySelectorAll("[data-server-id]").forEach(value2 => {
     value2.addEventListener("click", value => {
@@ -4626,6 +4626,269 @@ const CHAT_PUBLIC = "veil-chat:public";
 let chatAbly = null;
 let chatUnreads = {};
 let chatLog = {};
+let accountData = null;
+let gamesDataReady = false;
+let chatPushTimer = null;
+let chatPushGen = 0;
+let chatSyncing = null;
+const CHAT_LOG_KEY = "veil_chat_log";
+const CHAT_OWNER_KEY = "veil_chat_owner";
+function accountEmail() {
+  try {
+    const meta = window.VeilAccess && window.VeilAccess.getMeta && window.VeilAccess.getMeta();
+    return String(meta && meta.email || "").trim().toLowerCase();
+  } catch (err) {
+    return "";
+  }
+}
+function accountToken() {
+  try {
+    return window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  } catch (err) {
+    return "";
+  }
+}
+function workerBase() {
+  return (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+}
+function chatOwnerMatches() {
+  const email = accountEmail();
+  let owner = "";
+  try {
+    owner = localStorage.getItem(CHAT_OWNER_KEY) || "";
+  } catch (err) {}
+  if (!email || !owner) {
+    return true;
+  }
+  return owner === email;
+}
+function loadChatLogCache() {
+  if (!chatOwnerMatches()) {
+    chatLog = {};
+    return;
+  }
+  try {
+    const raw = JSON.parse(localStorage.getItem(CHAT_LOG_KEY) || "null");
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      chatLog = raw;
+    }
+  } catch (err) {}
+}
+loadChatLogCache();
+function slimChatMessage(value) {
+  const face = String(value && value.pfp || "");
+  return {
+    uid: String(value && value.uid || ""),
+    name: String(value && value.name || "").slice(0, 24),
+    pfp: face.indexOf("data:") === 0 ? "" : face.slice(0, 400),
+    text: String(value && value.text || "").slice(0, 1000),
+    ts: Number(value && (value.ts || value.at)) || Date.now(),
+    email: String(value && value.email || "")
+  };
+}
+function writeChatCache(profile) {
+  const email = accountEmail();
+  try {
+    if (email) {
+      localStorage.setItem(CHAT_OWNER_KEY, email);
+    }
+    if (profile) {
+      localStorage.setItem("veil_chat_profile", JSON.stringify(profile));
+    }
+    localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(chatLog));
+  } catch (err) {}
+}
+function chatBundleFromState(profile) {
+  const history = {};
+  Object.keys(chatLog || {}).forEach(key => {
+    const rows = Array.isArray(chatLog[key]) ? chatLog[key].slice(-200) : [];
+    history[key] = rows.map(slimChatMessage);
+  });
+  return {
+    username: profile.username || "",
+    pfp: profile.pfp || "",
+    notifyDot: localStorage.getItem("veil_msg_dots") === "1",
+    adminMode: !!profile.adminMode,
+    uid: profile.uid || "",
+    friends: profile.friends || [],
+    groups: profile.groups || [],
+    pendingIn: profile.pendingIn || [],
+    pendingOut: profile.pendingOut || [],
+    invites: profile.invites || [],
+    history: history
+  };
+}
+function applyChatBundle(chat) {
+  if (!chat || typeof chat !== "object" || !chat.uid) {
+    return;
+  }
+  const profile = {
+    username: chat.username || "",
+    pfp: chat.pfp || "",
+    notifyDot: !!chat.notifyDot,
+    adminMode: !!chat.adminMode,
+    uid: chat.uid,
+    friends: Array.isArray(chat.friends) ? chat.friends : [],
+    groups: Array.isArray(chat.groups) ? chat.groups : [],
+    pendingIn: Array.isArray(chat.pendingIn) ? chat.pendingIn : [],
+    pendingOut: Array.isArray(chat.pendingOut) ? chat.pendingOut : [],
+    invites: Array.isArray(chat.invites) ? chat.invites : []
+  };
+  try {
+    localStorage.setItem("veil_msg_dots", profile.notifyDot ? "1" : "0");
+  } catch (err) {}
+  chatLog = {};
+  const history = chat.history && typeof chat.history === "object" ? chat.history : {};
+  Object.keys(history).forEach(key => {
+    if (Array.isArray(history[key])) {
+      chatLog[key] = history[key].slice(-200).map(slimChatMessage);
+    }
+  });
+  writeChatCache(profile);
+}
+async function fetchAccountData() {
+  const token = accountToken();
+  if (!token) {
+    return null;
+  }
+  const res = await fetch(workerBase() + "/api/user/data", {
+    method: "GET",
+    headers: {
+      authorization: "Bearer " + token
+    }
+  });
+  const body = await res.json().catch(() => null);
+  if (!body || !body.ok || !body.data || typeof body.data !== "object") {
+    return null;
+  }
+  accountData = body.data;
+  return body.data;
+}
+async function postAccountData(data) {
+  const token = accountToken();
+  if (!token) {
+    return;
+  }
+  accountData = data;
+  await fetch(workerBase() + "/api/user/data", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      token: token,
+      data: data
+    })
+  });
+}
+async function pushChatAccountNow() {
+  const gen = ++chatPushGen;
+  const token = accountToken();
+  if (!token) {
+    return;
+  }
+  const profile = chatProfile();
+  if (!profile.uid) {
+    return;
+  }
+  let data = accountData;
+  if (!data) {
+    try {
+      data = await fetchAccountData();
+    } catch (err) {
+      data = null;
+    }
+  }
+  if (gen !== chatPushGen) {
+    return;
+  }
+  if (!data || typeof data !== "object") {
+    data = {};
+  }
+  const next = Object.assign({}, data, {
+    chat: chatBundleFromState(profile)
+  });
+  if (gamesDataReady) {
+    next.favorites = gamesUserData.favorites || [];
+    next.recent = gamesUserData.recent || [];
+    next.notes = gamesUserData.notes || {};
+  }
+  await postAccountData(next);
+}
+function scheduleChatPush() {
+  if (chatPushTimer) {
+    clearTimeout(chatPushTimer);
+  }
+  chatPushTimer = setTimeout(function () {
+    pushChatAccountNow().catch(function () {});
+  }, 500);
+}
+async function syncChatFromAccount() {
+  if (chatSyncing) {
+    return chatSyncing;
+  }
+  chatSyncing = (async () => {
+    const email = accountEmail();
+    const token = accountToken();
+    if (!token) {
+      return;
+    }
+    const data = await fetchAccountData();
+    if (!data) {
+      return;
+    }
+    const remote = data.chat;
+    const sameOwner = chatOwnerMatches();
+    if (remote && remote.uid) {
+      let prev = "";
+      try {
+        prev = (JSON.parse(localStorage.getItem("veil_chat_profile") || "null") || {}).uid || "";
+      } catch (err) {}
+      applyChatBundle(remote);
+      if (prev && prev !== remote.uid && chatAbly) {
+        try {
+          chatAbly.close();
+        } catch (err) {}
+        chatAbly = null;
+        bootChatLink();
+      }
+      try {
+        fillChatSettings();
+      } catch (err) {}
+      refreshChatIfOpen();
+      return;
+    }
+    if (!sameOwner) {
+      try {
+        localStorage.removeItem("veil_chat_profile");
+        localStorage.removeItem(CHAT_LOG_KEY);
+      } catch (err) {}
+      chatLog = {};
+      if (email) {
+        localStorage.setItem(CHAT_OWNER_KEY, email);
+      }
+    }
+    const profile = chatProfile();
+    if (email) {
+      try {
+        localStorage.setItem(CHAT_OWNER_KEY, email);
+      } catch (err) {}
+    }
+    if (profile.uid) {
+      await pushChatAccountNow();
+    }
+    try {
+      fillChatSettings();
+    } catch (err) {}
+    refreshChatIfOpen();
+  })().finally(() => {
+    chatSyncing = null;
+  });
+  return chatSyncing;
+}
+window.addEventListener("veil-session-meta", function () {
+  syncChatFromAccount().catch(function () {});
+});
 let chatRoom = "public";
 let chatLastSend = 0;
 let chatBooting = null;
@@ -4642,12 +4905,14 @@ function chatProfile() {
     pendingOut: [],
     invites: []
   };
-  try {
-    const ok = JSON.parse(localStorage.getItem("veil_chat_profile") || "null");
-    if (ok && typeof ok === "object") {
-      Object.assign(clientId, ok);
-    }
-  } catch (err) {}
+  if (chatOwnerMatches()) {
+    try {
+      const ok = JSON.parse(localStorage.getItem("veil_chat_profile") || "null");
+      if (ok && typeof ok === "object") {
+        Object.assign(clientId, ok);
+      }
+    } catch (err) {}
+  }
   ["friends", "groups", "pendingIn", "pendingOut", "invites"].forEach(value => {
     if (!Array.isArray(clientId[value])) {
       clientId[value] = [];
@@ -4662,6 +4927,10 @@ function chatProfile() {
     clientId.uid = Math.random().toString(36).slice(2, 10);
     try {
       localStorage.setItem("veil_chat_profile", JSON.stringify(clientId));
+      const email = accountEmail();
+      if (email) {
+        localStorage.setItem(CHAT_OWNER_KEY, email);
+      }
     } catch (err) {}
   }
   return clientId;
@@ -4669,7 +4938,12 @@ function chatProfile() {
 function saveChatProfile(value) {
   try {
     localStorage.setItem("veil_chat_profile", JSON.stringify(value));
+    const email = accountEmail();
+    if (email) {
+      localStorage.setItem(CHAT_OWNER_KEY, email);
+    }
   } catch (err) {}
+  scheduleChatPush();
 }
 function chatAdminEmails() {
   try {
@@ -4848,10 +5122,19 @@ function rememberChatMessage(value, extra) {
   if (!chatLog[value]) {
     chatLog[value] = [];
   }
-  chatLog[value].push(extra);
-  if (chatLog[value].length > 200) {
-    chatLog[value] = chatLog[value].slice(-200);
+  const row = slimChatMessage(extra || {});
+  const list = chatLog[value];
+  const dup = list.some(item => item.uid === row.uid && item.text === row.text && item.ts && item.ts === row.ts);
+  if (!dup) {
+    list.push(row);
   }
+  if (list.length > 200) {
+    chatLog[value] = list.slice(-200);
+  }
+  try {
+    localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(chatLog));
+  } catch (err) {}
+  scheduleChatPush();
   noteChatPerson(extra && extra.uid, extra && extra.name, extra && extra.pfp);
 }
 function onChatMessage(value, extra) {
@@ -5529,15 +5812,21 @@ async function sendChatText(value) {
   const channel = chatProfile();
   const message = currentChatChannel();
   watchChatChannel(message);
+  const sentAt = Date.now();
+  const payload = {
+    name: channel.username,
+    text: game,
+    uid: channel.uid,
+    email: myChatEmail(),
+    pfp: channel.pfp || "",
+    ts: sentAt
+  };
   try {
-    await chatAbly.channels.get(message).publish("msg", {
-      name: channel.username,
-      text: game,
-      uid: channel.uid,
-      email: myChatEmail(),
-      pfp: channel.pfp || "",
-      ts: Date.now()
-    });
+    await chatAbly.channels.get(message).publish("msg", payload);
+    rememberChatMessage(message, payload);
+    try {
+      paintChatLog();
+    } catch (err) {}
     chatLastSend = Date.now();
     if (value) {
       value.value = "";
@@ -6655,6 +6944,9 @@ async function bootVeilApp() {
     COOKIE.consent = true;
     loadSavedData();
   }
+  try {
+    await syncChatFromAccount();
+  } catch (err) {}
   if (!cloak.icon) {
     cloak.icon = FAVI;
   }
@@ -7019,23 +7311,20 @@ async function loadGameCatalog() {
   return gamesCatalog;
 }
 async function loadGamesUserData() {
-  const opts = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  const opts = accountToken();
   if (opts) {
     try {
-      const show = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
-      const email = await fetch(show + "/api/user/data", {
-        method: "GET",
-        headers: {
-          authorization: "Bearer " + opts
-        }
-      });
-      const password = await email.json();
-      if (password && password.ok && password.data) {
+      const password = await fetchAccountData();
+      if (password) {
         gamesUserData = {
-          favorites: password.data.favorites || [],
-          recent: password.data.recent || [],
-          notes: password.data.notes || {}
+          favorites: password.favorites || [],
+          recent: password.recent || [],
+          notes: password.notes || {}
         };
+        gamesDataReady = true;
+        if (password.chat && password.chat.uid) {
+          applyChatBundle(password.chat);
+        }
         return gamesUserData;
       }
     } catch (err) {
@@ -7057,22 +7346,25 @@ async function saveGamesUserData() {
   try {
     localStorage.setItem("veil_games_data", JSON.stringify(gamesUserData));
   } catch (err) {}
-  const src = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  const src = accountToken();
   if (!src) {
     return;
   }
   try {
-    const reason = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
-    await fetch(reason + "/api/user/data", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        token: src,
-        data: gamesUserData
-      })
+    const current = accountData && typeof accountData === "object" ? accountData : {};
+    const next = Object.assign({}, current, {
+      favorites: gamesUserData.favorites || [],
+      recent: gamesUserData.recent || [],
+      notes: gamesUserData.notes || {}
     });
+    const profile = chatProfile();
+    if (profile && profile.uid) {
+      next.chat = chatBundleFromState(profile);
+    } else if (current.chat) {
+      next.chat = current.chat;
+    }
+    gamesDataReady = true;
+    await postAccountData(next);
   } catch (err) {
     console.warn("prefs save", err);
   }
