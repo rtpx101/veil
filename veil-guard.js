@@ -3,8 +3,7 @@
   if (window.__veilHook) return;
   window.__veilHook = 1;
 
-  /* Second address for a saved server, keyed by the id the page already stores.
-     The list keeps showing that name. Leave a server out when it only has one address. */
+  /* Second address for a saved server. The list still shows the original name. */
   var OTHER = {
     va1: "wss://serv-1-va-backup.onrender.com/",
     va2: "wss://serv-2-va-backup.onrender.com/",
@@ -14,8 +13,10 @@
 
   var DOTS_KEY = "veil_msg_dots";
   var picked = "";
+  var applied = "";
   var badgeOn = false;
   var quiet = false;
+  var pingMemo = {};
 
   function easternParts(date) {
     var parts = new Intl.DateTimeFormat("en-US", {
@@ -51,16 +52,20 @@
     }
     url = String(url || "").trim();
     if (!url) return "";
+    url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
+    if (!/^wss?:\/\//i.test(url)) url = "wss://" + url;
     if (!/\/$/.test(url)) url += "/";
     return url;
   }
 
   function selectedServer() {
-    if (typeof allWispServers !== "function" || typeof settings === "undefined" || !settings) return null;
-    var all = allWispServers();
-    for (var i = 0; i < all.length; i++) {
-      if (all[i] && all[i].id === settings.wispId) return all[i];
-    }
+    try {
+      if (typeof allWispServers !== "function" || typeof settings === "undefined" || !settings) return null;
+      var all = allWispServers();
+      for (var i = 0; i < all.length; i++) {
+        if (all[i] && all[i].id === settings.wispId) return all[i];
+      }
+    } catch (e) {}
     return null;
   }
 
@@ -69,6 +74,21 @@
     var other = cleanUrl(server && (server.alt || server.other || (server.id && OTHER[server.id])));
     if (!other || other === normal) other = "";
     return { normal: normal, other: other };
+  }
+
+  function belongs(server, url) {
+    var pair = addressPair(server);
+    url = cleanUrl(url);
+    return !!url && (url === pair.normal || (pair.other && url === pair.other));
+  }
+
+  function forgetIfSwitched() {
+    var server = selectedServer();
+    if (server && picked && !belongs(server, picked)) {
+      picked = "";
+      applied = "";
+    }
+    return server;
   }
 
   function preferred(server) {
@@ -88,41 +108,134 @@
     if (typeof allWispServers !== "function") return null;
     var clean = cleanUrl(url);
     if (!clean) return null;
-    var all = allWispServers();
-    for (var i = 0; i < all.length; i++) {
-      var pair = addressPair(all[i]);
-      if (clean === pair.normal || (pair.other && clean === pair.other)) return all[i];
-    }
+    try {
+      var all = allWispServers();
+      for (var i = 0; i < all.length; i++) {
+        if (belongs(all[i], clean)) return all[i];
+      }
+    } catch (e) {}
     return null;
   }
 
-  function resolveAddress() {
-    var server = selectedServer();
-    if (!server) return Promise.resolve("");
-    var active = preferred(server);
-    var other = fallback(server, active);
-    if (!active) return Promise.resolve("");
-    if (!other || typeof probeWisp !== "function") {
-      picked = active;
-      return Promise.resolve(active);
+  function notePing(url, res, alive) {
+    var key = cleanUrl(url);
+    if (!key) return;
+    var row = pingMemo[key] || {};
+    var now = Date.now();
+    if (res) {
+      row.res = res;
+      row.resAt = now;
+      row.alive = !(res.offline);
+      row.aliveAt = now;
+    } else if (alive != null) {
+      row.alive = !!alive;
+      row.aliveAt = now;
+      if (!alive) row.res = null;
     }
-    return probeWisp(active).then(function (ok) {
-      if (ok) {
-        picked = active;
-        return active;
+    pingMemo[key] = row;
+  }
+
+  function socketAlive(url, ms) {
+    var clean = cleanUrl(url);
+    if (!clean) return Promise.resolve(false);
+    var row = pingMemo[clean];
+    if (row && row.aliveAt && Date.now() - row.aliveAt < 10000) return Promise.resolve(!!row.alive);
+    return new Promise(function (resolve) {
+      var finished = false;
+      var sock = null;
+      function done(ok) {
+        if (finished) return;
+        finished = true;
+        try { if (sock) sock.close(); } catch (e) {}
+        notePing(clean, null, ok);
+        resolve(!!ok);
       }
-      return probeWisp(other).then(function (ok2) {
-        if (ok2) {
-          picked = other;
-          return other;
-        }
-        picked = "";
-        return "";
+      try { sock = new WebSocket(clean); }
+      catch (e) { resolve(false); return; }
+      var timer = setTimeout(function () { done(false); }, ms || 8000);
+      sock.addEventListener("open", function () { clearTimeout(timer); done(true); });
+      sock.addEventListener("error", function () { clearTimeout(timer); done(false); });
+    });
+  }
+
+  function commit(server, url) {
+    if (!url) return "";
+    url = cleanUrl(url) || url;
+    var selected = null;
+    try { selected = selectedServer(); } catch (e) {}
+    if (server && selected && server.id && server.id === selected.id) picked = url;
+    if (picked === url && applied && applied !== url) {
+      applied = url;
+      if (typeof reconnectTransport === "function") {
+        try { reconnectTransport(); } catch (e) {}
+      }
+    } else if (!applied && picked === url) {
+      applied = url;
+    }
+    return url;
+  }
+
+  function resolveAddress() {
+    var server = forgetIfSwitched();
+    if (!server) return Promise.resolve(picked || "");
+    var want = preferred(server);
+    var other = fallback(server, want);
+    if (!want) return Promise.resolve(picked || "");
+    if (!other) return Promise.resolve(commit(server, want));
+    return socketAlive(want, 8000).then(function (ok) {
+      if (ok) return commit(server, want);
+      return socketAlive(other, 8000).then(function (ok2) {
+        return commit(server, ok2 ? other : want);
       });
     }).catch(function () {
-      picked = "";
-      return "";
+      return commit(server, other || want);
     });
+  }
+
+  function timedPing(orig, url, ms) {
+    var key = cleanUrl(url) || String(url || "");
+    var row = pingMemo[key];
+    if (row && row.res && row.resAt && Date.now() - row.resAt < 10000) return Promise.resolve(row.res);
+    return orig(url, ms || 8000).then(function (res) {
+      notePing(url, res, !(res && res.offline));
+      return res;
+    });
+  }
+
+  function hookPing() {
+    if (typeof pingWisp !== "function" || pingWisp.__hooked) return;
+    var orig = pingWisp;
+    function wrapped(url, ms) {
+      var server = serverForUrl(url);
+      if (!server) return orig(url, ms);
+      var want = preferred(server);
+      var other = fallback(server, want);
+      var selected = selectedServer();
+      var isSel = !!(selected && server.id === selected.id);
+      var first = want;
+      if (isSel && picked && belongs(server, picked)) first = picked;
+      return timedPing(orig, first, ms).then(function (res) {
+        if (res && !res.offline) {
+          if (isSel) commit(server, first);
+          return res;
+        }
+        var second = other && other !== first ? other : "";
+        if (!second) {
+          if (isSel) commit(server, first);
+          return res;
+        }
+        return timedPing(orig, second, ms).then(function (res2) {
+          if (res2 && !res2.offline) {
+            if (isSel) commit(server, second);
+            return res2;
+          }
+          if (isSel) commit(server, want || first);
+          return res || res2;
+        });
+      });
+    }
+    wrapped.__hooked = true;
+    window.pingWisp = wrapped;
   }
 
   function dotsOn() {
@@ -211,7 +324,7 @@
     if (open) open.remove();
     var box = document.createElement("div");
     box.className = "modal-overlay veil-info";
-    box.innerHTML = '<div class="modal-box info-modal" role="dialog" aria-modal="true"><h2>Messages</h2><p>Shows a red dot on the tab icon when a new message arrives. It stays off until this switch is on.</p><div class="modal-actions"><button type="button" class="primary-btn" data-msg-info-ok>Got it</button></div></div>';
+    box.innerHTML = '<div class="modal-box info-modal" role="dialog" aria-modal="true"><h2>Messages</h2><p>Shows a red dot on the tab icon when a new message arrives. The dot stays off until this switch is on.</p><div class="modal-actions"><button type="button" class="primary-btn" data-msg-info-ok>Got it</button></div></div>';
     document.body.appendChild(box);
     var close = function () { try { box.remove(); } catch (e) {} };
     box.querySelector("[data-msg-info-ok]").onclick = close;
@@ -243,7 +356,8 @@
     var el = document.getElementById("chatNotifySwitch");
     if (!el || el.__veilDots) return;
     el.__veilDots = true;
-    el.onclick = function () {
+    el.addEventListener("click", function (e) {
+      if (e && e.stopImmediatePropagation) e.stopImmediatePropagation();
       var on = !dotsOn();
       setDots(on);
       try {
@@ -252,51 +366,37 @@
           profile.notifyDot = on;
           saveChatProfile(profile);
         }
-      } catch (e) {}
+      } catch (err) {}
       if (typeof setSwitch === "function") setSwitch(el, on);
       if (typeof paintChatAlerts === "function") paintChatAlerts();
-    };
+    }, true);
     if (typeof setSwitch === "function") setSwitch(el, dotsOn());
   }
 
   function hookApp() {
     if (typeof currentWisp !== "function" || currentWisp.__hooked) return false;
     var original = currentWisp;
-    var originalUse = typeof useWorkingWisp === "function" ? useWorkingWisp : null;
-    var originalPing = typeof pingWisp === "function" ? pingWisp : null;
 
     function hookedCurrent() {
+      var server = forgetIfSwitched();
       if (picked) return picked;
-      var server = selectedServer();
       var url = server ? preferred(server) : "";
-      if (url) return url;
+      if (url) {
+        resolveAddress();
+        return url;
+      }
       return original();
     }
     hookedCurrent.__hooked = true;
     window.currentWisp = hookedCurrent;
 
     window.useWorkingWisp = function () {
+      forgetIfSwitched();
+      if (picked) return Promise.resolve(picked);
       return resolveAddress().then(function (url) {
-        if (url) return url;
-        if (originalUse) return originalUse();
-        return original();
+        return url || original();
       });
     };
-
-    if (originalPing && !originalPing.__hooked) {
-      function hookedPing(url, timeout) {
-        var server = serverForUrl(url);
-        if (!server) return originalPing(url, timeout);
-        var first = preferred(server);
-        var second = fallback(server, first);
-        return originalPing(first, timeout).then(function (res) {
-          if (!res || !res.offline || !second || second === first) return res;
-          return originalPing(second, timeout);
-        });
-      }
-      hookedPing.__hooked = true;
-      window.pingWisp = hookedPing;
-    }
 
     if (typeof chatProfile === "function" && !chatProfile.__hooked) {
       var originalProfile = chatProfile;
@@ -310,6 +410,7 @@
     }
 
     if (typeof paintBrowserBadge === "function") window.paintBrowserBadge = paintBadge;
+    hookPing();
     hookSwitch();
     watchFavicon();
     return true;
@@ -320,6 +421,7 @@
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     showMessagesInfo();
   }, true);
 
@@ -332,6 +434,10 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
+  window.__veilBind = function () {
+    try { hookApp(); } catch (e) {}
+  };
+
   var tries = 0;
   var timer = setInterval(function () {
     tries++;
@@ -341,11 +447,6 @@
 
   setInterval(function () {
     if (typeof currentWisp !== "function" || !currentWisp.__hooked) return;
-    var previous = picked;
-    resolveAddress().then(function (url) {
-      if (url && previous && url !== previous && typeof reconnectTransport === "function") {
-        try { reconnectTransport(); } catch (e) {}
-      }
-    });
+    resolveAddress();
   }, 60000);
 })();

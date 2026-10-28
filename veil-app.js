@@ -1,4 +1,6 @@
 'use strict';
+try { if (typeof window.__veilBind === "function") window.__veilBind(); } catch (err) {}
+
 
 (function () {
   var invite = Element.prototype.remove;
@@ -272,6 +274,45 @@ async function ensureScramjetDB() {
     page.onsuccess = page.onerror = page.onblocked = () => value();
   }), new Promise(value => setTimeout(value, 1500))]);
 }
+async function pushScramjetConfig() {
+  let worker = navigator.serviceWorker.controller;
+  if (!worker) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      worker = registration && registration.active;
+    } catch (err) {}
+  }
+  if (!worker) return;
+  let config = null;
+  try {
+    const db = await new Promise((value, extra) => {
+      const open = indexedDB.open("$scramjet");
+      open.onsuccess = () => value(open.result);
+      open.onerror = () => extra(open.error);
+    });
+    if (db.objectStoreNames.contains("config")) {
+      config = await new Promise((value, extra) => {
+        const tx = db.transaction("config", "readonly");
+        const req = tx.objectStore("config").get("config");
+        req.onsuccess = () => value(req.result || null);
+        req.onerror = () => extra(req.error);
+      });
+    }
+    db.close();
+  } catch (err) {}
+  try {
+    if (config && config.prefix) {
+      worker.postMessage({
+        scramjet$type: "loadConfig",
+        config: config
+      });
+    } else {
+      worker.postMessage({
+        type: "veil-config"
+      });
+    }
+  } catch (err) {}
+}
 async function initEngine() {
   if (engineInitPromise) {
     return engineInitPromise;
@@ -340,13 +381,12 @@ async function initEngine() {
         scope: SW_SCOPE,
         updateViaCache: "none"
       });
-      await navigator.serviceWorker.ready;
+      const registration = await navigator.serviceWorker.ready;
       try {
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: "veil-config"
-          });
-        }
+        if (registration && registration.update) registration.update();
+      } catch (err) {}
+      try {
+        await pushScramjetConfig();
       } catch (err) {}
       paintEngineStatus();
       await applyMuxTransport();
@@ -1709,7 +1749,7 @@ async function goFrame(value2, extra) {
       }
     }
   };
-  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|client error \(IO|SSL connect error|curl error 35|could not open this page/i.test(value);
+  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|client error \(IO|SSL connect error|curl error 35/i.test(value);
   const style = () => {
     try {
       const ratio = btn.element || btn.frame || btn;
@@ -1959,6 +1999,10 @@ const SETTINGS_INFO = {
   proxy: {
     title: "Proxy servers",
     body: "Servers Veil uses to load sites. Prefer green (fast). Try another if a page will not open."
+  },
+  messages: {
+    title: "Messages",
+    body: "Shows a red dot on the tab icon when a new message arrives. The dot stays off until this switch is on."
   },
   engine: {
     title: "Browser engine",
@@ -2401,28 +2445,7 @@ async function probeWisp(value3) {
   });
 }
 async function useWorkingWisp() {
-  const canvas = allWispServers();
-  const ctx = currentWisp();
-  const width = [];
-  canvas.forEach(value => {
-    if (value && value.url && width.indexOf(value) === -1) {
-      if (value.url === ctx) {
-        width.unshift(value);
-      } else {
-        width.push(value);
-      }
-    }
-  });
-  for (let timer = 0; timer < width.length; timer++) {
-    if (await probeWisp(width[timer].url)) {
-      settings.wispId = width[timer].id;
-      try {
-        save();
-      } catch (err) {}
-      return width[timer].url;
-    }
-  }
-  return ctx;
+  return currentWisp();
 }
 async function goBack() {
   const height = getActiveTab();
@@ -2911,7 +2934,7 @@ function fillWispSelect() {
     const body = settings.wispId === value.id;
     const token = body ? " selected" : "";
     const user = value.custom && body ? "<span class=\"server-actions\"><span class=\"server-edit\" data-edit=\"" + value.id + "\" title=\"Rename\"><img src=\"" + IMG + "pencil.svg\" alt=\"\"></span><span class=\"server-del\" data-del=\"" + value.id + "\" title=\"Remove\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></span></span>" : "";
-    return "<button type=\"button\" class=\"server-row" + token + "\" data-server-id=\"" + value.id + "\"><span class=\"server-dot ping-wait\" data-dot=\"" + value.id + "\"><img src=\"" + IMG + "status.svg\" alt=\"\"></span><span class=\"server-name\">" + escapeHTML(value.name) + "</span><span class=\"server-ping\" data-ping=\"" + value.id + "\">...</span>" + user + "</button>";
+    return "<button type=\"button\" class=\"server-row" + token + "\" data-server-id=\"" + value.id + "\"><span class=\"server-dot ping-wait\" data-dot=\"" + value.id + "\"><img src=\"" + IMG + "status.svg\" alt=\"\"></span><span class=\"server-name\">" + escapeHTML(value.name) + "<span class=\"server-ping\" data-ping=\"" + value.id + "\">...</span>" + user + "</button>";
   }).join("") + "<button type=\"button\" class=\"server-row server-add\" id=\"addCustomServer\">+ Custom Server</button>";
   serverList.querySelectorAll("[data-server-id]").forEach(value2 => {
     value2.addEventListener("click", value => {
@@ -4412,7 +4435,12 @@ function syncAboutBlankChrome() {
     document.title = veil;
     const favicon = document.getElementById("favicon");
     if (favicon) {
-      favicon.href = invite;
+      if (typeof paintBrowserBadge === "function") {
+        try { paintBrowserBadge(typeof chatUnreadTotal === "function" && chatUnreadTotal() > 0); }
+        catch (err) { favicon.href = invite; }
+      } else {
+        favicon.href = invite;
+      }
     }
   } catch {}
   try {
@@ -4605,7 +4633,7 @@ function chatProfile() {
   const clientId = {
     username: "",
     pfp: "",
-    notifyDot: true,
+    notifyDot: false,
     adminMode: false,
     uid: "",
     friends: [],
@@ -4625,6 +4653,11 @@ function chatProfile() {
       clientId[value] = [];
     }
   });
+  let dots = false;
+  try {
+    dots = localStorage.getItem("veil_msg_dots") === "1";
+  } catch (err) {}
+  clientId.notifyDot = dots;
   if (!clientId.uid) {
     clientId.uid = Math.random().toString(36).slice(2, 10);
     try {
@@ -4703,8 +4736,9 @@ function paintBrowserBadge(value) {
   if (!favicon) {
     return;
   }
+  const icon = typeof cloak !== "undefined" && cloak && cloak.icon ? cloak.icon : FAVI;
   if (!value) {
-    favicon.href = "image/favi.png";
+    favicon.href = icon;
     return;
   }
   const image = new Image();
@@ -4724,9 +4758,14 @@ function paintBrowserBadge(value) {
       target.fillStyle = "#ff4d4f";
       target.fill();
       favicon.href = source.toDataURL("image/png");
-    } catch (err) {}
+    } catch (err) {
+      favicon.href = icon;
+    }
   };
-  image.src = "image/favi.png";
+  image.onerror = () => {
+    favicon.href = icon;
+  };
+  image.src = icon;
 }
 function paintChatAlerts() {
   const url = chatUnreadTotal() > 0;
@@ -6781,10 +6820,17 @@ async function bootVeilApp() {
   });
 })();
 on("chatNotifySwitch", () => {
+  const el = document.getElementById("chatNotifySwitch");
+  if (el && el.__veilDots) {
+    return;
+  }
   const group = chatProfile();
   group.notifyDot = group.notifyDot === false;
   saveChatProfile(group);
-  setSwitch(document.getElementById("chatNotifySwitch"), group.notifyDot !== false);
+  try {
+    localStorage.setItem("veil_msg_dots", group.notifyDot ? "1" : "0");
+  } catch (err) {}
+  setSwitch(el, group.notifyDot !== false);
   paintChatAlerts();
 });
 on("chatAdminSwitch", () => {
