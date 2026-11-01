@@ -421,9 +421,43 @@ self.addEventListener("message", (event) => {
   }
 });
 
+const WASM_PATH = BASE + "/scramjet/scramjet.wasm.wasm";
+let wasmScriptBody = null;
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const size = 0x8000;
+  for (let i = 0; i < bytes.length; i += size) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + size));
+  }
+  return btoa(binary);
+}
+
+async function rewriterWasmScript() {
+  if (!wasmScriptBody) {
+    const res = await fetch(WASM_PATH);
+    if (!res.ok) throw new Error("rewriter wasm missing");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    wasmScriptBody = "if ('document' in self && document.currentScript) { document.currentScript.remove(); }\nself.WASM = '" + bytesToBase64(bytes) + "';\n";
+  }
+  return new Response(wasmScriptBody, {
+    headers: {
+      "content-type": "text/javascript; charset=utf-8",
+      "cache-control": "no-store"
+    }
+  });
+}
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== ORIGIN) return;
+  if (url.pathname === WASM_PATH) {
+    event.respondWith(rewriterWasmScript().catch((err) => {
+      console.warn("[veil] rewriter wasm", err);
+      return fetch(event.request);
+    }));
+    return;
+  }
   if (url.pathname.indexOf(PROXY_PREFIX) !== 0) return;
   event.respondWith(proxyFetch(event).catch((err) => {
     console.warn("[veil] proxy failed", err);

@@ -39,7 +39,7 @@ const SCRAMJET_FILES = {
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
 const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
-const BAREMUX_WORKER = BASE + "/baremux/worker.js";
+const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=3";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
