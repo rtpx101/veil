@@ -34,8 +34,11 @@
     if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
     return svgChat();
   }
+  function sharpIcon(url) {
+    return String(url || "").replace(/([?&]sz=)\d+/i, "$1128");
+  }
   function iconHtml(app) {
-    if (app && app.iconUrl) return '<img class="vos-appicon" draggable="false" alt="" src="' + esc(app.iconUrl) + '">';
+    if (app && app.iconUrl) return '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">';
     return iconMarkup(app && (app.icon || app.kind));
   }
 
@@ -83,8 +86,8 @@
     var h = 0;
     try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
     if (!h) h = Math.max(240, window.innerHeight - 48);
-    var rows = Math.max(1, Math.floor((h - 20) / 96));
-    return { x: 14 + Math.floor(index / rows) * 96, y: 16 + (index % rows) * 96 };
+    var rows = Math.max(1, Math.floor((h - 20) / 112));
+    return { x: 10 + Math.floor(index / rows) * 104, y: 10 + (index % rows) * 112 };
   }
   function closeCtx() {
     ctxApp = null;
@@ -170,7 +173,7 @@
       btn.title = app.title;
       btn.dataset.app = app.id;
       var glyph = app.iconUrl
-        ? '<img class="vos-appicon" draggable="false" src="' + esc(app.iconUrl) + '" alt="">'
+        ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">'
         : iconMarkup(app.kind);
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
       var spot = iconPos(index);
@@ -625,7 +628,7 @@
     var title = el.querySelector(".vos-title");
     var name = title.querySelector("b");
     name.textContent = app.title;
-    name.insertAdjacentHTML("beforebegin", app.iconUrl ? '<img class="vos-appicon" draggable="false" src="' + esc(app.iconUrl) + '" alt="">' : iconMarkup(app.icon));
+    name.insertAdjacentHTML("beforebegin", app.iconUrl ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">' : iconMarkup(app.icon));
     var body = el.querySelector(".vos-body");
     var win = { id: app.id, title: app.title, el: el, body: body, running: app.id === "browser", installed: !!app.installed, url: app.url || "", iconUrl: app.iconUrl || "", frameReady: false };
     el.addEventListener("pointerdown", function () { focusWin(app.id); });

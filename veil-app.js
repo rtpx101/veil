@@ -815,7 +815,7 @@ function isBookmarked(value2) {
 function faviconFor(value) {
   try {
     const extra = new URL(value).hostname;
-    return "https://www.google.com/s2/favicons?sz=32&domain=" + encodeURIComponent(extra);
+    return "https://www.google.com/s2/favicons?sz=128&domain=" + encodeURIComponent(extra);
   } catch {
     return FAVI;
   }
@@ -6131,7 +6131,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=6";
+  link.href = BASE + "/veilos.css?v=7";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6142,7 +6142,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=6";
+  script.src = BASE + "/veilos.js?v=7";
   script.onload = () => {
     jsReady = true;
     tryStart();
