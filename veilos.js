@@ -880,13 +880,10 @@
   function paintDesk() {
     if (!deskEl) return;
     var canvas = deskEl.querySelector("[data-home-fx]");
-    if (!canvas) {
-      canvas = document.createElement("canvas");
-      canvas.className = "home-fx";
-      canvas.setAttribute("data-home-fx", "");
-      deskEl.insertBefore(canvas, deskEl.firstChild);
+    if (canvas) {
+      try { stopHomeFx(deskEl); } catch (err) {}
+      canvas.remove();
     }
-    try { setupHomeFx(deskEl); } catch (err) {}
     deskEl.querySelectorAll(".vos-wall").forEach(function (node) { node.remove(); });
     var url = "";
     try {
@@ -911,7 +908,7 @@
       wall.src = url;
     }
     wall.className = "vos-wall";
-    deskEl.insertBefore(wall, canvas.nextSibling);
+    deskEl.insertBefore(wall, deskEl.firstChild);
   }
 
   function mountBrowser() {
