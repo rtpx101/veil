@@ -25,15 +25,11 @@
   function svgClose() {
     return '<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.4"></path></svg>';
   }
-  function iconMarkup(kind, cls) {
-    var extra = cls ? ' class="' + cls + '"' : "";
-    if (kind === "favi") return '<img' + extra + ' src="' + FAVI + '" alt="">';
-    if (kind === "games") return '<img' + extra + ' src="' + IMG + 'games.svg" alt="">';
-    if (kind === "settings") return '<img' + extra + ' src="' + IMG + 'settings.svg" alt="">';
+  function iconMarkup(kind) {
+    if (kind === "favi") return '<img class="vos-logo" src="' + FAVI + '" alt="">';
+    if (kind === "games") return '<img src="' + IMG + 'games.svg" alt="">';
+    if (kind === "settings") return '<img src="' + IMG + 'settings.svg" alt="">';
     return svgChat();
-  }
-  function iconClass(kind) {
-    return kind === "games" || kind === "settings" ? "inv" : "";
   }
 
   function place(el, x, y, w, h) {
@@ -58,13 +54,13 @@
       place(wins.browser.el, 8, 8, W - 16, H - 16);
       place(wins.games.el, 12, 12, W - 24, H - 24);
       place(wins.chat.el, 16, 16, W - 32, H - 32);
-      place(wins.settings.el, 20, 20, Math.min(480, W - 28), H - 36);
+      place(wins.settings.el, 32, 20, W - 48, H - 40);
       return;
     }
     place(wins.browser.el, 104, 12, W - 124, H - 24);
     place(wins.games.el, 124, 28, Math.min(1040, W - 150), H - 48);
     place(wins.chat.el, 148, 46, Math.min(920, W - 180), H - 70);
-    place(wins.settings.el, Math.max(108, W - 500), 24, Math.min(480, W - 120), H - 40);
+    place(wins.settings.el, 116, 20, Math.min(1100, W - 140), H - 36);
   }
 
   function focusWin(id) {
@@ -89,10 +85,10 @@
       btn.type = "button";
       btn.className = "vos-taskbtn";
       if (focused === app.id && !win.el.classList.contains("is-min")) btn.classList.add("on");
-      if (win.el.classList.contains("is-min")) btn.classList.add("is-min");
-      btn.innerHTML = iconMarkup(app.icon, iconClass(app.icon)) + "<span>" + app.title + "</span>";
+      if (win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing")) btn.classList.add("is-min");
+      btn.innerHTML = iconMarkup(app.icon) + "<span>" + app.title + "</span>";
       btn.onclick = function () {
-        if (win.el.classList.contains("is-min") || win.el.classList.contains("is-closed")) {
+        if (win.el.classList.contains("is-min") || win.el.classList.contains("is-closed") || win.el.classList.contains("is-minimizing") || win.el.classList.contains("is-closing")) {
           openApp(app.id);
           return;
         }
@@ -144,11 +140,24 @@
     } catch (err) {}
   }
 
+  var closeTimers = {};
+  var motionOn = false;
+
+  function motionOk() {
+    try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+    catch (err) { return true; }
+  }
+
   function openApp(id) {
     var win = wins[id];
     if (!win) return;
+    if (closeTimers[id]) {
+      clearTimeout(closeTimers[id]);
+      closeTimers[id] = 0;
+    }
+    var hidden = win.el.classList.contains("is-closed") || win.el.classList.contains("is-min") || win.el.classList.contains("is-closing") || win.el.classList.contains("is-minimizing");
     win.running = true;
-    win.el.classList.remove("is-closed", "is-min");
+    win.el.classList.remove("is-closed", "is-min", "is-closing", "is-minimizing");
     if (id === "games") ensureGames(win.body);
     if (id === "chat") ensureChat(win.body);
     if (id === "settings") {
@@ -156,12 +165,20 @@
       try { startLivePings(); } catch (err) {}
       try { fillChatSettings(); } catch (err) {}
     }
+    if (hidden && motionOn) {
+      win.el.classList.add("is-opening");
+      void win.el.offsetWidth;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { win.el.classList.remove("is-opening"); });
+      });
+    }
     focusWin(id);
   }
 
-  function closeApp(id) {
+  function finishClose(id) {
     var win = wins[id];
     if (!win) return;
+    win.el.classList.remove("is-closing", "is-minimizing", "is-opening");
     win.el.classList.add("is-closed");
     win.el.classList.remove("is-min", "is-focus");
     win.running = false;
@@ -169,26 +186,62 @@
     var next = null;
     APPS.forEach(function (app) {
       var other = wins[app.id];
-      if (!other || !other.running || other.el.classList.contains("is-min")) return;
+      if (!other || !other.running || other.el.classList.contains("is-min") || other.el.classList.contains("is-closed")) return;
       if (!next || Number(other.el.style.zIndex || 0) >= Number(wins[next].el.style.zIndex || 0)) next = app.id;
     });
     if (next) focusWin(next);
     else renderTasks();
   }
 
+  function closeApp(id) {
+    var win = wins[id];
+    if (!win || win.el.classList.contains("is-closed") || win.el.classList.contains("is-closing")) return;
+    if (!motionOn) {
+      finishClose(id);
+      return;
+    }
+    win.el.classList.add("is-closing");
+    win.el.classList.remove("is-focus", "is-min", "is-minimizing");
+    if (focused === id) focused = null;
+    renderTasks();
+    closeTimers[id] = setTimeout(function () {
+      closeTimers[id] = 0;
+      if (!win.el.classList.contains("is-closing")) return;
+      finishClose(id);
+    }, 220);
+  }
+
   function minimize(id) {
     var win = wins[id];
-    if (!win) return;
-    win.el.classList.add("is-min");
+    if (!win || win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing") || win.el.classList.contains("is-closed")) return;
+    if (!motionOn) {
+      win.el.classList.add("is-min");
+      win.el.classList.remove("is-focus");
+      if (focused === id) focused = null;
+      renderTasks();
+      return;
+    }
+    win.el.classList.add("is-minimizing");
     win.el.classList.remove("is-focus");
     if (focused === id) focused = null;
     renderTasks();
+    closeTimers[id] = setTimeout(function () {
+      closeTimers[id] = 0;
+      if (!win.el.classList.contains("is-minimizing")) return;
+      win.el.classList.remove("is-minimizing");
+      win.el.classList.add("is-min");
+    }, 220);
   }
 
   function toggleMax(id) {
     var win = wins[id];
     if (!win) return;
     var el = win.el;
+    if (motionOn) {
+      el.classList.add("is-sizing");
+      clearTimeout(el._sizeTimer);
+      el._sizeTimer = setTimeout(function () { el.classList.remove("is-sizing"); }, 280);
+    }
     if (el.classList.contains("is-max")) {
       el.classList.remove("is-max");
       el.style.left = el.dataset.rx || el.style.left;
@@ -316,7 +369,7 @@
     var title = el.querySelector(".vos-title");
     var name = title.querySelector("b");
     name.textContent = app.title;
-    name.insertAdjacentHTML("beforebegin", iconMarkup(app.icon, iconClass(app.icon)));
+    name.insertAdjacentHTML("beforebegin", iconMarkup(app.icon));
     var body = el.querySelector(".vos-body");
     var win = { id: app.id, title: app.title, el: el, body: body, running: app.id === "browser" };
     el.addEventListener("pointerdown", function () { focusWin(app.id); });
@@ -361,7 +414,7 @@
       btn.type = "button";
       btn.className = "vos-icon";
       btn.title = app.title;
-      btn.innerHTML = iconMarkup(app.icon, iconClass(app.icon)) + "<span>" + app.title + "</span>";
+      btn.innerHTML = '<span class="vos-glyph">' + iconMarkup(app.icon) + "</span><span>" + app.title + "</span>";
       btn.onclick = function () { openApp(app.id); };
       icons.appendChild(btn);
     });
@@ -387,6 +440,36 @@
     paintClock();
     if (clockTimer) clearInterval(clockTimer);
     clockTimer = setInterval(paintClock, 1000);
+    paintDesk();
+  }
+
+  function paintDesk() {
+    if (!deskEl) return;
+    deskEl.querySelectorAll(".vos-wall").forEach(function (node) { node.remove(); });
+    var url = "";
+    try {
+      if (settings && settings.animEnabled && settings.animStyle === "custom") {
+        url = String(settings.backgroundUrl || "").trim();
+      }
+    } catch (err) {}
+    if (!url) return;
+    var wall;
+    if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) {
+      wall = document.createElement("video");
+      wall.autoplay = true;
+      wall.loop = true;
+      wall.muted = true;
+      wall.playsInline = true;
+      wall.setAttribute("playsinline", "");
+      wall.src = url;
+      wall.play().catch(function () {});
+    } else {
+      wall = document.createElement("img");
+      wall.alt = "";
+      wall.src = url;
+    }
+    wall.className = "vos-wall";
+    deskEl.insertBefore(wall, deskEl.firstChild);
   }
 
   function mountBrowser() {
@@ -427,6 +510,9 @@
     var left = 2000 - (Date.now() - started);
     if (left > 0) await sleep(left);
     boot.classList.add("done");
+    var shell = document.getElementById("veilOS");
+    if (shell) shell.classList.add("vos-ready");
+    motionOn = motionOk();
     setTimeout(function () {
       boot.remove();
       var style = document.getElementById("veilOsBootStyle");
@@ -435,6 +521,7 @@
     window.__veilOsBooting = false;
   }
 
+  window.veilOSPaintWall = paintDesk;
   window.veilOSOpenApp = function (id) {
     if (!wins[id]) return;
     openApp(id);

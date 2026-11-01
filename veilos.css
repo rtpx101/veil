@@ -4,8 +4,8 @@
   z-index:40;
   display:flex;
   flex-direction:column;
-  background:#0a0a0a;
-  color:#ececec;
+  background:var(--bg);
+  color:var(--text);
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   user-select:none;
 }
@@ -13,40 +13,75 @@
   position:relative;
   flex:1;
   min-height:0;
-  background:
-    radial-gradient(1100px 480px at 78% -8%, rgba(255,255,255,.035), transparent 58%),
-    #0a0a0a;
+  overflow:hidden;
+  background:var(--bg);
+}
+.vos-wall{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  pointer-events:none;
+  z-index:0;
 }
 .vos-icons{
   position:absolute;
   left:10px;
   top:12px;
-  z-index:1;
+  z-index:2;
   display:flex;
   flex-direction:column;
-  gap:4px;
+  gap:6px;
 }
 .vos-icon{
   width:86px;
   border:0;
   background:transparent;
-  color:#eee;
+  color:var(--text);
   cursor:pointer;
   display:flex;
   flex-direction:column;
   align-items:center;
   gap:6px;
-  padding:8px 4px 7px;
-  border-radius:10px;
+  padding:4px 4px 6px;
+  border-radius:12px;
+  opacity:0;
 }
-.vos-icon:hover,.vos-icon:focus-visible{background:rgba(255,255,255,.06)}
-.vos-icon img,.vos-icon svg{width:32px;height:32px;display:block}
-.vos-icon img.inv{filter:invert(1)}
+#veilOS.vos-ready .vos-icon{
+  animation:vosIn .42s cubic-bezier(.2,.8,.2,1) both;
+}
+#veilOS.vos-ready .vos-icon:nth-child(1){animation-delay:.04s}
+#veilOS.vos-ready .vos-icon:nth-child(2){animation-delay:.09s}
+#veilOS.vos-ready .vos-icon:nth-child(3){animation-delay:.14s}
+#veilOS.vos-ready .vos-icon:nth-child(4){animation-delay:.19s}
+.vos-glyph{
+  width:56px;
+  height:56px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.05);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--text);
+  transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;
+}
+.vos-icon:hover .vos-glyph,
+.vos-icon:focus-visible .vos-glyph{
+  transform:translateY(-3px);
+  background:rgba(255,255,255,.09);
+  border-color:rgba(255,255,255,.18);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.vos-glyph img,.vos-glyph svg{width:26px;height:26px;display:block}
+.vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
+.vos-logo{filter:none !important}
 .vos-icon span{
   font-size:12px;
   line-height:1.2;
   text-align:center;
-  color:#f0f0f0;
+  color:var(--text);
   text-shadow:0 1px 2px rgba(0,0,0,.85);
 }
 .vos-win{
@@ -55,12 +90,21 @@
   flex-direction:column;
   min-width:320px;
   min-height:220px;
-  background:#141414;
-  border:1px solid #2a2a2a;
+  background:var(--panel);
+  color:var(--text);
+  border:1px solid var(--border);
   border-radius:12px;
-  box-shadow:0 18px 50px rgba(0,0,0,.45);
+  box-shadow:0 18px 50px rgba(0,0,0,.35);
   overflow:hidden;
+  transform-origin:50% 20%;
+  transition:opacity .22s ease,transform .26s cubic-bezier(.2,.75,.2,1),border-color .2s ease,box-shadow .2s ease;
 }
+.vos-win.is-opening{opacity:0;transform:translateY(16px) scale(.96)}
+.vos-win.is-sizing{
+  transition:left .24s cubic-bezier(.2,.75,.2,1),top .24s cubic-bezier(.2,.75,.2,1),width .24s cubic-bezier(.2,.75,.2,1),height .24s cubic-bezier(.2,.75,.2,1),opacity .22s ease,transform .26s cubic-bezier(.2,.75,.2,1),border-color .2s ease,box-shadow .2s ease;
+}
+.vos-win.is-closing{opacity:0;pointer-events:none;transform:translateY(12px) scale(.97)}
+.vos-win.is-minimizing{opacity:0;pointer-events:none;transform:translateY(36px) scale(.92);transform-origin:50% 100%}
 .vos-win.is-closed,.vos-win.is-min{display:none}
 .vos-win.is-max{
   left:8px !important;
@@ -69,7 +113,10 @@
   height:calc(100% - 16px) !important;
 }
 .vos-win.is-max .vos-rz{display:none}
-.vos-win.is-focus{border-color:#3a3a3a}
+.vos-win.is-focus{
+  border-color:color-mix(in srgb, var(--text) 32%, var(--border));
+  box-shadow:0 22px 60px rgba(0,0,0,.42);
+}
 .vos-title{
   flex:0 0 38px;
   height:38px;
@@ -77,14 +124,13 @@
   align-items:center;
   gap:8px;
   padding:0 6px 0 12px;
-  background:#141414;
-  border-bottom:1px solid #242424;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
   cursor:default;
   touch-action:none;
 }
-.vos-win.is-focus .vos-title{background:#1b1b1b}
+.vos-win.is-focus .vos-title{background:var(--panel2)}
 .vos-title img,.vos-title svg{width:16px;height:16px;flex:0 0 16px;display:block}
-.vos-title img.inv{filter:invert(1)}
 .vos-title b{
   flex:1;
   min-width:0;
@@ -100,14 +146,16 @@
   border:0;
   border-radius:7px;
   background:transparent;
-  color:#c8c8c8;
+  color:var(--muted);
   cursor:pointer;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   padding:0;
+  transition:background .15s ease,color .15s ease,transform .15s ease;
 }
-.vos-ctl:hover{background:#2a2a2a;color:#fff}
+.vos-ctl:hover{background:var(--panel2);color:var(--text)}
+.vos-ctl:active{transform:scale(.92)}
 .vos-ctl.close:hover{background:#c42b2b;color:#fff}
 .vos-body{
   position:absolute;
@@ -116,7 +164,7 @@
   top:38px;
   bottom:0;
   overflow:hidden;
-  background:#101010;
+  background:var(--bg);
   user-select:auto;
 }
 .vos-body > #browser,
@@ -136,7 +184,7 @@
   display:flex;
   align-items:center;
   justify-content:center;
-  color:#9a9a9a;
+  color:var(--muted);
   font-size:13px;
 }
 .vos-taskbar{
@@ -146,9 +194,11 @@
   align-items:center;
   gap:6px;
   padding:0 10px 0 8px;
-  background:#101010;
-  border-top:1px solid #242424;
+  background:var(--bg2);
+  border-top:1px solid var(--border);
+  opacity:0;
 }
+#veilOS.vos-ready .vos-taskbar{animation:vosBar .4s cubic-bezier(.2,.8,.2,1) both}
 .vos-tasks{display:flex;align-items:center;gap:4px;min-width:0;flex:1;overflow:hidden}
 .vos-taskbtn{
   height:34px;
@@ -160,27 +210,29 @@
   border-radius:8px;
   border:1px solid transparent;
   background:transparent;
-  color:#ddd;
+  color:var(--text);
   cursor:pointer;
   font-size:12px;
+  transition:background .16s ease,border-color .16s ease,transform .16s ease;
+  animation:vosIn .22s ease both;
 }
 .vos-taskbtn img,.vos-taskbtn svg{width:16px;height:16px;flex:0 0 16px;display:block}
-.vos-taskbtn img.inv{filter:invert(1)}
 .vos-taskbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vos-taskbtn.on{background:#1c1c1c;border-color:#2e2e2e}
+.vos-taskbtn.on{background:var(--panel);border-color:var(--border)}
 .vos-taskbtn.is-min{opacity:.55}
-.vos-taskbtn:hover{background:#1a1a1a}
+.vos-taskbtn:hover{background:var(--panel2)}
+.vos-taskbtn:active{transform:scale(.98)}
 .vos-clock{
   margin-left:auto;
   flex:0 0 auto;
   text-align:right;
   line-height:1.25;
   font-size:12px;
-  color:#d0d0d0;
+  color:var(--text);
   font-variant-numeric:tabular-nums;
   padding:0 6px;
 }
-.vos-clock small{display:block;color:#8a8a8a;font-size:11px}
+.vos-clock small{display:block;color:var(--muted);font-size:11px}
 
 body.veil-os #browser{
   position:relative;
@@ -195,19 +247,69 @@ body.veil-os #browser .menu{
 }
 body.veil-os #browser .backdrop,
 body.veil-os #browser .panel{position:absolute}
+body.veil-os .quick-link[data-games]{display:none !important}
+
 body.veil-os #osApp-settings > .panel{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  max-width:none;
-  right:auto;
-  top:auto;
-  transform:none;
-  visibility:visible;
-  pointer-events:auto;
-  border:0;
+  position:absolute !important;
+  inset:0 !important;
+  width:auto !important;
+  height:auto !important;
+  max-width:none !important;
+  right:auto !important;
+  top:auto !important;
+  transform:none !important;
+  visibility:visible !important;
+  pointer-events:auto !important;
+  border:0 !important;
+  border-radius:0;
+  background:var(--bg);
+  box-shadow:none;
   z-index:1;
-  transition:none;
+  transition:none !important;
+  display:flex !important;
+  flex-direction:column;
 }
 body.veil-os #osApp-settings .panel-head{display:none}
+body.veil-os #osApp-settings .settings-tabs{
+  background:var(--bg2);
+  padding:0 10px;
+}
+body.veil-os #osApp-settings .panel-body{
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  padding:16px 18px 28px;
+}
+body.veil-os #osApp-settings .settings-page.active{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  gap:14px;
+  align-items:start;
+  animation:vosIn .28s ease both;
+}
+body.veil-os #osApp-settings .setting-section{
+  margin:0;
+  padding:14px 16px 16px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--panel);
+}
+body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / -1}
+
+html[data-mode="light"] .vos-glyph{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}
+html[data-mode="light"] .vos-glyph img,
+html[data-mode="light"] .vos-title img,
+html[data-mode="light"] .vos-taskbtn img{filter:none}
+html[data-mode="light"] .vos-icon span{text-shadow:0 1px 2px rgba(255,255,255,.8)}
+
+@keyframes vosIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes vosBar{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion:reduce){
+  .vos-icon,.vos-taskbar,.vos-taskbtn,.vos-win,.vos-glyph,.vos-ctl,
+  body.veil-os #osApp-settings .settings-page.active{
+    animation:none !important;
+    transition:none !important;
+  }
+  .vos-icon,.vos-taskbar{opacity:1}
+}

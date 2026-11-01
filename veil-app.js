@@ -1338,6 +1338,9 @@ function applyNewTabBackground() {
       value2.insertBefore(color, value2.firstChild);
     }
   });
+  try {
+    if (typeof window.veilOSPaintWall === "function") window.veilOSPaintWall();
+  } catch (err) {}
   workerUrl;
 }
 function imgIcon(value) {
@@ -6056,7 +6059,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=1";
+  link.href = BASE + "/veilos.css?v=2";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6067,7 +6070,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=1";
+  script.src = BASE + "/veilos.js?v=2";
   script.onload = () => {
     jsReady = true;
     tryStart();
