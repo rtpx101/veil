@@ -4481,6 +4481,14 @@ function updateDevtoolsMenuState() {
     menuFullscreen.disabled = group;
     menuFullscreen.setAttribute("aria-disabled", group ? "true" : "false");
   }
+  const menuInstall = document.getElementById("menuInstall");
+  if (menuInstall) {
+    const desktop = document.body.classList.contains("veil-os");
+    const blocked = !desktop || !message || !!message.newTab || !!message.isGames || !!message.isAdmin || chat || !message.url || /^veil:/i.test(message.url);
+    menuInstall.classList.toggle("disabled", blocked);
+    menuInstall.disabled = blocked;
+    menuInstall.setAttribute("aria-disabled", blocked ? "true" : "false");
+  }
 }
 function syncAboutBlankChrome() {
   const veil = cloak && cloak.title || "Veil";
@@ -5987,6 +5995,33 @@ on("menuFullscreen", () => {
   closeMenu();
   togglePageFullscreen();
 });
+on("menuInstall", () => {
+  closeMenu();
+  if (!document.body.classList.contains("veil-os") || typeof window.veilOSInstall !== "function") {
+    return;
+  }
+  const tab = getActiveTab();
+  if (!tab || tab.newTab || tabUrlLocked(tab) || !tab.url || /^veil:/i.test(tab.url)) {
+    return;
+  }
+  let title = String(tab.title || "").trim();
+  if (!title || title === "Loading" || title === "New Tab") {
+    try {
+      title = new URL(tab.url).hostname.replace(/^www\./, "");
+    } catch (err) {
+      title = "App";
+    }
+  }
+  let icon = tab.favicon || "";
+  if (!icon || icon === FAVI || /\/favi\.png(?:\?|$)/.test(icon)) {
+    icon = faviconFor(tab.url);
+  }
+  window.veilOSInstall({
+    title: title,
+    url: tab.url,
+    icon: icon
+  });
+});
 function togglePageFullscreen() {
   try {
     const stamp = getActiveTab();
@@ -6059,7 +6094,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=4";
+  link.href = BASE + "/veilos.css?v=5";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6070,7 +6105,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=4";
+  script.src = BASE + "/veilos.js?v=5";
   script.onload = () => {
     jsReady = true;
     tryStart();

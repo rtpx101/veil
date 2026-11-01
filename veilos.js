@@ -45,12 +45,178 @@
     if (id) picked[id] = true;
     paintPick();
   }
-  function saveIcons() {
-    var data = {};
-    Object.keys(iconEls).forEach(function (id) {
-      data[id] = { x: iconEls[id].offsetLeft, y: iconEls[id].offsetTop };
+  var installed = [];
+  var iconsEl = null;
+  var ctxEl = null;
+  var ctxApp = null;
+
+  function loadInstalled() {
+    try { installed = JSON.parse(localStorage.getItem("veil_os_apps") || "[]"); } catch (err) { installed = []; }
+    if (!Array.isArray(installed)) installed = [];
+  }
+  function saveInstalled() {
+    try { localStorage.setItem("veil_os_apps", JSON.stringify(installed)); } catch (err) {}
+  }
+  function esc(value) {
+    return String(value || "").replace(/[&<>"']/g, function (ch) {
+      if (ch === "&") return "&" + "amp;";
+      if (ch === "<") return "&" + "lt;";
+      if (ch === ">") return "&" + "gt;";
+      if (ch === "\"") return "&" + "quot;";
+      return "&" + "#039;";
     });
-    try { localStorage.setItem("veil_os_icons", JSON.stringify(data)); } catch (err) {}
+  }
+  function shortcutList() {
+    var list = APPS.map(function (app) {
+      return { id: app.id, title: app.title, builtin: true, kind: app.icon };
+    });
+    installed.forEach(function (app) {
+      list.push({ id: app.id, title: app.title, builtin: false, url: app.url, iconUrl: app.icon });
+    });
+    return list;
+  }
+  function iconPos(index) {
+    var h = 0;
+    try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
+    if (!h) h = Math.max(240, window.innerHeight - 48);
+    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    return { x: 14 + Math.floor(index / rows) * 96, y: 16 + (index % rows) * 96 };
+  }
+  function closeCtx() {
+    ctxApp = null;
+    if (ctxEl) ctxEl.hidden = true;
+  }
+  function showCtx(app, x, y) {
+    if (!ctxEl) return;
+    ctxApp = app;
+    var btn = ctxEl.querySelector("[data-act='rename']");
+    if (btn) {
+      btn.disabled = !!app.builtin;
+      btn.classList.toggle("is-off", !!app.builtin);
+    }
+    ctxEl.hidden = false;
+    ctxEl.style.left = x + "px";
+    ctxEl.style.top = y + "px";
+    var box = ctxEl.getBoundingClientRect();
+    ctxEl.style.left = Math.max(8, Math.min(x, window.innerWidth - box.width - 8)) + "px";
+    ctxEl.style.top = Math.max(8, Math.min(y, window.innerHeight - box.height - 8)) + "px";
+  }
+  function renameInstalled(app) {
+    if (!app || app.builtin) return;
+    var current = null;
+    installed.forEach(function (item) { if (item.id === app.id) current = item; });
+    if (!current) return;
+    var overlay = document.createElement("div");
+    overlay.className = "modal-overlay rename-modal";
+    overlay.innerHTML = "<div class=\"modal-box\"><h2>Rename app</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector("#vosRenameInput");
+    input.focus();
+    input.select();
+    function done() { overlay.remove(); }
+    overlay.querySelector(".modal-cancel").onclick = done;
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) done(); });
+    function save() {
+      var name = input.value.trim().slice(0, 48);
+      if (name) {
+        current.title = name;
+        saveInstalled();
+        var el = iconEls[current.id];
+        if (el) {
+          el.title = name;
+          var label = el.querySelector("[data-label]");
+          if (label) label.textContent = name;
+        }
+      }
+      done();
+    }
+    overlay.querySelector(".modal-go").onclick = save;
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") done();
+    });
+  }
+  function openShortcut(app) {
+    if (!app) return;
+    if (app.builtin) {
+      openApp(app.id);
+      return;
+    }
+    openApp("browser");
+    try {
+      var tab = typeof getActiveTab === "function" ? getActiveTab() : null;
+      var same = tab && tab.url === app.url && !(typeof tabUrlLocked === "function" && tabUrlLocked(tab));
+      if (!same) {
+        var locked = !tab || tab.newTab !== true && (tab.url || (typeof tabUrlLocked === "function" && tabUrlLocked(tab)));
+        if (locked && typeof createTab === "function") createTab(true);
+        if (typeof navigate === "function") navigate(app.url);
+      }
+    } catch (err) {}
+  }
+  function renderDesktopIcons() {
+    if (!iconsEl || !deskEl) return;
+    closeCtx();
+    iconsEl.innerHTML = "";
+    iconEls = {};
+    shortcutList().forEach(function (app, index) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "vos-icon";
+      btn.title = app.title;
+      btn.dataset.app = app.id;
+      var glyph = app.iconUrl
+        ? "<img class=\"vos-appicon\" src=\"" + esc(app.iconUrl) + "\" alt=\"\">"
+        : iconMarkup(app.kind);
+      btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
+      var spot = iconPos(index);
+      btn.style.left = spot.x + "px";
+      btn.style.top = spot.y + "px";
+      iconEls[app.id] = btn;
+      btn.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        closeStart();
+        closeCtx();
+        if (e.ctrlKey || e.metaKey) {
+          picked[app.id] = !picked[app.id];
+          paintPick();
+          return;
+        }
+        onlyPick(app.id);
+      });
+      btn.addEventListener("dblclick", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        onlyPick(app.id);
+        openShortcut(app);
+      });
+      btn.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeStart();
+        onlyPick(app.id);
+        showCtx(app, e.clientX, e.clientY);
+      });
+      iconsEl.appendChild(btn);
+    });
+    paintPick();
+  }
+  function installApp(info) {
+    if (!info || !info.url) return false;
+    var url = String(info.url);
+    if (/^veil:/i.test(url)) return false;
+    var existing = null;
+    installed.forEach(function (item) { if (item.url === url) existing = item; });
+    if (existing) return false;
+    installed.push({
+      id: "app_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      title: String(info.title || "App").trim().slice(0, 48) || "App",
+      url: url,
+      icon: String(info.icon || "")
+    });
+    saveInstalled();
+    renderDesktopIcons();
+    return true;
   }
 
   function place(el, x, y, w, h) {
@@ -476,85 +642,8 @@
     desk.className = "vos-desk";
     var icons = document.createElement("div");
     icons.className = "vos-icons";
-    var savedIcons = {};
-    try { savedIcons = JSON.parse(localStorage.getItem("veil_os_icons") || "{}"); } catch (err) {}
-    function clampIcon(x, y) {
-      var box = desk.getBoundingClientRect();
-      var w = box.width || window.innerWidth;
-      var h = box.height || window.innerHeight;
-      return {
-        x: Math.max(6, Math.min(x, Math.max(6, w - 92))),
-        y: Math.max(6, Math.min(y, Math.max(6, h - 86)))
-      };
-    }
-    APPS.forEach(function (app, index) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "vos-icon";
-      btn.title = app.title;
-      btn.innerHTML = '<span class="vos-glyph">' + iconMarkup(app.icon) + "</span><span>" + app.title + "</span>";
-      var stored = savedIcons[app.id];
-      var spot = stored && typeof stored.x === "number" ? clampIcon(stored.x, stored.y) : { x: 14, y: 16 + index * 96 };
-      btn.style.left = spot.x + "px";
-      btn.style.top = spot.y + "px";
-      iconEls[app.id] = btn;
-      btn.addEventListener("pointerdown", function (e) {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        closeStart();
-        var ctrl = e.ctrlKey || e.metaKey;
-        if (ctrl) {
-          picked[app.id] = !picked[app.id];
-          paintPick();
-        } else if (!picked[app.id]) {
-          onlyPick(app.id);
-        }
-        if (!picked[app.id]) return;
-        var startX = e.clientX;
-        var startY = e.clientY;
-        var ids = Object.keys(picked).filter(function (id) { return picked[id] && iconEls[id]; });
-        if (ids.indexOf(app.id) === -1) ids.push(app.id);
-        var origins = {};
-        ids.forEach(function (id) {
-          origins[id] = { x: iconEls[id].offsetLeft, y: iconEls[id].offsetTop };
-          iconEls[id].classList.add("is-drag");
-        });
-        var moved = false;
-        try { btn.setPointerCapture(e.pointerId); } catch (err) {}
-        function move(ev) {
-          var dx = ev.clientX - startX;
-          var dy = ev.clientY - startY;
-          if (!moved && Math.hypot(dx, dy) < 5) return;
-          moved = true;
-          ids.forEach(function (id) {
-            var next = clampIcon(origins[id].x + dx, origins[id].y + dy);
-            iconEls[id].style.left = next.x + "px";
-            iconEls[id].style.top = next.y + "px";
-          });
-        }
-        function up() {
-          btn.removeEventListener("pointermove", move);
-          btn.removeEventListener("pointerup", up);
-          ids.forEach(function (id) {
-            if (iconEls[id]) iconEls[id].classList.remove("is-drag");
-          });
-          if (moved) {
-            saveIcons();
-            return;
-          }
-          if (!ctrl) onlyPick(app.id);
-        }
-        btn.addEventListener("pointermove", move);
-        btn.addEventListener("pointerup", up);
-      });
-      btn.addEventListener("dblclick", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        onlyPick(app.id);
-        openApp(app.id);
-      });
-      icons.appendChild(btn);
-    });
+    iconsEl = icons;
+    loadInstalled();
     desk.appendChild(icons);
     desk.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -603,6 +692,10 @@
       desk.addEventListener("pointermove", move);
       desk.addEventListener("pointerup", up);
     });
+    desk.addEventListener("contextmenu", function (e) {
+      if (e.target.closest && e.target.closest(".vos-win")) return;
+      e.preventDefault();
+    });
     APPS.forEach(function (app) {
       desk.appendChild(makeWindow(app).el);
     });
@@ -643,12 +736,16 @@
       setStart(!menu.classList.contains("is-open"));
     };
     document.addEventListener("pointerdown", function (e) {
+      if (ctxEl && !ctxEl.hidden && !ctxEl.contains(e.target)) closeCtx();
       if (!menu.classList.contains("is-open")) return;
       if (startWrap.contains(e.target)) return;
       closeStart();
     });
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") closeStart();
+      if (e.key === "Escape") {
+        closeStart();
+        closeCtx();
+      }
     });
     startWrap.appendChild(startBtn);
     startWrap.appendChild(menu);
@@ -662,9 +759,30 @@
     bar.appendChild(clock);
     shell.appendChild(desk);
     shell.appendChild(bar);
+    ctxEl = document.createElement("div");
+    ctxEl.className = "vos-ctx";
+    ctxEl.hidden = true;
+    ctxEl.innerHTML = "<button type=\"button\" data-act=\"rename\">Rename</button>";
+    ctxEl.querySelector("[data-act='rename']").onclick = function (e) {
+      e.stopPropagation();
+      var app = ctxApp;
+      closeCtx();
+      renameInstalled(app);
+    };
+    shell.appendChild(ctxEl);
     document.body.appendChild(shell);
     deskEl = desk;
     tasksEl = tasks;
+    renderDesktopIcons();
+    window.addEventListener("resize", function () {
+      shortcutList().forEach(function (app, index) {
+        var el = iconEls[app.id];
+        if (!el) return;
+        var spot = iconPos(index);
+        el.style.left = spot.x + "px";
+        el.style.top = spot.y + "px";
+      });
+    });
     layoutDefaults();
     paintClock();
     if (clockTimer) clearInterval(clockTimer);
@@ -759,6 +877,7 @@
   }
 
   window.veilOSPaintWall = paintDesk;
+  window.veilOSInstall = installApp;
   window.veilOSOpenApp = function (id) {
     if (!wins[id]) return;
     openApp(id);

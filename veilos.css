@@ -37,7 +37,7 @@
   border:0;
   background:transparent;
   color:var(--text);
-  cursor:grab;
+  cursor:default;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -46,7 +46,7 @@
   border-radius:12px;
   opacity:0;
   pointer-events:auto;
-  touch-action:none;
+  touch-action:manipulation;
 }
 .vos-icon.is-drag{cursor:grabbing;z-index:3;animation:none;opacity:1}
 .vos-icon.is-selected{
@@ -90,13 +90,46 @@
 .vos-glyph img,.vos-glyph svg{width:26px;height:26px;display:block}
 .vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
 .vos-logo{filter:none !important}
+.vos-glyph img.vos-appicon,.vos-appicon{filter:none !important;width:28px;height:28px;object-fit:contain}
 .vos-icon span{
   font-size:12px;
   line-height:1.2;
   text-align:center;
   color:var(--text);
   text-shadow:0 1px 2px rgba(0,0,0,.85);
+  max-width:86px;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
 }
+.vos-ctx{
+  position:fixed;
+  z-index:80;
+  min-width:168px;
+  padding:6px;
+  border-radius:12px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  box-shadow:0 16px 40px rgba(0,0,0,.4);
+}
+.vos-ctx[hidden]{display:none}
+.vos-ctx button{
+  width:100%;
+  height:34px;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:var(--text);
+  text-align:left;
+  padding:0 10px;
+  cursor:pointer;
+  font-size:13px;
+}
+.vos-ctx button:hover{background:var(--panel2)}
+.vos-ctx button.is-off,
+.vos-ctx button:disabled{opacity:.35;cursor:default;pointer-events:none}
+body.veil-os #menuInstall{display:flex}
 .vos-win{
   position:absolute;
   display:flex;
