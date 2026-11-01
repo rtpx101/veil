@@ -232,6 +232,12 @@ function engineStatusReady() {
   const libcurl = settings && settings.transport === "libcurl" ? "Libcurl" : "Epoxy";
   return "Ready - " + libcurl + " - " + serverDisplayName();
 }
+function setBootLine(value) {
+  try {
+    const bootSub = document.getElementById("bootSub");
+    if (bootSub && value) bootSub.textContent = value;
+  } catch (err) {}
+}
 function paintEngineStatus(value) {
   const engineStatus = document.getElementById("engineStatus");
   if (!engineStatus) {
@@ -326,6 +332,7 @@ async function initEngine() {
         return;
       }
       paintEngineStatus();
+      setBootLine("Loading connection…");
       if (!window.BareMux) {
         await loadScript(BAREMUX_SCRIPT);
       }
@@ -377,6 +384,7 @@ async function initEngine() {
         }
       }
       paintEngineStatus();
+      setBootLine("Starting proxy…");
       await navigator.serviceWorker.register(SW_URL, {
         scope: SW_SCOPE,
         updateViaCache: "none"
@@ -389,7 +397,14 @@ async function initEngine() {
         await pushScramjetConfig();
       } catch (err) {}
       paintEngineStatus();
-      await applyMuxTransport();
+      setBootLine("Connecting server…");
+      const transportReady = applyMuxTransport().catch((err) => {
+        console.warn("[veil] transport", err);
+      });
+      await Promise.race([
+        transportReady,
+        new Promise((resolve) => setTimeout(resolve, 20000))
+      ]);
       engineReady = true;
       paintEngineStatus();
       try {
@@ -2327,6 +2342,9 @@ function renderChrome() {
   } catch (err) {
     console.warn("fillWispSelect", err);
   }
+  try {
+    updateDevtoolsMenuState();
+  } catch (err) {}
 }
 async function navigate(value2) {
   let link = getActiveTab();
@@ -4377,7 +4395,7 @@ function markAboutBlankSession() {
 function toggleEruda() {
   closeMenu();
   const bookmark = getActiveTab();
-  if (!bookmark || bookmark.newTab || bookmark.isGames || bookmark.isAdmin) {
+  if (!bookmark || bookmark.newTab || bookmark.isGames || bookmark.isAdmin || bookmark.isChat) {
     return;
   }
   const historyItem = bookmark.engineFrame;
@@ -4415,12 +4433,16 @@ function updateDevtoolsMenuState() {
   const menuDevtools = document.getElementById("menuDevtools");
   const menuFullscreen = document.getElementById("menuFullscreen");
   const message = getActiveTab();
-  const friend = !message || !!message.newTab || !!message.isGames || !!message.isAdmin;
+  const chat = !!(message && message.isChat);
+  const friend = !message || !!message.newTab || !!message.isGames || !!message.isAdmin || chat;
   const group = !message || !!message.newTab || !!message.isGames;
   if (menuDevtools) {
+    menuDevtools.classList.toggle("is-faded", chat);
     menuDevtools.classList.toggle("disabled", friend);
     menuDevtools.disabled = friend;
     menuDevtools.setAttribute("aria-disabled", friend ? "true" : "false");
+    if (chat) menuDevtools.setAttribute("aria-hidden", "true");
+    else menuDevtools.removeAttribute("aria-hidden");
   }
   if (menuFullscreen) {
     menuFullscreen.classList.toggle("disabled", group);
@@ -6865,7 +6887,7 @@ function updateAccessTimeBar() {
   const list = detectOSName();
   el.forEach(value => {
     let timeLeft = value.querySelector(".time-left");
-    if (!timeLeft || !value.querySelector(".time-batt")) {
+    if (!timeLeft || !value.querySelector(".time-batt") || !value.querySelector(".time-sep")) {
       value.textContent = "";
       const next = document.createElement("div");
       next.className = "time-dev";
@@ -6879,12 +6901,22 @@ function updateAccessTimeBar() {
       box.hidden = true;
       box.innerHTML = "<img alt=\"\" width=\"18\" height=\"18\"><span class=\"time-battery-pct\"></span>";
       timer.appendChild(box);
+      const dotBatt = document.createElement("span");
+      dotBatt.className = "time-sep time-sep-batt";
+      dotBatt.setAttribute("aria-hidden", "true");
+      dotBatt.textContent = "·";
       timeLeft = document.createElement("span");
       timeLeft.className = "time-left";
+      const dotOs = document.createElement("span");
+      dotOs.className = "time-sep time-sep-os";
+      dotOs.setAttribute("aria-hidden", "true");
+      dotOs.textContent = "·";
       const btn = document.createElement("span");
       btn.className = "time-os";
       prev.appendChild(timer);
+      prev.appendChild(dotBatt);
       prev.appendChild(timeLeft);
+      prev.appendChild(dotOs);
       prev.appendChild(btn);
       value.appendChild(next);
       value.appendChild(prev);
@@ -6909,12 +6941,13 @@ window.addEventListener("veil-access-revoked", function () {
     }
   } catch (err) {}
 });
-let __veilBootStarted = false;
-async function bootVeilApp() {
-  if (__veilBootStarted) {
-    return;
-  }
-  __veilBootStarted = true;
+let __veilBootPromise = null;
+function bootVeilApp() {
+  if (__veilBootPromise) return __veilBootPromise;
+  __veilBootPromise = bootVeilAppInner();
+  return __veilBootPromise;
+}
+async function bootVeilAppInner() {
   try {
     document.body.classList.remove("gate-lock");
     const browser = document.getElementById("browser") || document.getElementById("app");
@@ -6963,16 +6996,6 @@ async function bootVeilApp() {
   markAboutBlankSession();
   syncAboutBlankChrome();
   try {
-    await showCookieConsent();
-  } catch (err) {
-    console.warn("cookie consent", err);
-  }
-  try {
-    await showSignup();
-  } catch (err) {
-    console.warn("signup", err);
-  }
-  try {
     forceHomeTab();
     const channel = new URLSearchParams(location.search).get("open");
     if (channel) {
@@ -7005,11 +7028,19 @@ async function bootVeilApp() {
   try {
     paintEngineStatus();
   } catch (err) {}
-  initEngine().then(() => {
-    try {
-      pushAdblockToSW();
-    } catch (err) {}
-  }).catch(() => {});
+  setBootLine("Starting proxy…");
+  try {
+    await initEngine();
+  } catch (err) {
+    const msg = String(err && err.message || err);
+    if (/did not load|unavailable|Service workers/i.test(msg)) throw err;
+    console.error(err);
+    setBootLine("Server is waking up…");
+  }
+  try {
+    pushAdblockToSW();
+  } catch (err) {}
+  setBootLine("Ready");
   setTimeout(syncAboutBlankChrome, 100);
   setTimeout(syncAboutBlankChrome, 600);
   if (settings.theme === "custom") {
@@ -7068,6 +7099,15 @@ async function bootVeilApp() {
   try {
     highlightTheme();
   } catch (err) {}
+  setTimeout(function () {
+    showCookieConsent().catch(function (err) {
+      console.warn("cookie consent", err);
+    }).then(function () {
+      return showSignup();
+    }).catch(function (err) {
+      console.warn("signup", err);
+    });
+  }, 900);
   setTimeout(function () {
     try {
       const viewport = document.getElementById("viewport");
@@ -7477,7 +7517,9 @@ function updateGamesChromeLocks() {
     menuFullscreen.setAttribute("aria-disabled", tab ? "true" : "false");
   }
   if (menuDevtools) {
-    const mode = root || !!meta && (!!meta.newTab || !!meta.isAdmin);
+    const chat = !!meta && !!meta.isChat;
+    const mode = root || !!meta && (!!meta.newTab || !!meta.isAdmin || chat);
+    menuDevtools.classList.toggle("is-faded", chat);
     menuDevtools.classList.toggle("disabled", mode);
     menuDevtools.disabled = mode;
     menuDevtools.setAttribute("aria-disabled", mode ? "true" : "false");

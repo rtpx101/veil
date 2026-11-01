@@ -154,10 +154,15 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 
 .time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,56px);padding:16px 18px 6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
 .time-dev{color:#ff2a2a;font-size:11px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;line-height:1.15;text-align:center}
-.time-cluster{display:grid;grid-template-columns:auto auto auto;justify-content:center;align-items:center;width:min(560px,92%);column-gap:40px;margin:0 auto}
-.time-batt{justify-self:end;display:inline-flex;align-items:center}
-.time-left{justify-self:center;text-align:center}
-.time-os{justify-self:start;text-align:left}
+.time-cluster{display:flex;align-items:center;justify-content:center;width:min(640px,96%);margin:0 auto;gap:0}
+.time-batt{display:inline-flex;align-items:center}
+.time-left{text-align:center}
+.time-os{text-align:left}
+.time-sep{flex:0 0 auto;padding:0 10px;opacity:.55;user-select:none;line-height:1}
+.time-batt:has(.time-battery[hidden]),
+.time-cluster:has(.time-battery[hidden]) .time-sep-batt{display:none}
+.time-os:empty,
+.time-cluster:has(.time-os:empty) .time-sep-os{display:none}
 .time-left,.time-os,.time-battery{flex:0 0 auto;white-space:nowrap}
 .time-battery{display:inline-flex;align-items:center;gap:6px}
 .time-battery[hidden]{display:none !important}
@@ -169,6 +174,8 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .menu.open{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:opacity .2s ease,transform .2s ease,visibility 0s}
 .menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
 .menu-item:hover{background:var(--panel2)}
+#menuDevtools{height:38px;overflow:hidden;transition:opacity .28s ease,height .28s ease,padding .28s ease}
+#menuDevtools.is-faded{opacity:0;height:0;min-height:0;padding-top:0;padding-bottom:0;pointer-events:none}
 .menu-icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:0 0 20px}.menu-icon img{width:16px;height:16px;display:block;filter:invert(var(--icon-invert,1));opacity:.85}
 .menu-separator{height:1px;background:var(--border);margin:6px 4px}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:block;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s ease,visibility 0s linear .22s}
@@ -633,7 +640,8 @@ body.boot-reveal #browser{
   .url-input{font-size:12px}
   .newtab-page{--timebar-h:50px}
   .time-bar{font-size:11px;padding:0 10px}
-  .time-cluster{width:min(520px,94%);column-gap:28px}
+  .time-cluster{width:min(520px,94%)}
+  .time-sep{padding:0 7px}
   .settings-panel,.history-panel{width:min(100vw - 16px, 400px)}
 }
 
@@ -776,7 +784,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 
 </style>
 </head>
-<body class="gate-lock">
+<body class="gate-lock booting">
 <div id="veilBoot" aria-live="polite">
   <div class="boot-glow"></div>
   <div class="boot-card">
@@ -834,17 +842,37 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     if (retry) retry.onclick = function () { location.reload(); };
   }
   function succeed() {
-    setSub("Ready");
-    document.body.classList.remove("booting");
+    setSub(hasSession() ? "Loading browser…" : "Sign-in screen");
     try { window.__VEIL_BOOT_READY = true; } catch (err) {}
     try { window.dispatchEvent(new CustomEvent("veil-boot-ready")); } catch (err) {}
+  }
+  function hasSession() {
+    try {
+      if (localStorage.getItem("veil_access_token") || sessionStorage.getItem("veil_access_token")) return true;
+    } catch (err) {}
+    try {
+      return document.cookie.indexOf("veil_access_token=") !== -1;
+    } catch (err2) {}
+    return false;
   }
   function wait(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
+  async function prefetch(url, label, index) {
+    addStep(label, "run");
+    setSub(label);
+    try {
+      var res = await fetch(url, { cache: "force-cache" });
+      if (!res.ok) throw new Error(res.status + "");
+      await res.arrayBuffer();
+      setStep(index, "ok", label);
+    } catch (err) {
+      setStep(index, "fail", label);
+    }
+  }
   async function checkScripts() {
     addStep("Page ready", "run");
-    await wait(80);
+    await wait(40);
     if (typeof window === "undefined") throw new Error("Browser environment missing");
     setStep(0, "ok", "Page ready");
   }
@@ -873,31 +901,32 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
     }
   }
   async function checkAssets() {
+    if (document.readyState === "loading") {
+      await new Promise(function (resolve) {
+        document.addEventListener("DOMContentLoaded", resolve, { once: true });
+      });
+    }
     addStep("Sign-in screen", "run");
     setSub("Loading interface…");
-    await wait(120);
     var gate = document.getElementById("accessGate");
     if (!gate) throw new Error("Sign-in screen failed to load (missing access gate)");
     setStep(2, "ok", "Sign-in screen");
+    await prefetch("baremux/index.js", "Loading connection…", 3);
+    await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
+    await prefetch("veil-app.js", "Loading browser…", 5);
   }
-  async function run() {
+  window.__veilBootWork = (async function () {
     try {
       setSub("Getting ready…");
       await checkScripts();
       await checkWorker();
       await checkAssets();
-      setSub("Almost there…");
-      await wait(280);
       succeed();
     } catch (err) {
       fail(err);
+      throw err;
     }
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { run(); });
-  } else {
-    run();
-  }
+  })();
 })();
 </script>
 <div id="accessGate">
