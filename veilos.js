@@ -17,6 +17,12 @@
   var iconLayout = {};
   var closeStart = function () {};
   var POS_KEY = "veil-os-icon-pos";
+  var FOLDER_KEY = "veil_os_folders";
+  var folders = [];
+  var openFolderId = null;
+  var folderWin = null;
+  var ctxX = 0;
+  var ctxY = 0;
 
   function svgChat() {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H10l-4 3.2V16.5H5A1.5 1.5 0 0 1 3.5 15V8A1.5 1.5 0 0 1 5 6.5z"></path></svg>';
@@ -84,6 +90,157 @@
     });
     return list;
   }
+  function appById(id) {
+    var found = null;
+    shortcutList().forEach(function (app) { if (app.id === id) found = app; });
+    return found;
+  }
+  function loadFolders() {
+    folders = [];
+    try {
+      var data = JSON.parse(localStorage.getItem(FOLDER_KEY) || "{}");
+      if (data && Array.isArray(data.folders)) folders = data.folders;
+    } catch (err) {}
+    folders = folders.filter(function (folder) { return folder && folder.id; });
+    folders.forEach(function (folder) {
+      if (!Array.isArray(folder.items)) folder.items = [];
+      folder.items = folder.items.filter(function (id) { return !!appById(id); });
+    });
+  }
+  function saveFolders() {
+    try { localStorage.setItem(FOLDER_KEY, JSON.stringify({ folders: folders })); } catch (err) {}
+  }
+  function findFolder(id) {
+    var found = null;
+    folders.forEach(function (folder) { if (folder.id === id) found = folder; });
+    return found;
+  }
+  function holdingFolder(id) {
+    var found = null;
+    folders.forEach(function (folder) {
+      if (folder.items.indexOf(id) !== -1) found = folder;
+    });
+    return found;
+  }
+  function desktopItems() {
+    var list = [];
+    folders.forEach(function (folder) {
+      list.push({ id: folder.id, title: folder.title || "Folder", folder: true, items: folder.items.slice() });
+    });
+    shortcutList().forEach(function (app) {
+      if (!holdingFolder(app.id)) list.push(app);
+    });
+    return list;
+  }
+  function nextFolderName() {
+    var used = {};
+    folders.forEach(function (folder) { used[folder.title] = true; });
+    if (!used["New folder"]) return "New folder";
+    var n = 2;
+    while (used["New folder " + n]) n += 1;
+    return "New folder " + n;
+  }
+  function folderGlyph(items) {
+    var cells = "";
+    var shown = 0;
+    (items || []).forEach(function (id) {
+      if (shown >= 4) return;
+      var app = appById(id);
+      if (!app) return;
+      shown += 1;
+      var inner = app.iconUrl
+        ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
+        : iconMarkup(app.kind);
+      cells += '<span class="vos-mini">' + inner + "</span>";
+    });
+    while (shown < 4) {
+      cells += '<span class="vos-mini"></span>';
+      shown += 1;
+    }
+    return '<span class="vos-folder-face">' + cells + "</span>";
+  }
+  function looseIds(ids) {
+    return (ids || []).filter(function (id) {
+      return iconEls[id] && iconEls[id].dataset.folder !== "1";
+    });
+  }
+  function makeFolder(title, ids, x, y) {
+    var folder = {
+      id: "fld_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      title: title || nextFolderName(),
+      items: []
+    };
+    folders.push(folder);
+    addToFolder(folder.id, ids || [], true);
+    if (isFinite(x) && isFinite(y)) iconLayout[folder.id] = clampIcon(x, y);
+    saveFolders();
+    saveLayout();
+    renderDesktopIcons();
+    return folder;
+  }
+  function addToFolder(folderId, ids, silent) {
+    var folder = findFolder(folderId);
+    if (!folder) return;
+    (ids || []).forEach(function (id) {
+      if (!id || String(id).indexOf("fld_") === 0) return;
+      if (!appById(id)) return;
+      folders.forEach(function (other) {
+        other.items = other.items.filter(function (item) { return item !== id; });
+      });
+      if (folder.items.indexOf(id) === -1) folder.items.push(id);
+      delete iconLayout[id];
+    });
+    if (!silent) {
+      saveFolders();
+      saveLayout();
+      renderDesktopIcons();
+      if (openFolderId) paintFolder();
+    }
+  }
+  function removeFromFolder(folderId, id) {
+    var folder = findFolder(folderId);
+    if (!folder) return;
+    folder.items = folder.items.filter(function (item) { return item !== id; });
+    saveFolders();
+    renderDesktopIcons();
+    paintFolder();
+  }
+  function deleteFolder(id) {
+    folders = folders.filter(function (folder) { return folder.id !== id; });
+    delete iconLayout[id];
+    if (openFolderId === id) closeFolder();
+    saveFolders();
+    saveLayout();
+    renderDesktopIcons();
+  }
+  function renameFolder(folder) {
+    if (!folder) return;
+    var overlay = document.createElement("div");
+    overlay.className = "modal-overlay rename-modal";
+    overlay.innerHTML = "<div class=\"modal-box\"><h2>Rename folder</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(folder.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
+    document.body.appendChild(overlay);
+    var input = overlay.querySelector("#vosRenameInput");
+    input.focus();
+    input.select();
+    function done() { overlay.remove(); }
+    overlay.querySelector(".modal-cancel").onclick = done;
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) done(); });
+    function save() {
+      var name = input.value.trim().slice(0, 48);
+      if (name) {
+        folder.title = name;
+        saveFolders();
+        renderDesktopIcons();
+        if (openFolderId === folder.id) paintFolder();
+      }
+      done();
+    }
+    overlay.querySelector(".modal-go").onclick = save;
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") done();
+    });
+  }
   function loadLayout() {
     try {
       iconLayout = JSON.parse(localStorage.getItem(POS_KEY) || "{}") || {};
@@ -117,12 +274,30 @@
   }
   function showCtx(app, x, y) {
     if (!ctxEl) return;
-    ctxApp = app;
-    var btn = ctxEl.querySelector("[data-act='rename']");
-    if (btn) {
-      btn.disabled = !!app.builtin;
-      btn.classList.toggle("is-off", !!app.builtin);
+    ctxApp = app || null;
+    ctxX = x;
+    ctxY = y;
+    var html = "";
+    if (!app) {
+      html = "<button type=\"button\" data-act=\"new\">New folder</button>";
+    } else if (app.inFolder) {
+      html = "<button type=\"button\" data-act=\"open\">Open</button>";
+      html += app.builtin
+        ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\">Rename</button>"
+        : "<button type=\"button\" data-act=\"rename\">Rename</button>";
+      html += "<button type=\"button\" data-act=\"out\">Remove from folder</button>";
+    } else if (app.folder) {
+      html = "<button type=\"button\" data-act=\"open\">Open</button><button type=\"button\" data-act=\"rename\">Rename</button><button type=\"button\" data-act=\"delete\">Delete folder</button>";
+    } else {
+      html = app.builtin
+        ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\">Rename</button>"
+        : "<button type=\"button\" data-act=\"rename\">Rename</button>";
+      folders.forEach(function (folder) {
+        html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\">Move to " + esc(folder.title || "Folder") + "</button>";
+      });
+      html += "<button type=\"button\" data-act=\"new\">New folder</button>";
     }
+    ctxEl.innerHTML = html;
     ctxEl.hidden = false;
     ctxEl.style.left = x + "px";
     ctxEl.style.top = y + "px";
@@ -162,6 +337,7 @@
           if (bar) bar.textContent = name;
           renderTasks();
         }
+        if (openFolderId) paintFolder();
       }
       done();
     }
@@ -173,6 +349,10 @@
   }
   function openShortcut(app) {
     if (!app) return;
+    if (app.folder) {
+      openFolder(app.id);
+      return;
+    }
     if (app.builtin) {
       openApp(app.id);
       return;
@@ -183,20 +363,118 @@
     ensureInstalledWindow(stored);
     openApp(stored.id);
   }
+  function folderAtPoint(x, y, ignore) {
+    var hit = "";
+    Object.keys(iconEls).forEach(function (id) {
+      if (ignore && ignore[id]) return;
+      var el = iconEls[id];
+      if (!el || el.dataset.folder !== "1") return;
+      var box = el.getBoundingClientRect();
+      if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) hit = id;
+    });
+    return hit;
+  }
+  function closeFolder() {
+    openFolderId = null;
+    if (folderWin) folderWin.hidden = true;
+  }
+  function placeFolder(id) {
+    if (!folderWin || !deskEl) return;
+    var desk = deskEl.getBoundingClientRect();
+    var w = 340;
+    var h = 280;
+    var x = 110;
+    var y = 36;
+    var icon = iconEls[id];
+    if (icon) {
+      x = (parseFloat(icon.style.left) || 0) + 92;
+      y = parseFloat(icon.style.top) || 12;
+    }
+    if (x + w > desk.width - 8) x = Math.max(8, desk.width - w - 8);
+    if (y + h > desk.height - 8) y = Math.max(8, desk.height - h - 8);
+    folderWin.style.left = x + "px";
+    folderWin.style.top = y + "px";
+  }
+  function paintFolder() {
+    var folder = findFolder(openFolderId);
+    if (!folder || !deskEl) {
+      closeFolder();
+      return;
+    }
+    if (!folderWin) {
+      folderWin = document.createElement("div");
+      folderWin.className = "vos-fold";
+      folderWin.innerHTML = "<div class=\"vos-fold-bar\"><b></b><button type=\"button\" class=\"vos-ctl close\" aria-label=\"Close\">" + svgClose() + "</button></div><div class=\"vos-fold-grid\"></div>";
+      folderWin.querySelector(".close").onclick = function (e) {
+        e.stopPropagation();
+        closeFolder();
+      };
+      deskEl.appendChild(folderWin);
+    }
+    folderWin.hidden = false;
+    folderWin.querySelector("b").textContent = folder.title || "Folder";
+    var grid = folderWin.querySelector(".vos-fold-grid");
+    grid.innerHTML = "";
+    if (!folder.items.length) {
+      grid.innerHTML = "<p class=\"vos-fold-empty\">Empty folder</p>";
+      return;
+    }
+    folder.items.forEach(function (id) {
+      var app = appById(id);
+      if (!app) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "vos-fold-item";
+      btn.title = app.title;
+      var glyph = app.iconUrl
+        ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
+        : iconMarkup(app.kind);
+      btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
+      btn.addEventListener("dblclick", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openShortcut(app);
+      });
+      btn.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeStart();
+        showCtx({
+          id: app.id,
+          title: app.title,
+          builtin: app.builtin,
+          url: app.url,
+          iconUrl: app.iconUrl,
+          kind: app.kind,
+          inFolder: folder.id
+        }, e.clientX, e.clientY);
+      });
+      grid.appendChild(btn);
+    });
+  }
+  function openFolder(id) {
+    if (!findFolder(id)) return;
+    openFolderId = id;
+    paintFolder();
+    placeFolder(id);
+  }
   function renderDesktopIcons() {
     if (!iconsEl || !deskEl) return;
     closeCtx();
     iconsEl.innerHTML = "";
     iconEls = {};
-    shortcutList().forEach(function (app, index) {
+    desktopItems().forEach(function (app, index) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "vos-icon";
       btn.title = app.title;
       btn.dataset.app = app.id;
-      var glyph = app.iconUrl
-        ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">'
-        : iconMarkup(app.kind);
+      if (app.folder) btn.dataset.folder = "1";
+      var glyph = app.folder
+        ? folderGlyph(app.items)
+        : (app.iconUrl
+          ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">'
+          : iconMarkup(app.kind));
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
       var spot = iconPos(index, app.id);
       btn.style.left = spot.x + "px";
@@ -228,6 +506,8 @@
             y: parseFloat(iconEls[id].style.top) || 0
           };
         });
+        var ignore = {};
+        group.forEach(function (id) { ignore[id] = true; });
         function move(ev) {
           var dx = ev.clientX - startX;
           var dy = ev.clientY - startY;
@@ -240,15 +520,30 @@
             el.style.top = spot.y + "px";
             el.classList.add("is-moving");
           });
+          var over = folderAtPoint(ev.clientX, ev.clientY, ignore);
+          Object.keys(iconEls).forEach(function (id) {
+            if (iconEls[id]) iconEls[id].classList.toggle("is-drop", id === over);
+          });
         }
-        function up() {
+        function up(ev) {
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
+          var over = moved ? folderAtPoint(ev.clientX, ev.clientY, ignore) : "";
+          Object.keys(iconEls).forEach(function (id) {
+            if (iconEls[id]) iconEls[id].classList.remove("is-drop", "is-moving");
+          });
+          if (over) {
+            var ids = looseIds(group);
+            if (!ids.length && !app.folder) ids = [app.id];
+            if (ids.length) {
+              addToFolder(over, ids);
+              return;
+            }
+          }
           group.forEach(function (id) {
             var el = iconEls[id];
-            if (!el) return;
-            el.classList.remove("is-moving");
-            if (moved) iconLayout[id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+            if (!el || !moved) return;
+            iconLayout[id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
           });
           if (moved) saveLayout();
         }
@@ -792,12 +1087,13 @@
     icons.className = "vos-icons";
     iconsEl = icons;
     loadInstalled();
+    loadFolders();
     loadLayout();
     icons.addEventListener("dragstart", function (e) { e.preventDefault(); });
     desk.appendChild(icons);
     desk.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
-      if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon"))) return;
+      if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon") || e.target.closest(".vos-fold"))) return;
       closeStart();
       var x0 = e.clientX;
       var y0 = e.clientY;
@@ -843,8 +1139,11 @@
       desk.addEventListener("pointerup", up);
     });
     desk.addEventListener("contextmenu", function (e) {
-      if (e.target.closest && e.target.closest(".vos-win")) return;
+      if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon") || e.target.closest(".vos-fold"))) return;
       e.preventDefault();
+      closeStart();
+      onlyPick(null);
+      showCtx(null, e.clientX, e.clientY);
     });
     APPS.forEach(function (app) {
       desk.appendChild(makeWindow(app).el);
@@ -895,6 +1194,7 @@
       if (e.key === "Escape") {
         closeStart();
         closeCtx();
+        closeFolder();
       }
     });
     startWrap.appendChild(startBtn);
@@ -912,13 +1212,43 @@
     ctxEl = document.createElement("div");
     ctxEl.className = "vos-ctx";
     ctxEl.hidden = true;
-    ctxEl.innerHTML = "<button type=\"button\" data-act=\"rename\">Rename</button>";
-    ctxEl.querySelector("[data-act='rename']").onclick = function (e) {
+    ctxEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("button");
+      if (!btn || btn.disabled) return;
       e.stopPropagation();
+      var act = btn.getAttribute("data-act");
+      var dest = btn.getAttribute("data-folder") || "";
       var app = ctxApp;
       closeCtx();
-      renameInstalled(app);
-    };
+      if (act === "open" && app) openShortcut(app.folder ? app : (appById(app.id) || app));
+      if (act === "rename" && app) {
+        if (app.folder) renameFolder(findFolder(app.id));
+        else renameInstalled(app);
+      }
+      if (act === "delete" && app && app.folder) deleteFolder(app.id);
+      if (act === "out" && app && app.inFolder) removeFromFolder(app.inFolder, app.id);
+      if (act === "move" && dest) {
+        var ids = [];
+        Object.keys(picked).forEach(function (id) { if (picked[id]) ids.push(id); });
+        ids = looseIds(ids);
+        if (app && ids.indexOf(app.id) === -1) ids.push(app.id);
+        addToFolder(dest, ids);
+      }
+      if (act === "new") {
+        var box = deskEl.getBoundingClientRect();
+        if (!app) {
+          makeFolder(nextFolderName(), [], ctxX - box.left - 28, ctxY - box.top - 16);
+          return;
+        }
+        if (app.folder) return;
+        var chosen = [];
+        Object.keys(picked).forEach(function (id) { if (picked[id]) chosen.push(id); });
+        chosen = looseIds(chosen);
+        if (chosen.indexOf(app.id) === -1) chosen.push(app.id);
+        var icon = iconEls[app.id];
+        makeFolder(nextFolderName(), chosen, icon ? parseFloat(icon.style.left) || 16 : 16, icon ? parseFloat(icon.style.top) || 16 : 16);
+      }
+    });
     shell.appendChild(ctxEl);
     document.body.appendChild(shell);
     deskEl = desk;
@@ -926,7 +1256,7 @@
     installed.forEach(function (app) { ensureInstalledWindow(app); });
     renderDesktopIcons();
     window.addEventListener("resize", function () {
-      shortcutList().forEach(function (app, index) {
+      desktopItems().forEach(function (app, index) {
         var el = iconEls[app.id];
         if (!el) return;
         var spot = iconPos(index, app.id);
