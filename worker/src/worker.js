@@ -136,25 +136,42 @@ async function verifyAdminToken(value, extra) {
 }
 async function getIpRecord(value, extra) {
   const file = await value.VEIL_KV.get("ip:" + extra, "json");
-  return file || {
+  if (file) {
+    file._stored = true;
+    return file;
+  }
+  return {
     ip: extra,
     firstSeen: Date.now(),
-    lastSeen: Date.now(),
+    lastSeen: 0,
     hits: 0,
     blockedUntil: 0,
     blockInfinite: false,
     access: null,
     history: [],
-    geo: null
+    geo: null,
+    _stored: false
   };
 }
 async function putIpRecord(value, extra) {
   if (extra.history && extra.history.length > 40) {
     extra.history = extra.history.slice(-40);
   }
-  await value.VEIL_KV.put("ip:" + String(extra.ip || "0.0.0.0"), JSON.stringify(extra), {
+  const copy = Object.assign({}, extra);
+  delete copy._stored;
+  await value.VEIL_KV.put("ip:" + String(copy.ip || "0.0.0.0"), JSON.stringify(copy), {
     expirationTtl: 15552000
   });
+  extra._stored = true;
+}
+async function touchIp(value, extra) {
+  const now = Date.now();
+  if (extra._stored && extra.lastSeen && now - extra.lastSeen < 1800000) {
+    return;
+  }
+  extra.lastSeen = now;
+  extra.hits = (extra.hits || 0) + 1;
+  await putIpRecord(value, extra);
 }
 async function listIpKeys(value) {
   const ctx = [];
@@ -399,8 +416,6 @@ export default {
           }, 400, flag);
         }
         const timer = await getIpRecord(extra2, found);
-        timer.lastSeen = Date.now();
-        timer.hits = (timer.hits || 0) + 1;
         const box = value2.cf || {};
         timer.geo = {
           country: box.country || null,
@@ -414,7 +429,7 @@ export default {
         const btn = Date.now();
         if (timer.blockInfinite || timer.blockedUntil && timer.blockedUntil > btn) {
           const inf = timer.blockInfinite ? "inf" : formatLeft(Math.max(0, timer.blockedUntil - btn));
-          await putIpRecord(extra2, timer);
+          await touchIp(extra2, timer);
           return json({
             ok: false,
             blocked: true,
@@ -424,7 +439,7 @@ export default {
         }
         const html = await extra2.VEIL_KV.get("key:" + prev, "json");
         if (!html || html.used) {
-          await putIpRecord(extra2, timer);
+          await touchIp(extra2, timer);
           return json({
             ok: false,
             error: "Invalid or already used key"
@@ -468,6 +483,8 @@ export default {
           key: prev,
           durationLabel: html.durationLabel
         });
+        timer.lastSeen = btn;
+        timer.hits = (timer.hits || 0) + 1;
         await putIpRecord(extra2, timer);
         return json({
           ok: true,
@@ -484,10 +501,9 @@ export default {
         const req = String(res.token || "").trim();
         const rec = Date.now();
         const row = await getIpRecord(extra2, query);
-        row.lastSeen = rec;
         if (row.blockInfinite || row.blockedUntil && row.blockedUntil > rec) {
           const inf = row.blockInfinite ? "inf" : formatLeft(Math.max(0, row.blockedUntil - rec));
-          await putIpRecord(extra2, row);
+          await touchIp(extra2, row);
           return json({
             ok: false,
             blocked: true,
@@ -496,7 +512,7 @@ export default {
           }, 403, flag);
         }
         if (!req) {
-          await putIpRecord(extra2, row);
+          await touchIp(extra2, row);
           return json({
             ok: false,
             error: "No session"
@@ -504,7 +520,7 @@ export default {
         }
         const count = await extra2.VEIL_KV.get("session:" + req, "json");
         if (!count) {
-          await putIpRecord(extra2, row);
+          await touchIp(extra2, row);
           return json({
             ok: false,
             error: "Session expired or invalid"
@@ -513,7 +529,13 @@ export default {
         const index = await getGlobalEpoch(extra2);
         if ((count.epoch || 0) < index) {
           await extra2.VEIL_KV.delete("session:" + req);
-          await putIpRecord(extra2, row);
+          if (row.access && row.access.sessionId === req) {
+            row.access = null;
+            row.lastSeen = rec;
+            await putIpRecord(extra2, row);
+          } else {
+            await touchIp(extra2, row);
+          }
           return json({
             ok: false,
             error: "Signed out globally"
@@ -523,18 +545,18 @@ export default {
           await extra2.VEIL_KV.delete("session:" + req);
           if (row.access && row.access.sessionId === req) {
             row.access = null;
+            row.lastSeen = rec;
+            await putIpRecord(extra2, row);
+          } else {
+            await touchIp(extra2, row);
           }
-          await putIpRecord(extra2, row);
           return json({
             ok: false,
             error: "Session expired"
           }, 401, flag);
         }
-        count.lastIp = query;
-        count.lastSeen = rec;
-        await extra2.VEIL_KV.put("session:" + req, JSON.stringify(count));
+        await touchIp(extra2, row);
         const entry = count.infinite ? null : Math.max(0, count.expires - rec);
-        await putIpRecord(extra2, row);
         return json({
           ok: true,
           expires: count.expires,

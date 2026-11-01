@@ -184,7 +184,7 @@
           }));
         } catch (err) {}
       });
-    }, 12000);
+    }, 120000);
   }
   function doSignOut() {
     var link = getToken();
@@ -513,7 +513,7 @@
     stopPendingPoll();
     input = setInterval(function () {
       quietCheckAccess(true);
-    }, 8000);
+    }, 120000);
   }
   function showPending(value, extra) {
     stopLivePoll();
