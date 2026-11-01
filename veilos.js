@@ -86,8 +86,8 @@
     var h = 0;
     try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
     if (!h) h = Math.max(240, window.innerHeight - 48);
-    var rows = Math.max(1, Math.floor((h - 20) / 112));
-    return { x: 10 + Math.floor(index / rows) * 104, y: 10 + (index % rows) * 112 };
+    var rows = Math.max(1, Math.floor((h - 24) / 164));
+    return { x: 16 + Math.floor(index / rows) * 136, y: 16 + (index % rows) * 164 };
   }
   function closeCtx() {
     ctxApp = null;
@@ -880,10 +880,13 @@
   function paintDesk() {
     if (!deskEl) return;
     var canvas = deskEl.querySelector("[data-home-fx]");
-    if (canvas) {
-      try { stopHomeFx(deskEl); } catch (err) {}
-      canvas.remove();
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.className = "home-fx";
+      canvas.setAttribute("data-home-fx", "");
+      deskEl.insertBefore(canvas, deskEl.firstChild);
     }
+    try { setupHomeFx(deskEl); } catch (err) {}
     deskEl.querySelectorAll(".vos-wall").forEach(function (node) { node.remove(); });
     var url = "";
     try {
@@ -908,7 +911,7 @@
       wall.src = url;
     }
     wall.className = "vos-wall";
-    deskEl.insertBefore(wall, deskEl.firstChild);
+    deskEl.insertBefore(wall, canvas.nextSibling);
   }
 
   function mountBrowser() {
