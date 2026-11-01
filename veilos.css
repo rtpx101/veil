@@ -8,9 +8,9 @@
   color:var(--text);
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   user-select:none;
-  --lg:blur(32px) saturate(1.9) brightness(1.12);
-  --lg-fill:linear-gradient(115deg, rgba(255,255,255,.62) 0%, rgba(255,255,255,.16) 28%, rgba(255,255,255,.08) 52%, rgba(255,255,255,.22) 100%);
-  --lg-edge:inset 0 1px 0 rgba(255,255,255,.85), inset 0 -1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.28);
+  --lg:blur(42px) saturate(2.2);
+  --lg-fill:linear-gradient(180deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 38%, rgba(255,255,255,.07) 100%);
+  --lg-edge:inset 0 1px 0 rgba(255,255,255,.32), inset 0 -1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(255,255,255,.12);
   --lg-drop:0 14px 34px rgba(0,0,0,.28);
 }
 .vos-desk{
@@ -91,7 +91,7 @@
   width:56px;
   height:56px;
   border-radius:18px;
-  border:1px solid rgba(255,255,255,.55);
+  border:1px solid rgba(255,255,255,.2);
   background:var(--lg-fill);
   box-shadow:var(--lg-edge), var(--lg-drop);
   backdrop-filter:var(--lg);
@@ -118,7 +118,7 @@
 .vos-icon:focus-visible .vos-glyph{
   transform:translateY(-2px) scale(1.045);
   background:var(--lg-fill);
-  border-color:rgba(255,255,255,.75);
+  border-color:rgba(255,255,255,.32);
   box-shadow:var(--lg-edge), 0 18px 36px rgba(0,0,0,.32);
 }
 .vos-glyph img.vos-logo{width:100%;height:100%;padding:4px}
@@ -145,7 +145,7 @@
   padding:6px;
   border-radius:22px;
   background:var(--lg-fill);
-  border:1px solid rgba(255,255,255,.5);
+  border:1px solid rgba(255,255,255,.18);
   box-shadow:var(--lg-edge), 0 24px 60px rgba(0,0,0,.32);
   backdrop-filter:var(--lg);
   -webkit-backdrop-filter:var(--lg);
@@ -175,9 +175,9 @@ body.veil-os #menuInstall{display:flex}
   min-height:220px;
   background:transparent;
   color:var(--text);
-  border:1px solid rgba(255,255,255,.45);
+  border:1px solid rgba(255,255,255,.16);
   border-radius:22px;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 30px 70px rgba(0,0,0,.35);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 30px 70px rgba(0,0,0,.35);
   overflow:hidden;
   transform-origin:50% 20%;
   transition:opacity .28s ease,transform .34s cubic-bezier(.22,.9,.28,1),border-color .2s ease,box-shadow .2s ease;
@@ -209,8 +209,8 @@ body.veil-os #menuInstall{display:flex}
 #veilOS.is-full .vos-win:not(.is-max){visibility:hidden !important;pointer-events:none !important}
 .vos-win.is-max .vos-rz{display:none}
 .vos-win.is-focus{
-  border-color:rgba(255,255,255,.7);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.85), 0 36px 80px rgba(0,0,0,.42);
+  border-color:rgba(255,255,255,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.36), 0 36px 80px rgba(0,0,0,.42);
 }
 .vos-title{
   flex:0 0 38px;
@@ -220,8 +220,8 @@ body.veil-os #menuInstall{display:flex}
   gap:8px;
   padding:0 6px 0 12px;
   background:var(--lg-fill);
-  border-bottom:1px solid rgba(255,255,255,.35);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+  border-bottom:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
   backdrop-filter:var(--lg);
   -webkit-backdrop-filter:var(--lg);
   cursor:grab;
@@ -229,7 +229,7 @@ body.veil-os #menuInstall{display:flex}
   position:relative;
   z-index:6;
 }
-.vos-win.is-focus .vos-title{background:linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,.16))}
+.vos-win.is-focus .vos-title{background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.05))}
 .vos-title img,.vos-title svg{width:16px;height:16px;flex:0 0 16px;display:block}
 .vos-title b{
   flex:1;
@@ -301,8 +301,8 @@ body.veil-os #menuInstall{display:flex}
   gap:6px;
   padding:0 10px 0 6px;
   background:var(--lg-fill);
-  border-top:1px solid rgba(255,255,255,.45);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.75);
+  border-top:1px solid rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.26);
   backdrop-filter:var(--lg);
   -webkit-backdrop-filter:var(--lg);
   opacity:0;
@@ -314,7 +314,7 @@ body.veil-os #menuInstall{display:flex}
   border:0;
   border-radius:14px;
   background:var(--lg-fill);
-  border:1px solid rgba(255,255,255,.45);
+  border:1px solid rgba(255,255,255,.18);
   box-shadow:var(--lg-edge);
   backdrop-filter:var(--lg);
   -webkit-backdrop-filter:var(--lg);
@@ -332,7 +332,7 @@ body.veil-os #menuInstall{display:flex}
   display:block;
   pointer-events:none;
 }
-.vos-start:hover,.vos-start.on{background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.2))}
+.vos-start:hover,.vos-start.on{background:linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.06))}
 .vos-start:active{transform:scale(.94)}
 .vos-startmenu{
   position:absolute;
@@ -342,7 +342,7 @@ body.veil-os #menuInstall{display:flex}
   padding:6px;
   border-radius:22px;
   background:var(--lg-fill);
-  border:1px solid rgba(255,255,255,.5);
+  border:1px solid rgba(255,255,255,.18);
   box-shadow:var(--lg-edge), 0 24px 60px rgba(0,0,0,.32);
   backdrop-filter:var(--lg);
   -webkit-backdrop-filter:var(--lg);
@@ -394,7 +394,7 @@ body.veil-os #menuInstall{display:flex}
 .vos-taskbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vos-taskbtn.on{
   background:var(--lg-fill);
-  border-color:rgba(255,255,255,.45);
+  border-color:rgba(255,255,255,.18);
   box-shadow:var(--lg-edge);
   backdrop-filter:var(--lg);
   -webkit-backdrop-filter:var(--lg);
@@ -489,9 +489,9 @@ body.veil-os #osApp-settings .preset-grid{max-width:100%;min-width:0}
 body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / -1}
 
 html[data-mode="light"] #veilOS{
-  --lg:blur(28px) saturate(1.6) brightness(1.04);
-  --lg-fill:linear-gradient(115deg, rgba(255,255,255,.72) 0%, rgba(255,255,255,.38) 40%, rgba(255,255,255,.46) 100%);
-  --lg-edge:inset 0 1px 0 rgba(255,255,255,.9), inset 0 0 0 1px rgba(0,0,0,.08);
+  --lg:blur(36px) saturate(1.8);
+  --lg-fill:linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.1) 42%, rgba(255,255,255,.14) 100%);
+  --lg-edge:inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(0,0,0,.06);
 }
 html[data-mode="light"] .vos-glyph img,
 html[data-mode="light"] .vos-title img,
