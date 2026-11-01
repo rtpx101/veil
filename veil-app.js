@@ -364,7 +364,7 @@ async function initEngine() {
           sync: SCRAMJET_FILES.sync
         },
         flags: {
-          captureErrors: true,
+          captureErrors: false,
           strictRewrites: true,
           rewriterLogs: false
         }
@@ -427,6 +427,22 @@ async function initEngine() {
   })();
   return engineInitPromise;
 }
+function libcurlFactoryBody(moduleUrl) {
+  const patches = [[
+    "      } else if (result_code === 0 && result_closed) {\n        this.cleanup();\n      } else if (result_code !== 81) {\n        this.cleanup(result_code);\n      }\n      _free(data_ptr);\n      _free(result_ptr);\n      return returned_data;",
+    "      } else if (result_code === 0 && result_closed) {\n        let close_size = 0;\n        let close_code = 1000;\n        let close_reason = \"\";\n        let close_bytes = null;\n        try {\n          close_size = _get_result_size(result_ptr) || 0;\n          if (close_size > 0 && data_ptr) close_bytes = new Uint8Array(Module.HEAPU8.subarray(data_ptr, data_ptr + close_size));\n        } catch (e) {}\n        let looks_close = close_size === 0;\n        if (close_bytes && close_size >= 2 && close_size <= 125) {\n          close_code = (close_bytes[0] << 8) | close_bytes[1];\n          looks_close = close_code >= 1000 && close_code <= 1014 && close_code !== 1004 && close_code !== 1005 && close_code !== 1006 && close_code !== 1015 || close_code >= 3000 && close_code <= 4999;\n          if (looks_close && close_size > 2) {\n            try { close_reason = new TextDecoder().decode(close_bytes.subarray(2)); } catch (e) {}\n          }\n        }\n        if (looks_close) {\n          this._veilClose = { code: close_code, reason: close_reason };\n          this.cleanup();\n        } else if (close_bytes && close_bytes.length) {\n          this.recv_buffer.push(close_bytes);\n          let full_data = merge_arrays(this.recv_buffer);\n          this.recv_buffer = [];\n          returned_data = full_data;\n        } else {\n          this._veilClose = { code: 1000, reason: \"\" };\n          this.cleanup();\n        }\n      } else if (result_code !== 81) {\n        this.cleanup(result_code);\n      }\n      _free(data_ptr);\n      _free(result_ptr);\n      return returned_data;"
+  ], [
+    "        this.onerror(error);\n      } else {\n        this.onclose();\n      }",
+    "        this.onerror(error);\n      } else {\n        let info = this._veilClose || { code: 1000, reason: \"\" };\n        this._veilClose = null;\n        this.onclose(info);\n      }"
+  ], [
+    "      this.socket.onclose = () => {\n        this.status = this.CLOSED;\n        let close_event = new CloseEvent(\"close\");\n        this.dispatchEvent(close_event);\n        this.onclose(close_event);\n      };",
+    "      this.socket.onclose = (info) => {\n        this.status = this.CLOSED;\n        let code = info && typeof info.code === \"number\" ? info.code : 1000;\n        let reason = info && typeof info.reason === \"string\" ? info.reason : \"\";\n        if (!(code >= 1000 && code <= 4999) || code === 1004 || code === 1005 || code === 1006 || code === 1015) code = 1000;\n        let close_event = new CloseEvent(\"close\", { code: code, reason: reason, wasClean: code === 1000 });\n        this.dispatchEvent(close_event);\n        this.onclose(close_event);\n      };"
+  ], [
+    "          } else {\n            returned_data = full_data;\n          }",
+    "          } else if (full_data.length) {\n            returned_data = full_data;\n          }"
+  ]];
+  return "const res = await fetch(" + JSON.stringify(moduleUrl) + ");\nif (!res.ok) throw new Error(\"Could not load libcurl\");\nlet src = await res.text();\nconst patches = " + JSON.stringify(patches) + ";\nfor (const pair of patches) {\n  if (src.indexOf(pair[0]) === -1) throw new Error(\"libcurl websocket patch missed\");\n  src = src.replace(pair[0], pair[1]);\n}\nconst blobUrl = URL.createObjectURL(new Blob([src], { type: \"text/javascript\" }));\nconst mod = await import(blobUrl);\nreturn [mod.default, \"libcurl-ws\"];\n";
+}
 async function applyMuxTransport() {
   await useWorkingWisp();
   const index = currentWisp();
@@ -434,9 +450,15 @@ async function applyMuxTransport() {
   const meta = entry === LIBCURL_MODULE ? EPOXY_MODULE : LIBCURL_MODULE;
   muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
   try {
-    await muxConnection.setTransport(entry, [{
-      wisp: index
-    }]);
+    if (entry === LIBCURL_MODULE) {
+      await muxConnection.setManualTransport(libcurlFactoryBody(entry), [{
+        wisp: index
+      }]);
+    } else {
+      await muxConnection.setTransport(entry, [{
+        wisp: index
+      }]);
+    }
     return entry;
   } catch (err) {
     console.warn("[veil] transport failed, trying fallback", err);
@@ -4437,12 +4459,11 @@ function updateDevtoolsMenuState() {
   const friend = !message || !!message.newTab || !!message.isGames || !!message.isAdmin || chat;
   const group = !message || !!message.newTab || !!message.isGames;
   if (menuDevtools) {
-    menuDevtools.classList.toggle("is-faded", chat);
+    menuDevtools.classList.remove("is-faded");
     menuDevtools.classList.toggle("disabled", friend);
     menuDevtools.disabled = friend;
     menuDevtools.setAttribute("aria-disabled", friend ? "true" : "false");
-    if (chat) menuDevtools.setAttribute("aria-hidden", "true");
-    else menuDevtools.removeAttribute("aria-hidden");
+    menuDevtools.removeAttribute("aria-hidden");
   }
   if (menuFullscreen) {
     menuFullscreen.classList.toggle("disabled", group);
@@ -7519,7 +7540,7 @@ function updateGamesChromeLocks() {
   if (menuDevtools) {
     const chat = !!meta && !!meta.isChat;
     const mode = root || !!meta && (!!meta.newTab || !!meta.isAdmin || chat);
-    menuDevtools.classList.toggle("is-faded", chat);
+    menuDevtools.classList.remove("is-faded");
     menuDevtools.classList.toggle("disabled", mode);
     menuDevtools.disabled = mode;
     menuDevtools.setAttribute("aria-disabled", mode ? "true" : "false");
