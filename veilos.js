@@ -86,8 +86,8 @@
     var h = 0;
     try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
     if (!h) h = Math.max(240, window.innerHeight - 48);
-    var rows = Math.max(1, Math.floor((h - 24) / 164));
-    return { x: 16 + Math.floor(index / rows) * 136, y: 16 + (index % rows) * 164 };
+    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    return { x: 14 + Math.floor(index / rows) * 96, y: 16 + (index % rows) * 96 };
   }
   function closeCtx() {
     ctxApp = null;
