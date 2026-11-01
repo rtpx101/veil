@@ -14,7 +14,9 @@
   var clockTimer = 0;
   var iconEls = {};
   var picked = {};
+  var iconLayout = {};
   var closeStart = function () {};
+  var POS_KEY = "veil-os-icon-pos";
 
   function svgChat() {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H10l-4 3.2V16.5H5A1.5 1.5 0 0 1 3.5 15V8A1.5 1.5 0 0 1 5 6.5z"></path></svg>';
@@ -82,7 +84,27 @@
     });
     return list;
   }
-  function iconPos(index) {
+  function loadLayout() {
+    try {
+      iconLayout = JSON.parse(localStorage.getItem(POS_KEY) || "{}") || {};
+    } catch (err) {
+      iconLayout = {};
+    }
+  }
+  function saveLayout() {
+    try { localStorage.setItem(POS_KEY, JSON.stringify(iconLayout)); } catch (err) {}
+  }
+  function clampIcon(x, y) {
+    var dw = deskEl ? deskEl.clientWidth : window.innerWidth;
+    var dh = deskEl ? deskEl.clientHeight : window.innerHeight;
+    return {
+      x: Math.max(6, Math.min(x, Math.max(6, dw - 92))),
+      y: Math.max(6, Math.min(y, Math.max(6, dh - 100)))
+    };
+  }
+  function iconPos(index, id) {
+    var saved = id && iconLayout[id];
+    if (saved && isFinite(saved.x) && isFinite(saved.y)) return clampIcon(saved.x, saved.y);
     var h = 0;
     try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
     if (!h) h = Math.max(240, window.innerHeight - 48);
@@ -176,7 +198,7 @@
         ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">'
         : iconMarkup(app.kind);
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
-      var spot = iconPos(index);
+      var spot = iconPos(index, app.id);
       btn.style.left = spot.x + "px";
       btn.style.top = spot.y + "px";
       iconEls[app.id] = btn;
@@ -190,7 +212,48 @@
           paintPick();
           return;
         }
-        onlyPick(app.id);
+        if (!picked[app.id]) onlyPick(app.id);
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var moved = false;
+        var group = [];
+        Object.keys(picked).forEach(function (id) {
+          if (picked[id] && iconEls[id]) group.push(id);
+        });
+        if (!group.length) group = [app.id];
+        var origins = {};
+        group.forEach(function (id) {
+          origins[id] = {
+            x: parseFloat(iconEls[id].style.left) || 0,
+            y: parseFloat(iconEls[id].style.top) || 0
+          };
+        });
+        function move(ev) {
+          var dx = ev.clientX - startX;
+          var dy = ev.clientY - startY;
+          if (!moved && Math.hypot(dx, dy) < 5) return;
+          moved = true;
+          group.forEach(function (id) {
+            var el = iconEls[id];
+            var spot = clampIcon(origins[id].x + dx, origins[id].y + dy);
+            el.style.left = spot.x + "px";
+            el.style.top = spot.y + "px";
+            el.classList.add("is-moving");
+          });
+        }
+        function up() {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          group.forEach(function (id) {
+            var el = iconEls[id];
+            if (!el) return;
+            el.classList.remove("is-moving");
+            if (moved) iconLayout[id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+          });
+          if (moved) saveLayout();
+        }
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
       });
       btn.addEventListener("dblclick", function (e) {
         e.preventDefault();
@@ -729,6 +792,7 @@
     icons.className = "vos-icons";
     iconsEl = icons;
     loadInstalled();
+    loadLayout();
     icons.addEventListener("dragstart", function (e) { e.preventDefault(); });
     desk.appendChild(icons);
     desk.addEventListener("pointerdown", function (e) {
@@ -865,7 +929,7 @@
       shortcutList().forEach(function (app, index) {
         var el = iconEls[app.id];
         if (!el) return;
-        var spot = iconPos(index);
+        var spot = iconPos(index, app.id);
         el.style.left = spot.x + "px";
         el.style.top = spot.y + "px";
       });
