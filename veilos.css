@@ -8,25 +8,13 @@
   color:var(--text);
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   user-select:none;
-  --lg:blur(42px) saturate(2.2);
-  --lg-fill:linear-gradient(180deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 38%, rgba(255,255,255,.07) 100%);
-  --lg-edge:inset 0 1px 0 rgba(255,255,255,.32), inset 0 -1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(255,255,255,.12);
-  --lg-drop:0 14px 34px rgba(0,0,0,.28);
 }
 .vos-desk{
   position:relative;
   flex:1;
   min-height:0;
   overflow:hidden;
-  background:transparent;
-}
-#veilOS .vos-desk > canvas.home-fx{
-  position:fixed;
-  inset:0;
-  width:100%;
-  height:100%;
-  z-index:0;
-  pointer-events:none;
+  background:var(--bg);
 }
 .vos-wall{
   position:absolute;
@@ -49,7 +37,6 @@
   border:0;
   background:transparent;
   color:var(--text);
-  cursor:default;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -60,18 +47,14 @@
   pointer-events:auto;
   touch-action:none;
   cursor:grab;
-  transition:background .18s ease,box-shadow .18s ease;
 }
 .vos-icon:focus,.vos-icon:focus-visible{outline:none}
 .vos-icon.is-selected{
-  background:var(--lg-fill);
-  box-shadow:var(--lg-edge), var(--lg-drop);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
-  border-radius:18px;
+  background:color-mix(in srgb, var(--text) 16%, transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--text) 32%, transparent);
 }
-.vos-icon.is-moving{z-index:6;cursor:grabbing;transition:none}
-.vos-icon.is-moving .vos-glyph{transform:scale(1.05);transition:none}
+.vos-icon.is-moving{z-index:6;cursor:grabbing}
+.vos-icon.is-moving .vos-glyph{transition:none}
 .vos-marquee{
   position:absolute;
   z-index:3;
@@ -90,18 +73,16 @@
 .vos-glyph{
   width:56px;
   height:56px;
-  border-radius:18px;
-  border:1px solid rgba(255,255,255,.2);
-  background:var(--lg-fill);
-  box-shadow:var(--lg-edge), var(--lg-drop);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.05);
   display:flex;
   align-items:center;
   justify-content:center;
   color:var(--text);
-  overflow:hidden;
-  transition:transform .22s cubic-bezier(.22,.9,.28,1),background .22s ease,border-color .22s ease,box-shadow .22s ease;
+  overflow:clip;
+  clip-path:inset(0 round 16px);
+  transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;
 }
 .vos-icon img,
 .vos-glyph img,
@@ -116,15 +97,15 @@
 .vos-glyph img,.vos-glyph svg{width:100%;height:100%;display:block;object-fit:contain;box-sizing:border-box}
 .vos-icon:hover .vos-glyph,
 .vos-icon:focus-visible .vos-glyph{
-  transform:translateY(-2px) scale(1.045);
-  background:var(--lg-fill);
-  border-color:rgba(255,255,255,.32);
-  box-shadow:var(--lg-edge), 0 18px 36px rgba(0,0,0,.32);
+  transform:translateY(-3px);
+  background:rgba(255,255,255,.09);
+  border-color:rgba(255,255,255,.18);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
 }
 .vos-glyph img.vos-logo{width:100%;height:100%;padding:4px}
 .vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
 .vos-logo{filter:none !important}
-.vos-glyph .vos-appicon{filter:none !important;width:100%;height:100%;object-fit:cover;border-radius:18px;padding:0}
+.vos-glyph .vos-appicon{filter:none !important;width:100%;height:100%;object-fit:cover;border-radius:16px;padding:0}
 .vos-title .vos-appicon,.vos-taskbtn .vos-appicon{filter:none !important;width:16px;height:16px;object-fit:contain;border-radius:4px}
 .vos-icon span{
   font-size:12px;
@@ -143,12 +124,10 @@
   z-index:80;
   min-width:168px;
   padding:6px;
-  border-radius:22px;
-  background:var(--lg-fill);
-  border:1px solid rgba(255,255,255,.18);
-  box-shadow:var(--lg-edge), 0 24px 60px rgba(0,0,0,.32);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
+  border-radius:12px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  box-shadow:0 16px 40px rgba(0,0,0,.4);
 }
 .vos-ctx[hidden]{display:none}
 .vos-ctx button{
@@ -173,16 +152,16 @@ body.veil-os #menuInstall{display:flex}
   flex-direction:column;
   min-width:320px;
   min-height:220px;
-  background:transparent;
+  background:var(--panel);
   color:var(--text);
-  border:1px solid rgba(255,255,255,.16);
-  border-radius:22px;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 30px 70px rgba(0,0,0,.35);
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);
   overflow:hidden;
   transform-origin:50% 20%;
-  transition:opacity .28s ease,transform .34s cubic-bezier(.22,.9,.28,1),border-color .2s ease,box-shadow .2s ease;
+  transition:opacity .22s ease,transform .26s cubic-bezier(.2,.75,.2,1),border-color .2s ease,box-shadow .2s ease;
 }
-.vos-win.is-opening{opacity:0;transform:translateY(18px) scale(.94)}
+.vos-win.is-opening{opacity:0;transform:translateY(16px) scale(.96)}
 .vos-win.is-sizing{
   transition:left .24s cubic-bezier(.2,.75,.2,1),top .24s cubic-bezier(.2,.75,.2,1),width .24s cubic-bezier(.2,.75,.2,1),height .24s cubic-bezier(.2,.75,.2,1),opacity .22s ease,transform .26s cubic-bezier(.2,.75,.2,1),border-color .2s ease,box-shadow .2s ease;
 }
@@ -209,8 +188,8 @@ body.veil-os #menuInstall{display:flex}
 #veilOS.is-full .vos-win:not(.is-max){visibility:hidden !important;pointer-events:none !important}
 .vos-win.is-max .vos-rz{display:none}
 .vos-win.is-focus{
-  border-color:rgba(255,255,255,.28);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.36), 0 36px 80px rgba(0,0,0,.42);
+  border-color:color-mix(in srgb, var(--text) 32%, var(--border));
+  box-shadow:0 22px 60px rgba(0,0,0,.42);
 }
 .vos-title{
   flex:0 0 38px;
@@ -219,17 +198,14 @@ body.veil-os #menuInstall{display:flex}
   align-items:center;
   gap:8px;
   padding:0 6px 0 12px;
-  background:var(--lg-fill);
-  border-bottom:1px solid rgba(255,255,255,.14);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
   cursor:grab;
   touch-action:none;
   position:relative;
   z-index:6;
 }
-.vos-win.is-focus .vos-title{background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.05))}
+.vos-win.is-focus .vos-title{background:var(--panel2)}
 .vos-title img,.vos-title svg{width:16px;height:16px;flex:0 0 16px;display:block}
 .vos-title b{
   flex:1;
@@ -292,19 +268,14 @@ body.veil-os #menuInstall{display:flex}
   font-size:13px;
 }
 .vos-taskbar{
-  position:relative;
-  z-index:4;
   flex:0 0 48px;
   height:48px;
   display:flex;
   align-items:center;
   gap:6px;
   padding:0 10px 0 6px;
-  background:var(--lg-fill);
-  border-top:1px solid rgba(255,255,255,.16);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.26);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
+  background:var(--bg2);
+  border-top:1px solid var(--border);
   opacity:0;
 }
 .vos-startwrap{position:relative;flex:0 0 auto}
@@ -312,12 +283,8 @@ body.veil-os #menuInstall{display:flex}
   width:40px;
   height:40px;
   border:0;
-  border-radius:14px;
-  background:var(--lg-fill);
-  border:1px solid rgba(255,255,255,.18);
-  box-shadow:var(--lg-edge);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
+  border-radius:10px;
+  background:transparent;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -332,7 +299,7 @@ body.veil-os #menuInstall{display:flex}
   display:block;
   pointer-events:none;
 }
-.vos-start:hover,.vos-start.on{background:linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.06))}
+.vos-start:hover,.vos-start.on{background:var(--panel)}
 .vos-start:active{transform:scale(.94)}
 .vos-startmenu{
   position:absolute;
@@ -340,18 +307,16 @@ body.veil-os #menuInstall{display:flex}
   bottom:calc(100% + 10px);
   width:228px;
   padding:6px;
-  border-radius:22px;
-  background:var(--lg-fill);
-  border:1px solid rgba(255,255,255,.18);
-  box-shadow:var(--lg-edge), 0 24px 60px rgba(0,0,0,.32);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
+  border-radius:14px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  box-shadow:0 18px 48px rgba(0,0,0,.42);
   z-index:30;
   opacity:0;
   pointer-events:none;
   transform:translateY(8px) scale(.98);
   transform-origin:24px 100%;
-  transition:opacity .2s ease,transform .28s cubic-bezier(.22,.9,.28,1);
+  transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1);
 }
 .vos-startmenu.is-open{opacity:1;pointer-events:auto;transform:none}
 .vos-startitem{
@@ -371,7 +336,7 @@ body.veil-os #menuInstall{display:flex}
 }
 .vos-startitem img,.vos-startitem svg{width:18px;height:18px;flex:0 0 18px;display:block}
 .vos-startitem img{filter:invert(var(--page-icon-invert,1))}
-.vos-startitem:hover{background:rgba(255,255,255,.2)}
+.vos-startitem:hover{background:var(--panel)}
 .vos-startitem:active{transform:scale(.98)}
 #veilOS.vos-ready .vos-taskbar{animation:vosBar .4s cubic-bezier(.2,.8,.2,1) both}
 .vos-tasks{display:flex;align-items:center;gap:4px;min-width:0;flex:1;overflow:hidden}
@@ -382,25 +347,19 @@ body.veil-os #menuInstall{display:flex}
   align-items:center;
   gap:8px;
   padding:0 12px;
-  border-radius:10px;
+  border-radius:8px;
   border:1px solid transparent;
   background:transparent;
   color:var(--text);
   cursor:pointer;
   font-size:12px;
-  transition:background .18s ease,border-color .18s ease,transform .18s cubic-bezier(.22,.9,.28,1);
+  transition:background .16s ease,border-color .16s ease;
 }
 .vos-taskbtn img,.vos-taskbtn svg{width:16px;height:16px;flex:0 0 16px;display:block}
 .vos-taskbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vos-taskbtn.on{
-  background:var(--lg-fill);
-  border-color:rgba(255,255,255,.18);
-  box-shadow:var(--lg-edge);
-  backdrop-filter:var(--lg);
-  -webkit-backdrop-filter:var(--lg);
-}
+.vos-taskbtn.on{background:var(--panel);border-color:var(--border)}
 .vos-taskbtn.is-min{opacity:.55}
-.vos-taskbtn:hover{background:rgba(255,255,255,.16)}
+.vos-taskbtn:hover{background:var(--panel2)}
 .vos-taskbtn:active{transform:scale(.98)}
 .vos-clock{
   margin-left:auto;
@@ -488,11 +447,7 @@ body.veil-os #osApp-settings select,
 body.veil-os #osApp-settings .preset-grid{max-width:100%;min-width:0}
 body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / -1}
 
-html[data-mode="light"] #veilOS{
-  --lg:blur(36px) saturate(1.8);
-  --lg-fill:linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.1) 42%, rgba(255,255,255,.14) 100%);
-  --lg-edge:inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 0 1px rgba(0,0,0,.06);
-}
+html[data-mode="light"] .vos-glyph{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}
 html[data-mode="light"] .vos-glyph img,
 html[data-mode="light"] .vos-title img,
 html[data-mode="light"] .vos-taskbtn img{filter:none}
