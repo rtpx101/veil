@@ -1970,7 +1970,7 @@ function observeHomeScale(value) {
   window.addEventListener("resize", () => fitHomeScale(value));
 }
 function homepageHTML(value) {
-  return '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' + '<div class="newtab-stage">' + welcomeHTML() + '<div class="newtab-center">' + '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' + '<div class="newtab-title">Veil</div>' + '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' + '<div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span>' + '<input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' + '</div></div>' + '<div class="quick-links">' + '<button class="quick-link" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button>' + '<button class="quick-link" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button>' + '<button class="quick-link" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button>' + '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button>' + '</div>' + '<div class="quick-links row2">' + '<button class="quick-link" title="Games" data-games="1">' + imgIcon("games.svg") + '</button>' + '<button class="quick-link" title="Chat" data-chat="1">' + imgIcon("chat.svg") + '<span class="chat-alert" data-chat-alert></span></button>' + '<button class="quick-link soon" title="AI (soon)" data-soon="1">' + imgIcon("ai.svg") + '</button>' + '<button class="quick-link soon" title="Toolbox (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' + '</div>' + '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' + '</div></div></div>' + '<div class="time-bar" id="timeBar"><div class="time-dev">Site under development. Bugs may occur.</div>' + '<div class="time-cluster"><span class="time-batt"><span class="time-battery" hidden><img alt="" width="18" height="18"><span class="time-battery-pct"></span></span></span>' + '<span class="time-left">Time Remaining: …</span><span class="time-os"></span></div></div></div>';
+  return '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' + '<div class="newtab-stage">' + welcomeHTML() + '<div class="newtab-center">' + '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' + '<div class="newtab-title">Veil</div>' + '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' + '<div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span>' + '<input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' + '</div></div>' + '<div class="quick-links">' + '<button class="quick-link" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button>' + '<button class="quick-link" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button>' + '<button class="quick-link" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button>' + '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button>' + '</div>' + '<div class="quick-links row2">' + '<button class="quick-link" title="Games" data-games="1">' + imgIcon("games.svg") + '</button>' + '<button class="quick-link" title="Chat" data-chat="1">' + imgIcon("chat.svg") + '<span class="chat-alert" data-chat-alert></span></button>' + '<button class="quick-link soon" title="AI (soon)" data-soon="1">' + imgIcon("ai.svg") + '</button>' + '<button class="quick-link soon" title="Toolbox (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' + '</div>' + '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' + '<button class="launch-btn os-launch" type="button" data-open-desktop>Open Desktop</button>' + '</div></div></div>' + '<div class="time-bar" id="timeBar"><div class="time-dev">Site under development. Bugs may occur.</div>' + '<div class="time-cluster"><span class="time-batt"><span class="time-battery" hidden><img alt="" width="18" height="18"><span class="time-battery-pct"></span></span></span>' + '<span class="time-left">Time Remaining: …</span><span class="time-os"></span></div></div></div>';
 }
 const SETTINGS_INFO = {
   theme: {
@@ -2142,6 +2142,9 @@ function wireHome(value3, extra) {
   if (launchOptionsBtn) {
     launchOptionsBtn.onclick = () => openLaunchModal();
   }
+  value3.querySelectorAll("[data-open-desktop]").forEach(value2 => {
+    value2.onclick = () => openDesktop();
+  });
   try {
     paintChatAlerts();
   } catch (err) {}
@@ -2806,6 +2809,11 @@ function renderBookmarks() {
   });
 }
 function openPanel(value) {
+  if (value === "settingsPanel" && document.body.classList.contains("veil-os") && typeof window.veilOSOpenApp === "function") {
+    closeMenu();
+    window.veilOSOpenApp("settings");
+    return;
+  }
   closeMenu();
   document.getElementById("backdrop").classList.add("open");
   document.getElementById(value).classList.add("open");
@@ -5879,6 +5887,11 @@ async function sendChatText(value) {
   }
 }
 function openChatPage() {
+  if (document.body.classList.contains("veil-os") && typeof window.veilOSOpenApp === "function") {
+    closeMenu();
+    window.veilOSOpenApp("chat");
+    return;
+  }
   closePanels();
   closeMenu();
   let friend = tabs.find(value => value.isChat);
@@ -6001,9 +6014,86 @@ function togglePageFullscreen() {
     console.warn("Fullscreen failed", err);
   }
 }
+function openDesktop() {
+  if (document.body.classList.contains("veil-os") || window.__veilOsBooting) {
+    return;
+  }
+  window.__veilOsBooting = true;
+  try {
+    closeMenu();
+  } catch (err) {}
+  try {
+    closePanels();
+  } catch (err) {}
+  const bootStyle = document.createElement("style");
+  bootStyle.id = "veilOsBootStyle";
+  bootStyle.textContent = "#veilOsBoot{position:fixed;inset:0;z-index:250000;display:flex;flex-direction:column;background:#0a0a0a;color:#f2f2f2;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;transition:opacity .45s ease}" + "#veilOsBoot.done{opacity:0;pointer-events:none}" + ".vosb-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#121212 0%,#0a0a0a 62%)}" + ".vosb-mark{width:76px;height:76px;border-radius:18px;background:#121212;border:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center}" + ".vosb-mark img{width:42px;height:42px;object-fit:contain;display:block}" + ".vosb-name{margin-top:18px;font-size:40px;font-weight:600;letter-spacing:-.045em;line-height:1;color:#f3f3f3}" + ".vosb-bar{width:228px;height:12px;margin-top:26px;background:#141414;border:1px solid #2e2e2e;border-radius:2px;overflow:hidden;position:relative}" + ".vosb-bar i{position:absolute;top:1px;bottom:1px;left:0;width:38%;background:#f2f2f2;border-radius:1px;animation:vosbSlide 1.25s cubic-bezier(.45,0,.2,1) infinite}" + "@keyframes vosbSlide{0%{transform:translateX(-110%)}100%{transform:translateX(340%)}}" + ".vosb-status{margin-top:14px;min-height:16px;font-size:12px;letter-spacing:.01em;color:#8d8d8d}" + ".vosb-foot{flex:0 0 48px;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-top:1px solid #161616;color:#6a6a6a;font-size:12px}";
+  document.head.appendChild(bootStyle);
+  const boot = document.createElement("div");
+  boot.id = "veilOsBoot";
+  boot.setAttribute("role", "status");
+  boot.innerHTML = "<div class=\"vosb-main\"><div class=\"vosb-mark\"><img src=\"" + FAVI + "\" alt=\"\"></div><div class=\"vosb-name\">veilOS</div><div class=\"vosb-bar\" aria-hidden=\"true\"><i></i></div><div class=\"vosb-status\" data-boot-status>Starting veilOS</div></div><div class=\"vosb-foot\"><span>Veil</span><span>veilOS</span></div>";
+  document.body.appendChild(boot);
+  let cssReady = false;
+  let jsReady = false;
+  const tryStart = () => {
+    if (!cssReady || !jsReady) {
+      return;
+    }
+    try {
+      if (typeof window.startVeilOS === "function") {
+        window.startVeilOS(boot);
+        return;
+      }
+    } catch (err) {
+      console.warn("[veil] veilOS", err);
+    }
+    window.__veilOsBooting = false;
+    const status = boot.querySelector("[data-boot-status]");
+    if (status) {
+      status.textContent = "Could not start veilOS.";
+    }
+  };
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = BASE + "/veilos.css?v=1";
+  link.onload = () => {
+    cssReady = true;
+    tryStart();
+  };
+  link.onerror = () => {
+    cssReady = true;
+    tryStart();
+  };
+  document.head.appendChild(link);
+  const script = document.createElement("script");
+  script.src = BASE + "/veilos.js?v=1";
+  script.onload = () => {
+    jsReady = true;
+    tryStart();
+  };
+  script.onerror = () => {
+    window.__veilOsBooting = false;
+    const status = boot.querySelector("[data-boot-status]");
+    if (status) {
+      status.textContent = "Could not load veilOS.";
+    }
+  };
+  document.body.appendChild(script);
+  setTimeout(() => {
+    if (!cssReady) {
+      cssReady = true;
+      tryStart();
+    }
+  }, 2500);
+}
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) {
   launchNowBtn.onclick = () => openLaunchModal();
+}
+const openDesktopBtn = document.getElementById("openDesktopBtn");
+if (openDesktopBtn) {
+  openDesktopBtn.onclick = () => openDesktop();
 }
 const searchEngineSelect = document.getElementById("searchEngineSelect");
 if (searchEngineSelect) {
@@ -7470,6 +7560,11 @@ function pushRecent(value2) {
   }
 }
 function openGamesPage() {
+  if (document.body.classList.contains("veil-os") && typeof window.veilOSOpenApp === "function") {
+    closeMenu();
+    window.veilOSOpenApp("games");
+    return;
+  }
   closePanels();
   closeMenu();
   try {

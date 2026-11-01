@@ -132,6 +132,8 @@ button,input,select{font:inherit}button{border:0}button:focus,input:focus,select
 .launch-btn{position:relative;margin-top:30px;height:42px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;letter-spacing:.02em;transition:background .15s ease,transform .15s ease}
 .launch-btn::after{content:"";position:absolute;left:-6px;right:-6px;top:100%;height:12px;background:transparent;pointer-events:auto}
 .launch-btn:hover{background:rgba(255,255,255,.1);transform:translateY(-1px)}
+.launch-btn.os-launch{margin-top:12px}
+.launch-btn:has(+ .os-launch)::after{height:0}
 .signup-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
 .signup-card{width:min(400px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:28px 24px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
 .signup-card h2{font-size:20px;letter-spacing:-.02em;margin-bottom:6px}
@@ -1184,6 +1186,7 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
         <button type="button" class="switch" id="closeOriginSwitch" role="switch" aria-checked="false"></button>
       </div>
       <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
+      <button class="secondary-btn" id="openDesktopBtn" type="button">Open Desktop</button>
     </section>
         <section class="setting-section">
       <div class="setting-title">Page lock <button type="button" class="info-btn" data-info="pagelock" title="About this option" aria-label="About Page lock"><img src="image/info.svg" alt=""></button></div>
