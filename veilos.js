@@ -29,10 +29,14 @@
     return '<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.4"></path></svg>';
   }
   function iconMarkup(kind) {
-    if (kind === "favi") return '<img class="vos-logo" src="' + FAVI + '" alt="">';
-    if (kind === "games") return '<img src="' + IMG + 'games.svg" alt="">';
-    if (kind === "settings") return '<img src="' + IMG + 'settings.svg" alt="">';
+    if (kind === "favi") return '<img class="vos-logo" draggable="false" src="' + IMG + 'veil-logo-simple.png" alt="">';
+    if (kind === "games") return '<img draggable="false" src="' + IMG + 'games.svg" alt="">';
+    if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
     return svgChat();
+  }
+  function iconHtml(app) {
+    if (app && app.iconUrl) return '<img class="vos-appicon" draggable="false" alt="" src="' + esc(app.iconUrl) + '">';
+    return iconMarkup(app && (app.icon || app.kind));
   }
 
   function paintPick() {
@@ -127,6 +131,12 @@
           var label = el.querySelector("[data-label]");
           if (label) label.textContent = name;
         }
+        if (wins[current.id]) {
+          wins[current.id].title = name;
+          var bar = wins[current.id].el.querySelector(".vos-title b");
+          if (bar) bar.textContent = name;
+          renderTasks();
+        }
       }
       done();
     }
@@ -142,16 +152,11 @@
       openApp(app.id);
       return;
     }
-    openApp("browser");
-    try {
-      var tab = typeof getActiveTab === "function" ? getActiveTab() : null;
-      var same = tab && tab.url === app.url && !(typeof tabUrlLocked === "function" && tabUrlLocked(tab));
-      if (!same) {
-        var locked = !tab || tab.newTab !== true && (tab.url || (typeof tabUrlLocked === "function" && tabUrlLocked(tab)));
-        if (locked && typeof createTab === "function") createTab(true);
-        if (typeof navigate === "function") navigate(app.url);
-      }
-    } catch (err) {}
+    var stored = null;
+    installed.forEach(function (item) { if (item.id === app.id) stored = item; });
+    if (!stored) return;
+    ensureInstalledWindow(stored);
+    openApp(stored.id);
   }
   function renderDesktopIcons() {
     if (!iconsEl || !deskEl) return;
@@ -165,7 +170,7 @@
       btn.title = app.title;
       btn.dataset.app = app.id;
       var glyph = app.iconUrl
-        ? "<img class=\"vos-appicon\" src=\"" + esc(app.iconUrl) + "\" alt=\"\">"
+        ? '<img class="vos-appicon" draggable="false" src="' + esc(app.iconUrl) + '" alt="">'
         : iconMarkup(app.kind);
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
       var spot = iconPos(index);
@@ -215,6 +220,7 @@
       icon: String(info.icon || "")
     });
     saveInstalled();
+    ensureInstalledWindow(installed[installed.length - 1]);
     renderDesktopIcons();
     return true;
   }
@@ -262,9 +268,20 @@
     renderTasks();
   }
 
+  function dockApps() {
+    var list = APPS.map(function (app) {
+      return { id: app.id, title: app.title, icon: app.icon };
+    });
+    installed.forEach(function (app) {
+      list.push({ id: app.id, title: app.title, iconUrl: app.icon });
+    });
+    return list;
+  }
   function renderTasks() {
     if (!tasksEl) return;
-    APPS.forEach(function (app) {
+    var live = {};
+    dockApps().forEach(function (app) {
+      live[app.id] = true;
       var win = wins[app.id];
       var btn = tasksEl.querySelector('[data-app="' + app.id + '"]');
       if (!win || !win.running) {
@@ -276,7 +293,7 @@
         btn.type = "button";
         btn.className = "vos-taskbtn vos-still";
         btn.dataset.app = app.id;
-        btn.innerHTML = iconMarkup(app.icon) + "<span>" + app.title + "</span>";
+        btn.innerHTML = iconHtml(app) + "<span></span>";
         btn.onclick = function () {
           if (win.el.classList.contains("is-min") || win.el.classList.contains("is-closed") || win.el.classList.contains("is-minimizing") || win.el.classList.contains("is-closing")) {
             openApp(app.id);
@@ -294,9 +311,14 @@
         };
         tasksEl.appendChild(btn);
       }
+      var label = btn.querySelector("span");
+      if (label) label.textContent = app.title;
       var dim = win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing");
       btn.classList.toggle("on", focused === app.id && !dim && !win.el.classList.contains("is-closing"));
       btn.classList.toggle("is-min", dim);
+    });
+    Array.prototype.forEach.call(tasksEl.querySelectorAll(".vos-taskbtn"), function (btn) {
+      if (!live[btn.dataset.app]) btn.remove();
     });
   }
 
@@ -376,6 +398,7 @@
       try { startLivePings(); } catch (err) {}
       try { fillChatSettings(); } catch (err) {}
     }
+    if (win.installed) ensureProxy(win);
     if (hidden && motionOn) {
       win.el.classList.add("is-opening");
       void win.el.offsetWidth;
@@ -396,10 +419,10 @@
     win.running = false;
     if (focused === id) focused = null;
     var next = null;
-    APPS.forEach(function (app) {
-      var other = wins[app.id];
+    Object.keys(wins).forEach(function (key) {
+      var other = wins[key];
       if (!other || !other.running || other.el.classList.contains("is-min") || other.el.classList.contains("is-closed")) return;
-      if (!next || Number(other.el.style.zIndex || 0) >= Number(wins[next].el.style.zIndex || 0)) next = app.id;
+      if (!next || Number(other.el.style.zIndex || 0) >= Number(wins[next].el.style.zIndex || 0)) next = key;
     });
     if (next) focusWin(next);
     else renderTasks();
@@ -602,9 +625,9 @@
     var title = el.querySelector(".vos-title");
     var name = title.querySelector("b");
     name.textContent = app.title;
-    name.insertAdjacentHTML("beforebegin", iconMarkup(app.icon));
+    name.insertAdjacentHTML("beforebegin", app.iconUrl ? '<img class="vos-appicon" draggable="false" src="' + esc(app.iconUrl) + '" alt="">' : iconMarkup(app.icon));
     var body = el.querySelector(".vos-body");
-    var win = { id: app.id, title: app.title, el: el, body: body, running: app.id === "browser" };
+    var win = { id: app.id, title: app.title, el: el, body: body, running: app.id === "browser", installed: !!app.installed, url: app.url || "", iconUrl: app.iconUrl || "", frameReady: false };
     el.addEventListener("pointerdown", function () { focusWin(app.id); });
     el.querySelector('[data-act="min"]').onclick = function (e) {
       e.stopPropagation();
@@ -622,6 +645,65 @@
     bindResize(win);
     wins[app.id] = win;
     return win;
+  }
+
+  function placeInstalled(win) {
+    if (!deskEl || !win) return;
+    var box = deskEl.getBoundingClientRect();
+    var W = box.width || window.innerWidth;
+    var H = box.height || (window.innerHeight - 48);
+    var n = 0;
+    Object.keys(wins).forEach(function (id) { if (wins[id].installed) n += 1; });
+    var w = Math.max(420, Math.min(1040, W - 150));
+    var h = Math.max(320, H - 56);
+    place(win.el, 78 + ((n - 1) % 5) * 26, 24 + ((n - 1) % 5) * 22, w, h);
+  }
+
+  function ensureInstalledWindow(app) {
+    if (!app) return null;
+    var win = wins[app.id];
+    if (win) {
+      win.title = app.title;
+      win.url = app.url;
+      win.iconUrl = app.icon;
+      win.installed = true;
+      var bar = win.el.querySelector(".vos-title b");
+      if (bar) bar.textContent = app.title;
+      return win;
+    }
+    win = makeWindow({ id: app.id, title: app.title, iconUrl: app.icon, url: app.url, installed: true });
+    if (deskEl) {
+      deskEl.appendChild(win.el);
+      placeInstalled(win);
+    }
+    return win;
+  }
+
+  function ensureProxy(win) {
+    if (!win || !win.installed || win.frameReady) return;
+    win.frameReady = true;
+    var host = win.body.querySelector(".vos-proxy");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "vos-proxy";
+      win.body.appendChild(host);
+    }
+    host.innerHTML = '<div class="vos-app-wait">Opening…</div>';
+    if (typeof window.openProxyFrame !== "function") {
+      win.frameReady = false;
+      host.innerHTML = '<div class="vos-app-wait">Proxy is not ready.</div>';
+      return;
+    }
+    var job = window.openProxyFrame(host, win.url);
+    if (job && typeof job.then === "function") {
+      job.then(function (frame) {
+        if (!frame) win.frameReady = false;
+      }).catch(function (err) {
+        console.warn("[veil] app", err);
+        win.frameReady = false;
+        host.innerHTML = '<div class="vos-app-wait">Could not open this app.</div>';
+      });
+    }
   }
 
   function paintClock() {
@@ -644,6 +726,7 @@
     icons.className = "vos-icons";
     iconsEl = icons;
     loadInstalled();
+    icons.addEventListener("dragstart", function (e) { e.preventDefault(); });
     desk.appendChild(icons);
     desk.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -773,6 +856,7 @@
     document.body.appendChild(shell);
     deskEl = desk;
     tasksEl = tasks;
+    installed.forEach(function (app) { ensureInstalledWindow(app); });
     renderDesktopIcons();
     window.addEventListener("resize", function () {
       shortcutList().forEach(function (app, index) {

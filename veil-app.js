@@ -1756,6 +1756,43 @@ async function createEngineFrame(value, extra) {
     }
   }
 }
+async function openProxyFrame(container, url) {
+  if (!container) return null;
+  try {
+    url = unwrapProxyUrl(url) || url;
+  } catch (err) {}
+  if (!engineReady) {
+    try { await initEngine(); } catch (err) {}
+  }
+  if (!engineReady || !engineController || typeof engineController.createFrame !== "function") {
+    container.innerHTML = "<div class=\"vos-app-wait\">Browser engine unavailable.</div>";
+    return null;
+  }
+  const frame = engineController.createFrame();
+  const el = frame && (frame.element || frame.frame || frame);
+  if (!el || !el.style) {
+    container.innerHTML = "<div class=\"vos-app-wait\">Could not open this app.</div>";
+    return null;
+  }
+  if (el.classList) el.classList.add("engine-frame");
+  el.style.width = "100%";
+  el.style.height = "100%";
+  el.style.border = "0";
+  el.style.display = "block";
+  el.style.background = "#fff";
+  try {
+    el.setAttribute("allow", "fullscreen *; clipboard-read *; clipboard-write *; autoplay *; encrypted-media *; picture-in-picture *; payment *");
+    el.setAttribute("referrerpolicy", "no-referrer");
+  } catch (err) {}
+  container.innerHTML = "";
+  container.appendChild(el);
+  try { trapFrameExternalOpens(null, el); } catch (err) {}
+  if (typeof frame.go === "function") await frame.go(url);
+  else if (typeof frame.navigate === "function") await frame.navigate(url);
+  else if (el instanceof HTMLIFrameElement) el.src = SCRAMJET_PREFIX + encodeURIComponent(url);
+  return frame;
+}
+window.openProxyFrame = openProxyFrame;
 async function flipTransport() {
   settings.transport = settings.transport === "libcurl" ? "epoxy" : "libcurl";
   try {
@@ -6094,7 +6131,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=5";
+  link.href = BASE + "/veilos.css?v=6";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6105,7 +6142,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=5";
+  script.src = BASE + "/veilos.js?v=6";
   script.onload = () => {
     jsReady = true;
     tryStart();

@@ -48,7 +48,7 @@
   pointer-events:auto;
   touch-action:manipulation;
 }
-.vos-icon.is-drag{cursor:grabbing;z-index:3;animation:none;opacity:1}
+.vos-icon:focus,.vos-icon:focus-visible{outline:none}
 .vos-icon.is-selected{
   background:color-mix(in srgb, var(--text) 16%, transparent);
   box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--text) 32%, transparent);
@@ -78,8 +78,20 @@
   align-items:center;
   justify-content:center;
   color:var(--text);
+  overflow:hidden;
   transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;
 }
+.vos-icon img,
+.vos-glyph img,
+.vos-glyph svg,
+.vos-title img,
+.vos-taskbtn img,
+.vos-start img{
+  -webkit-user-drag:none;
+  user-select:none;
+  pointer-events:none;
+}
+.vos-glyph img,.vos-glyph svg{width:26px;height:26px;display:block;object-fit:contain}
 .vos-icon:hover .vos-glyph,
 .vos-icon:focus-visible .vos-glyph{
   transform:translateY(-3px);
@@ -87,10 +99,11 @@
   border-color:rgba(255,255,255,.18);
   box-shadow:0 8px 24px rgba(0,0,0,.35);
 }
-.vos-glyph img,.vos-glyph svg{width:26px;height:26px;display:block}
+.vos-glyph img.vos-logo{width:34px;height:34px}
 .vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
 .vos-logo{filter:none !important}
-.vos-glyph img.vos-appicon,.vos-appicon{filter:none !important;width:28px;height:28px;object-fit:contain}
+.vos-glyph .vos-appicon{filter:none !important;width:30px;height:30px;object-fit:contain}
+.vos-title .vos-appicon,.vos-taskbtn .vos-appicon{filter:none !important;width:16px;height:16px;object-fit:contain}
 .vos-icon span{
   font-size:12px;
   line-height:1.2;
@@ -229,7 +242,11 @@ body.veil-os #menuInstall{display:flex}
 }
 .vos-body > #browser,
 .vos-body > .games-page,
-.vos-body > .chat-page{width:100%;height:100%}
+.vos-body > .chat-page,
+.vos-body > .vos-proxy{width:100%;height:100%}
+.vos-proxy{position:absolute;inset:0;background:#fff}
+.vos-proxy .engine-frame,
+.vos-proxy iframe{width:100%;height:100%;border:0;display:block;background:#fff}
 .vos-rz{position:absolute;z-index:5;touch-action:none}
 .vos-rz.n{left:10px;right:10px;top:0;height:6px;cursor:ns-resize}
 .vos-rz.s{left:10px;right:10px;bottom:0;height:6px;cursor:ns-resize}
