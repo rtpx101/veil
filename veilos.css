@@ -60,11 +60,13 @@
   background:rgba(255,255,255,.14);
   border-color:rgba(255,255,255,.4);
 }
+.vos-glyph:has(.vos-folder-face){display:block}
 .vos-folder-face{
-  width:100%;
-  height:100%;
+  width:56px;
+  height:56px;
   display:grid;
   grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
   gap:3px;
   padding:5px;
   box-sizing:border-box;
@@ -79,12 +81,12 @@
   align-items:center;
   justify-content:center;
 }
-.vos-mini img,.vos-mini svg{width:16px !important;height:16px !important;padding:0 !important;object-fit:contain}
+.vos-mini img,.vos-mini svg{width:18px !important;height:18px !important;padding:0 !important;object-fit:contain}
 .vos-mini .vos-appicon{width:100% !important;height:100% !important;border-radius:5px;object-fit:cover}
 .vos-fold{
   position:absolute;
   z-index:24;
-  width:340px;
+  width:380px;
   max-height:min(420px, calc(100% - 24px));
   display:flex;
   flex-direction:column;
@@ -140,10 +142,11 @@
   font-size:12px;
   line-height:1.2;
   text-align:center;
-  max-width:92px;
+  max-width:108px;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
   overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
 }
 .vos-fold-empty{
   grid-column:1 / -1;

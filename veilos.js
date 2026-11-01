@@ -381,7 +381,7 @@
   function placeFolder(id) {
     if (!folderWin || !deskEl) return;
     var desk = deskEl.getBoundingClientRect();
-    var w = 340;
+    var w = 380;
     var h = 280;
     var x = 110;
     var y = 36;
@@ -1042,12 +1042,26 @@
 
   function ensureProxy(win) {
     if (!win || !win.installed || win.frameReady) return;
+    var gameId = "";
+    var gameMatch = String(win.url || "").match(/^veil-game:(.+)$/i);
+    if (gameMatch) gameId = gameMatch[1];
     win.frameReady = true;
     var host = win.body.querySelector(".vos-proxy");
     if (!host) {
       host = document.createElement("div");
       host.className = "vos-proxy";
       win.body.appendChild(host);
+    }
+    if (gameId) {
+      var src = "";
+      try { if (typeof window.veilGamePlay === "function") src = window.veilGamePlay(gameId) || ""; } catch (err) {}
+      if (!src) {
+        win.frameReady = false;
+        host.innerHTML = '<div class="vos-app-wait">This game is not available.</div>';
+        return;
+      }
+      host.innerHTML = '<iframe src="' + esc(src) + '" allow="gamepad *; autoplay *; fullscreen *" title=""></iframe>';
+      return;
     }
     host.innerHTML = '<div class="vos-app-wait">Opening…</div>';
     if (typeof window.openProxyFrame !== "function") {
