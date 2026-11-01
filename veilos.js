@@ -12,6 +12,9 @@
   var deskEl = null;
   var tasksEl = null;
   var clockTimer = 0;
+  var iconEls = {};
+  var picked = {};
+  var closeStart = function () {};
 
   function svgChat() {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H10l-4 3.2V16.5H5A1.5 1.5 0 0 1 3.5 15V8A1.5 1.5 0 0 1 5 6.5z"></path></svg>';
@@ -30,6 +33,24 @@
     if (kind === "games") return '<img src="' + IMG + 'games.svg" alt="">';
     if (kind === "settings") return '<img src="' + IMG + 'settings.svg" alt="">';
     return svgChat();
+  }
+
+  function paintPick() {
+    Object.keys(iconEls).forEach(function (id) {
+      if (iconEls[id]) iconEls[id].classList.toggle("is-selected", !!picked[id]);
+    });
+  }
+  function onlyPick(id) {
+    picked = {};
+    if (id) picked[id] = true;
+    paintPick();
+  }
+  function saveIcons() {
+    var data = {};
+    Object.keys(iconEls).forEach(function (id) {
+      data[id] = { x: iconEls[id].offsetLeft, y: iconEls[id].offsetTop };
+    });
+    try { localStorage.setItem("veil_os_icons", JSON.stringify(data)); } catch (err) {}
   }
 
   function place(el, x, y, w, h) {
@@ -476,52 +497,167 @@
       var spot = stored && typeof stored.x === "number" ? clampIcon(stored.x, stored.y) : { x: 14, y: 16 + index * 96 };
       btn.style.left = spot.x + "px";
       btn.style.top = spot.y + "px";
+      iconEls[app.id] = btn;
       btn.addEventListener("pointerdown", function (e) {
         if (e.button !== 0) return;
         e.stopPropagation();
+        closeStart();
+        var ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl) {
+          picked[app.id] = !picked[app.id];
+          paintPick();
+        } else if (!picked[app.id]) {
+          onlyPick(app.id);
+        }
+        if (!picked[app.id]) return;
         var startX = e.clientX;
         var startY = e.clientY;
-        var ox = btn.offsetLeft;
-        var oy = btn.offsetTop;
+        var ids = Object.keys(picked).filter(function (id) { return picked[id] && iconEls[id]; });
+        if (ids.indexOf(app.id) === -1) ids.push(app.id);
+        var origins = {};
+        ids.forEach(function (id) {
+          origins[id] = { x: iconEls[id].offsetLeft, y: iconEls[id].offsetTop };
+          iconEls[id].classList.add("is-drag");
+        });
         var moved = false;
-        btn.classList.add("is-drag");
         try { btn.setPointerCapture(e.pointerId); } catch (err) {}
         function move(ev) {
           var dx = ev.clientX - startX;
           var dy = ev.clientY - startY;
           if (!moved && Math.hypot(dx, dy) < 5) return;
           moved = true;
-          var next = clampIcon(ox + dx, oy + dy);
-          btn.style.left = next.x + "px";
-          btn.style.top = next.y + "px";
+          ids.forEach(function (id) {
+            var next = clampIcon(origins[id].x + dx, origins[id].y + dy);
+            iconEls[id].style.left = next.x + "px";
+            iconEls[id].style.top = next.y + "px";
+          });
         }
         function up() {
           btn.removeEventListener("pointermove", move);
           btn.removeEventListener("pointerup", up);
-          btn.classList.remove("is-drag");
+          ids.forEach(function (id) {
+            if (iconEls[id]) iconEls[id].classList.remove("is-drag");
+          });
           if (moved) {
-            savedIcons[app.id] = { x: btn.offsetLeft, y: btn.offsetTop };
-            try { localStorage.setItem("veil_os_icons", JSON.stringify(savedIcons)); } catch (err) {}
+            saveIcons();
             return;
           }
-          openApp(app.id);
+          if (!ctrl) onlyPick(app.id);
         }
         btn.addEventListener("pointermove", move);
         btn.addEventListener("pointerup", up);
       });
+      btn.addEventListener("dblclick", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        onlyPick(app.id);
+        openApp(app.id);
+      });
       icons.appendChild(btn);
     });
     desk.appendChild(icons);
+    desk.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon"))) return;
+      closeStart();
+      var x0 = e.clientX;
+      var y0 = e.clientY;
+      var base = {};
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        Object.keys(picked).forEach(function (id) { if (picked[id]) base[id] = true; });
+      }
+      var dragging = false;
+      var band = document.createElement("div");
+      band.className = "vos-marquee";
+      desk.appendChild(band);
+      try { desk.setPointerCapture(e.pointerId); } catch (err) {}
+      function move(ev) {
+        var dx = ev.clientX - x0;
+        var dy = ev.clientY - y0;
+        if (!dragging && Math.hypot(dx, dy) < 4) return;
+        dragging = true;
+        var box = desk.getBoundingClientRect();
+        var left = Math.min(x0, ev.clientX);
+        var top = Math.min(y0, ev.clientY);
+        var right = Math.max(x0, ev.clientX);
+        var bottom = Math.max(y0, ev.clientY);
+        band.style.left = (left - box.left) + "px";
+        band.style.top = (top - box.top) + "px";
+        band.style.width = (right - left) + "px";
+        band.style.height = (bottom - top) + "px";
+        var next = {};
+        Object.keys(base).forEach(function (id) { next[id] = true; });
+        Object.keys(iconEls).forEach(function (id) {
+          var hit = iconEls[id].getBoundingClientRect();
+          if (hit.right >= left && hit.left <= right && hit.bottom >= top && hit.top <= bottom) next[id] = true;
+        });
+        picked = next;
+        paintPick();
+      }
+      function up() {
+        desk.removeEventListener("pointermove", move);
+        desk.removeEventListener("pointerup", up);
+        if (band.parentNode) band.parentNode.removeChild(band);
+        if (!dragging) onlyPick(null);
+      }
+      desk.addEventListener("pointermove", move);
+      desk.addEventListener("pointerup", up);
+    });
     APPS.forEach(function (app) {
       desk.appendChild(makeWindow(app).el);
     });
     var bar = document.createElement("div");
     bar.className = "vos-taskbar";
+    var startWrap = document.createElement("div");
+    startWrap.className = "vos-startwrap";
+    var startBtn = document.createElement("button");
+    startBtn.type = "button";
+    startBtn.className = "vos-start";
+    startBtn.title = "Start";
+    startBtn.setAttribute("aria-label", "Start");
+    startBtn.setAttribute("aria-expanded", "false");
+    startBtn.innerHTML = '<img class="vos-logo" src="' + IMG + 'veil-logo-simple.png" alt="">';
+    var menu = document.createElement("div");
+    menu.className = "vos-startmenu";
+    menu.setAttribute("role", "menu");
+    APPS.forEach(function (app) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "vos-startitem";
+      item.setAttribute("role", "menuitem");
+      item.innerHTML = iconMarkup(app.icon) + "<span>" + app.title + "</span>";
+      item.onclick = function () {
+        closeStart();
+        openApp(app.id);
+      };
+      menu.appendChild(item);
+    });
+    function setStart(open) {
+      menu.classList.toggle("is-open", open);
+      startBtn.classList.toggle("on", open);
+      startBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    closeStart = function () { setStart(false); };
+    startBtn.onclick = function (e) {
+      e.stopPropagation();
+      setStart(!menu.classList.contains("is-open"));
+    };
+    document.addEventListener("pointerdown", function (e) {
+      if (!menu.classList.contains("is-open")) return;
+      if (startWrap.contains(e.target)) return;
+      closeStart();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeStart();
+    });
+    startWrap.appendChild(startBtn);
+    startWrap.appendChild(menu);
     var tasks = document.createElement("div");
     tasks.className = "vos-tasks";
     var clock = document.createElement("div");
     clock.className = "vos-clock";
     clock.id = "vosClock";
+    bar.appendChild(startWrap);
     bar.appendChild(tasks);
     bar.appendChild(clock);
     shell.appendChild(desk);
