@@ -27,19 +27,17 @@
 }
 .vos-icons{
   position:absolute;
-  left:10px;
-  top:12px;
+  inset:0;
   z-index:2;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
+  pointer-events:none;
 }
 .vos-icon{
+  position:absolute;
   width:86px;
   border:0;
   background:transparent;
   color:var(--text);
-  cursor:pointer;
+  cursor:grab;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -47,7 +45,10 @@
   padding:4px 4px 6px;
   border-radius:12px;
   opacity:0;
+  pointer-events:auto;
+  touch-action:none;
 }
+.vos-icon.is-drag{cursor:grabbing;z-index:3}
 #veilOS.vos-ready .vos-icon{
   animation:vosIn .42s cubic-bezier(.2,.8,.2,1) both;
 }
@@ -107,11 +108,23 @@
 .vos-win.is-minimizing{opacity:0;pointer-events:none;transform:translateY(36px) scale(.92);transform-origin:50% 100%}
 .vos-win.is-closed,.vos-win.is-min{display:none}
 .vos-win.is-max{
-  left:8px !important;
-  top:8px !important;
-  width:calc(100% - 16px) !important;
-  height:calc(100% - 16px) !important;
+  left:0 !important;
+  top:0 !important;
+  width:100% !important;
+  height:100% !important;
+  border-radius:0;
 }
+#veilOS.is-full .vos-taskbar,
+#veilOS.is-full .vos-icons{display:none !important}
+#veilOS.is-full .vos-win.is-max{
+  left:0 !important;
+  top:0 !important;
+  width:100% !important;
+  height:100% !important;
+  border-radius:0;
+  border-color:transparent;
+}
+#veilOS.is-full .vos-win:not(.is-max){visibility:hidden !important;pointer-events:none !important}
 .vos-win.is-max .vos-rz{display:none}
 .vos-win.is-focus{
   border-color:color-mix(in srgb, var(--text) 32%, var(--border));
@@ -126,8 +139,10 @@
   padding:0 6px 0 12px;
   background:var(--bg2);
   border-bottom:1px solid var(--border);
-  cursor:default;
+  cursor:grab;
   touch-action:none;
+  position:relative;
+  z-index:6;
 }
 .vos-win.is-focus .vos-title{background:var(--panel2)}
 .vos-title img,.vos-title svg{width:16px;height:16px;flex:0 0 16px;display:block}
@@ -213,8 +228,7 @@
   color:var(--text);
   cursor:pointer;
   font-size:12px;
-  transition:background .16s ease,border-color .16s ease,transform .16s ease;
-  animation:vosIn .22s ease both;
+  transition:background .16s ease,border-color .16s ease;
 }
 .vos-taskbtn img,.vos-taskbtn svg{width:16px;height:16px;flex:0 0 16px;display:block}
 .vos-taskbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -251,12 +265,15 @@ body.veil-os .quick-link[data-games]{display:none !important}
 
 body.veil-os #osApp-settings > .panel{
   position:absolute !important;
-  inset:0 !important;
-  width:auto !important;
-  height:auto !important;
-  max-width:none !important;
-  right:auto !important;
-  top:auto !important;
+  left:0 !important;
+  top:0 !important;
+  right:0 !important;
+  bottom:0 !important;
+  width:100% !important;
+  height:100% !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  max-width:100% !important;
   transform:none !important;
   visibility:visible !important;
   pointer-events:auto !important;
@@ -265,6 +282,7 @@ body.veil-os #osApp-settings > .panel{
   background:var(--bg);
   box-shadow:none;
   z-index:1;
+  overflow:hidden !important;
   transition:none !important;
   display:flex !important;
   flex-direction:column;
@@ -273,27 +291,35 @@ body.veil-os #osApp-settings .panel-head{display:none}
 body.veil-os #osApp-settings .settings-tabs{
   background:var(--bg2);
   padding:0 10px;
+  flex:0 0 auto;
 }
 body.veil-os #osApp-settings .panel-body{
-  flex:1;
+  flex:1 1 auto;
+  min-width:0;
   min-height:0;
   overflow:auto;
   padding:16px 18px 28px;
 }
 body.veil-os #osApp-settings .settings-page.active{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));
   gap:14px;
   align-items:start;
   animation:vosIn .28s ease both;
 }
 body.veil-os #osApp-settings .setting-section{
   margin:0;
+  min-width:0;
+  max-width:100%;
   padding:14px 16px 16px;
   border:1px solid var(--border);
   border-radius:14px;
   background:var(--panel);
+  box-sizing:border-box;
 }
+body.veil-os #osApp-settings .text-input,
+body.veil-os #osApp-settings select,
+body.veil-os #osApp-settings .preset-grid{max-width:100%;min-width:0}
 body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / -1}
 
 html[data-mode="light"] .vos-glyph{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}

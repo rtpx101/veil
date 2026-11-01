@@ -77,29 +77,53 @@
 
   function renderTasks() {
     if (!tasksEl) return;
-    tasksEl.innerHTML = "";
     APPS.forEach(function (app) {
       var win = wins[app.id];
-      if (!win || !win.running) return;
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "vos-taskbtn";
-      if (focused === app.id && !win.el.classList.contains("is-min")) btn.classList.add("on");
-      if (win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing")) btn.classList.add("is-min");
-      btn.innerHTML = iconMarkup(app.icon) + "<span>" + app.title + "</span>";
-      btn.onclick = function () {
-        if (win.el.classList.contains("is-min") || win.el.classList.contains("is-closed") || win.el.classList.contains("is-minimizing") || win.el.classList.contains("is-closing")) {
-          openApp(app.id);
-          return;
-        }
-        if (focused === app.id) {
-          minimize(app.id);
-          return;
-        }
-        focusWin(app.id);
-      };
-      tasksEl.appendChild(btn);
+      var btn = tasksEl.querySelector('[data-app="' + app.id + '"]');
+      if (!win || !win.running) {
+        if (btn) btn.remove();
+        return;
+      }
+      if (!btn) {
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "vos-taskbtn vos-still";
+        btn.dataset.app = app.id;
+        btn.innerHTML = iconMarkup(app.icon) + "<span>" + app.title + "</span>";
+        btn.onclick = function () {
+          if (win.el.classList.contains("is-min") || win.el.classList.contains("is-closed") || win.el.classList.contains("is-minimizing") || win.el.classList.contains("is-closing")) {
+            openApp(app.id);
+            return;
+          }
+          if (win.el.classList.contains("is-max")) {
+            toggleMax(app.id);
+            return;
+          }
+          if (focused === app.id) {
+            minimize(app.id);
+            return;
+          }
+          focusWin(app.id);
+        };
+        tasksEl.appendChild(btn);
+      }
+      var dim = win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing");
+      btn.classList.toggle("on", focused === app.id && !dim && !win.el.classList.contains("is-closing"));
+      btn.classList.toggle("is-min", dim);
     });
+  }
+
+  function syncFull() {
+    var shell = document.getElementById("veilOS");
+    if (!shell) return;
+    var on = false;
+    Object.keys(wins).forEach(function (id) {
+      var el = wins[id].el;
+      if (!el.classList.contains("is-max")) return;
+      if (el.classList.contains("is-closed") || el.classList.contains("is-min") || el.classList.contains("is-minimizing") || el.classList.contains("is-closing")) return;
+      on = true;
+    });
+    shell.classList.toggle("is-full", on);
   }
 
   function ensureGames(body) {
@@ -173,6 +197,7 @@
       });
     }
     focusWin(id);
+    syncFull();
   }
 
   function finishClose(id) {
@@ -191,6 +216,7 @@
     });
     if (next) focusWin(next);
     else renderTasks();
+    syncFull();
   }
 
   function closeApp(id) {
@@ -204,6 +230,7 @@
     win.el.classList.remove("is-focus", "is-min", "is-minimizing");
     if (focused === id) focused = null;
     renderTasks();
+    syncFull();
     closeTimers[id] = setTimeout(function () {
       closeTimers[id] = 0;
       if (!win.el.classList.contains("is-closing")) return;
@@ -219,12 +246,14 @@
       win.el.classList.remove("is-focus");
       if (focused === id) focused = null;
       renderTasks();
+      syncFull();
       return;
     }
     win.el.classList.add("is-minimizing");
     win.el.classList.remove("is-focus");
     if (focused === id) focused = null;
     renderTasks();
+    syncFull();
     closeTimers[id] = setTimeout(function () {
       closeTimers[id] = 0;
       if (!win.el.classList.contains("is-minimizing")) return;
@@ -249,6 +278,18 @@
       el.style.width = el.dataset.rw || el.style.width;
       el.style.height = el.dataset.rh || el.style.height;
     } else {
+      Object.keys(wins).forEach(function (key) {
+        if (key === id) return;
+        var other = wins[key].el;
+        if (!other.classList.contains("is-max")) return;
+        other.classList.remove("is-max");
+        if (other.dataset.rw) {
+          other.style.left = other.dataset.rx || other.style.left;
+          other.style.top = other.dataset.ry || other.style.top;
+          other.style.width = other.dataset.rw;
+          other.style.height = other.dataset.rh || other.style.height;
+        }
+      });
       el.dataset.rx = el.style.left;
       el.dataset.ry = el.style.top;
       el.dataset.rw = el.style.width;
@@ -256,13 +297,16 @@
       el.classList.add("is-max");
     }
     focusWin(id);
+    syncFull();
   }
 
   function bindDrag(win, title) {
     title.addEventListener("pointerdown", function (e) {
       if (e.button !== 0 || e.target.closest("button")) return;
       if (win.el.classList.contains("is-max")) return;
+      e.preventDefault();
       focusWin(win.id);
+      try { title.setPointerCapture(e.pointerId); } catch (err) {}
       var desk = deskEl.getBoundingClientRect();
       var rect = win.el.getBoundingClientRect();
       var ox = e.clientX - rect.left;
@@ -276,11 +320,11 @@
         win.el.style.top = y + "px";
       }
       function up() {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
+        title.removeEventListener("pointermove", move);
+        title.removeEventListener("pointerup", up);
       }
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
+      title.addEventListener("pointermove", move);
+      title.addEventListener("pointerup", up);
     });
     title.addEventListener("dblclick", function (e) {
       if (e.target.closest("button")) return;
@@ -295,6 +339,7 @@
         e.preventDefault();
         e.stopPropagation();
         focusWin(win.id);
+        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
         var dir = handle.getAttribute("data-dir") || "";
         var desk = deskEl.getBoundingClientRect();
         var start = {
@@ -359,6 +404,7 @@
     var el = document.createElement("section");
     el.className = "vos-win" + (app.id === "browser" ? "" : " is-closed");
     el.dataset.app = app.id;
+    el.style.zIndex = "4";
     el.innerHTML = '<div class="vos-title"><b></b>' +
       '<button type="button" class="vos-ctl" data-act="min" title="Minimize" aria-label="Minimize">' + svgMin() + '</button>' +
       '<button type="button" class="vos-ctl" data-act="max" title="Maximize" aria-label="Maximize">' + svgMax() + '</button>' +
@@ -409,13 +455,60 @@
     desk.className = "vos-desk";
     var icons = document.createElement("div");
     icons.className = "vos-icons";
-    APPS.forEach(function (app) {
+    var savedIcons = {};
+    try { savedIcons = JSON.parse(localStorage.getItem("veil_os_icons") || "{}"); } catch (err) {}
+    function clampIcon(x, y) {
+      var box = desk.getBoundingClientRect();
+      var w = box.width || window.innerWidth;
+      var h = box.height || window.innerHeight;
+      return {
+        x: Math.max(6, Math.min(x, Math.max(6, w - 92))),
+        y: Math.max(6, Math.min(y, Math.max(6, h - 86)))
+      };
+    }
+    APPS.forEach(function (app, index) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "vos-icon";
       btn.title = app.title;
       btn.innerHTML = '<span class="vos-glyph">' + iconMarkup(app.icon) + "</span><span>" + app.title + "</span>";
-      btn.onclick = function () { openApp(app.id); };
+      var stored = savedIcons[app.id];
+      var spot = stored && typeof stored.x === "number" ? clampIcon(stored.x, stored.y) : { x: 14, y: 16 + index * 96 };
+      btn.style.left = spot.x + "px";
+      btn.style.top = spot.y + "px";
+      btn.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var ox = btn.offsetLeft;
+        var oy = btn.offsetTop;
+        var moved = false;
+        btn.classList.add("is-drag");
+        try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+        function move(ev) {
+          var dx = ev.clientX - startX;
+          var dy = ev.clientY - startY;
+          if (!moved && Math.hypot(dx, dy) < 5) return;
+          moved = true;
+          var next = clampIcon(ox + dx, oy + dy);
+          btn.style.left = next.x + "px";
+          btn.style.top = next.y + "px";
+        }
+        function up() {
+          btn.removeEventListener("pointermove", move);
+          btn.removeEventListener("pointerup", up);
+          btn.classList.remove("is-drag");
+          if (moved) {
+            savedIcons[app.id] = { x: btn.offsetLeft, y: btn.offsetTop };
+            try { localStorage.setItem("veil_os_icons", JSON.stringify(savedIcons)); } catch (err) {}
+            return;
+          }
+          openApp(app.id);
+        }
+        btn.addEventListener("pointermove", move);
+        btn.addEventListener("pointerup", up);
+      });
       icons.appendChild(btn);
     });
     desk.appendChild(icons);
@@ -445,6 +538,14 @@
 
   function paintDesk() {
     if (!deskEl) return;
+    var canvas = deskEl.querySelector("[data-home-fx]");
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.className = "home-fx";
+      canvas.setAttribute("data-home-fx", "");
+      deskEl.insertBefore(canvas, deskEl.firstChild);
+    }
+    try { setupHomeFx(deskEl); } catch (err) {}
     deskEl.querySelectorAll(".vos-wall").forEach(function (node) { node.remove(); });
     var url = "";
     try {
@@ -469,7 +570,7 @@
       wall.src = url;
     }
     wall.className = "vos-wall";
-    deskEl.insertBefore(wall, deskEl.firstChild);
+    deskEl.insertBefore(wall, canvas.nextSibling);
   }
 
   function mountBrowser() {
