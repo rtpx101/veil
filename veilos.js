@@ -21,8 +21,7 @@
   var folders = [];
   var openFolderId = null;
   var folderWin = null;
-  var ctxX = 0;
-  var ctxY = 0;
+  var refreshStore = function () {};
 
   function svgChat() {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H10l-4 3.2V16.5H5A1.5 1.5 0 0 1 3.5 15V8A1.5 1.5 0 0 1 5 6.5z"></path></svg>';
@@ -38,7 +37,7 @@
   }
   function iconMarkup(kind) {
     if (kind === "favi") return '<img class="vos-logo" draggable="false" src="' + IMG + 'veil-logo-simple.png" alt="">';
-    if (kind === "store") return '<svg class="vos-store-mark" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="14" fill="#0A84FF"/><path fill="#fff" d="M16.5 40.5h6.1l1.9-5.2h7.2l1.9 5.2H40L29.2 14.2h-2.6L16.5 40.5zm9.6-9.6 2-5.6 2 5.6h-4z"/></svg>';
+    if (kind === "store") return '<img draggable="false" src="' + IMG + 'appstore.svg" alt="">';
     if (kind === "games") return '<img draggable="false" src="' + IMG + 'games.svg" alt="">';
     if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
     return svgChat();
@@ -143,21 +142,19 @@
     return "New folder " + n;
   }
   function folderGlyph(items) {
+    var real = [];
+    (items || []).forEach(function (id) { if (appById(id)) real.push(id); });
+    if (!real.length) return '<img draggable="false" src="' + IMG + 'folder.svg" alt="">';
     var cells = "";
-    var shown = 0;
-    (items || []).forEach(function (id) {
-      if (shown >= 4) return;
+    real.slice(0, 4).forEach(function (id) {
       var app = appById(id);
-      if (!app) return;
-      shown += 1;
       var inner = app.iconUrl
         ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
         : iconMarkup(app.kind);
       cells += '<span class="vos-mini">' + inner + "</span>";
     });
-    while (shown < 4) {
+    while (real.slice(0, 4).length < 4 && cells.split("vos-mini").length - 1 < 4) {
       cells += '<span class="vos-mini"></span>';
-      shown += 1;
     }
     return '<span class="vos-folder-face">' + cells + "</span>";
   }
@@ -290,6 +287,7 @@
         ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\">Rename</button>"
         : "<button type=\"button\" data-act=\"rename\">Rename</button>";
       html += "<button type=\"button\" data-act=\"out\">Remove from folder</button>";
+      if (!app.builtin) html += "<button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\">Uninstall</button>";
     } else if (app.folder) {
       html = "<button type=\"button\" data-act=\"open\">Open</button><button type=\"button\" data-act=\"rename\">Rename</button><button type=\"button\" data-act=\"delete\">Delete folder</button>";
     } else {
@@ -300,6 +298,7 @@
         html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\">Move to " + esc(folder.title || "Folder") + "</button>";
       });
       html += "<button type=\"button\" data-act=\"new\">New folder</button>";
+      if (!app.builtin) html += "<button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\">Uninstall</button>";
     }
     ctxEl.innerHTML = html;
     ctxEl.hidden = false;
@@ -387,13 +386,8 @@
     var desk = deskEl.getBoundingClientRect();
     var w = 380;
     var h = 280;
-    var x = 110;
-    var y = 36;
-    var icon = iconEls[id];
-    if (icon) {
-      x = (parseFloat(icon.style.left) || 0) + 92;
-      y = parseFloat(icon.style.top) || 12;
-    }
+    var x = Math.max(8, Math.round((desk.width - w) / 2));
+    var y = Math.max(8, Math.round((desk.height - h) / 2));
     if (x + w > desk.width - 8) x = Math.max(8, desk.width - w - 8);
     if (y + h > desk.height - 8) y = Math.max(8, desk.height - h - 8);
     folderWin.style.left = x + "px";
@@ -589,6 +583,35 @@
     renderDesktopIcons();
     return true;
   }
+  function uninstallApp(id) {
+    var current = null;
+    installed.forEach(function (item) { if (item.id === id) current = item; });
+    if (!current) return;
+    installed = installed.filter(function (item) { return item.id !== id; });
+    folders.forEach(function (folder) {
+      folder.items = folder.items.filter(function (item) { return item !== id; });
+    });
+    delete iconLayout[id];
+    delete picked[id];
+    saveInstalled();
+    saveFolders();
+    saveLayout();
+    var win = wins[id];
+    if (win) {
+      if (closeTimers[id]) {
+        clearTimeout(closeTimers[id]);
+        closeTimers[id] = 0;
+      }
+      if (win.el.parentNode) win.el.parentNode.removeChild(win.el);
+      delete wins[id];
+      if (focused === id) focused = null;
+    }
+    renderDesktopIcons();
+    renderTasks();
+    syncFull();
+    if (openFolderId) paintFolder();
+    refreshStore();
+  }
 
   function place(el, x, y, w, h) {
     var desk = deskEl.getBoundingClientRect();
@@ -604,21 +627,25 @@
     el.style.height = height + "px";
   }
 
+  function placeCentered(el, w, h) {
+    var desk = deskEl.getBoundingClientRect();
+    var width = Math.max(320, Math.min(w, desk.width - 32));
+    var height = Math.max(240, Math.min(h, desk.height - 32));
+    el.style.width = width + "px";
+    el.style.height = height + "px";
+    el.style.left = Math.max(8, Math.round((desk.width - width) / 2)) + "px";
+    el.style.top = Math.max(8, Math.round((desk.height - height) / 2)) + "px";
+  }
+
   function layoutDefaults() {
     var box = deskEl.getBoundingClientRect();
     var W = box.width;
     var H = box.height;
-    if (W < 760) {
-      place(wins.browser.el, 8, 8, W - 16, H - 16);
-      place(wins.store.el, 12, 12, W - 24, H - 24);
-      place(wins.chat.el, 16, 16, W - 32, H - 32);
-      place(wins.settings.el, 32, 20, W - 48, H - 40);
-      return;
-    }
-    place(wins.browser.el, 104, 12, W - 124, H - 24);
-    place(wins.store.el, 124, 28, Math.min(1040, W - 150), H - 48);
-    place(wins.chat.el, 148, 46, Math.min(920, W - 180), H - 70);
-    place(wins.settings.el, 116, 20, Math.min(1100, W - 140), H - 36);
+    var w = W < 760 ? W - 36 : Math.min(820, Math.round(W * 0.58));
+    var h = W < 760 ? H - 36 : Math.min(540, Math.round(H * 0.66));
+    ["browser", "store", "chat", "settings"].forEach(function (id) {
+      if (wins[id]) placeCentered(wins[id].el, w, h);
+    });
   }
 
   function focusWin(id) {
@@ -733,10 +760,11 @@
       if (!photos.length && small) photos.push(small);
       return photos;
     }
-    function getBtn(game) {
+    function actions(game) {
       var id = gameId(game);
       var open = isInstalled(id);
-      return '<button type="button" class="vos-get' + (open ? " is-open" : "") + '" data-get="' + esc(id) + '">' + (open ? "OPEN" : "GET") + "</button>";
+      var trash = open ? '<button type="button" class="vos-trash" data-trash="' + esc(id) + '" title="Uninstall" aria-label="Uninstall"><img src="' + IMG + 'trash.svg" alt=""></button>' : "";
+      return '<span class="vos-as-actions"><button type="button" class="vos-get' + (open ? " is-open" : "") + '" data-get="' + esc(id) + '">' + (open ? "OPEN" : "GET") + "</button>" + trash + "</span>";
     }
     function paintHome() {
       var q = query.trim().toLowerCase();
@@ -754,7 +782,7 @@
       var rows = list.map(function (game) {
         var icon = "";
         try { icon = smallThumb(game) || ""; } catch (err) {}
-        return '<div class="vos-as-row"><button type="button" class="vos-as-hit" data-open="' + esc(gameId(game)) + '"><img src="' + esc(icon) + '" alt=""><span class="vos-as-copy"><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(ageLabel(game.maturity)) + '</small><em class="vos-as-stars" title="Difficulty">' + starLine(game.difficulty) + "</em></span></button>" + getBtn(game) + "</div>";
+        return '<div class="vos-as-row"><button type="button" class="vos-as-hit" data-open="' + esc(gameId(game)) + '"><img src="' + esc(icon) + '" alt=""><span class="vos-as-copy"><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(ageLabel(game.maturity)) + '</small><em class="vos-as-stars" title="Difficulty">' + starLine(game.difficulty) + "</em></span></button>" + actions(game) + "</div>";
       }).join("");
       home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1><input class="vos-as-search" type="search" placeholder="Search" value="' + esc(query) + '"></div>' + featured + '<section class="vos-as-block"><h2>Games</h2>' + (rows || '<p class="vos-as-empty">No games match.</p>') + "</section>";
       var input = home.querySelector(".vos-as-search");
@@ -776,14 +804,16 @@
       games.forEach(function (game) { if (gameId(game) === id) found = game; });
       return found;
     }
+    var detailId = "";
     function paintDetail(id) {
       var game = findGame(id);
       if (!game) return;
       var icon = "";
       try { icon = smallThumb(game) || ""; } catch (err) {}
       detail.hidden = false;
+      detailId = id;
       detail.innerHTML = '<div class="vos-as-back"><button type="button" data-back>‹ Apps</button></div>' +
-        '<div class="vos-as-head"><img src="' + esc(icon) + '" alt=""><div><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Games") + "</small></div>" + getBtn(game) + "</div>" +
+        '<div class="vos-as-head"><img src="' + esc(icon) + '" alt=""><div><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Games") + "</small></div>" + actions(game) + "</div>" +
         '<div class="vos-as-shots">' + photosOf(game).map(function (src) { return '<img src="' + esc(src) + '" alt="">'; }).join("") + "</div>" +
         '<section class="vos-as-block"><h2>Ratings</h2><div class="vos-as-rates"><div><em class="vos-as-stars">' + starLine(game.difficulty) + '</em><strong>' + esc(String(game.difficulty || "0")) + '</strong><small>Difficulty out of 10</small></div><div><strong class="vos-as-age">' + esc(game.maturity || "NR") + "</strong><small>" + esc(ageLabel(game.maturity)) + "</small></div></div></section>" +
         '<section class="vos-as-block"><h2>About</h2><p>' + esc(game.description || "No description.") + "</p></section>" +
@@ -794,8 +824,19 @@
     body.addEventListener("click", function (e) {
       if (e.target.closest("[data-back]")) {
         detail.hidden = true;
+        detailId = "";
         detail.innerHTML = "";
         paintHome();
+        return;
+      }
+      var trash = e.target.closest("[data-trash]");
+      if (trash) {
+        e.preventDefault();
+        e.stopPropagation();
+        var gid = trash.getAttribute("data-trash");
+        var doomed = null;
+        installed.forEach(function (item) { if (item.url === "veil-game:" + gid) doomed = item; });
+        if (doomed) uninstallApp(doomed.id);
         return;
       }
       var open = e.target.closest("[data-open]");
@@ -826,6 +867,11 @@
       else paintHome();
     });
     home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1></div><p class="vos-as-empty">Loading…</p>';
+    refreshStore = function () {
+      if (!body.isConnected) return;
+      if (!detail.hidden && detailId) paintDetail(detailId);
+      else paintHome();
+    };
     Promise.resolve(typeof loadGameCatalog === "function" ? loadGameCatalog() : null).then(function () {
       games = (typeof gamesCatalog !== "undefined" && gamesCatalog) ? gamesCatalog.slice() : [];
       paintHome();
@@ -1119,6 +1165,19 @@
       e.stopPropagation();
       closeApp(app.id);
     };
+    if (app.installed) {
+      var trash = document.createElement("button");
+      trash.type = "button";
+      trash.className = "vos-ctl vos-uninstall";
+      trash.title = "Uninstall";
+      trash.setAttribute("aria-label", "Uninstall");
+      trash.innerHTML = '<img src="' + IMG + 'trash.svg" alt="">';
+      trash.onclick = function (e) {
+        e.stopPropagation();
+        uninstallApp(app.id);
+      };
+      el.querySelector('[data-act="min"]').before(trash);
+    }
     bindDrag(win, title);
     bindResize(win);
     wins[app.id] = win;
@@ -1130,11 +1189,9 @@
     var box = deskEl.getBoundingClientRect();
     var W = box.width || window.innerWidth;
     var H = box.height || (window.innerHeight - 48);
-    var n = 0;
-    Object.keys(wins).forEach(function (id) { if (wins[id].installed) n += 1; });
-    var w = Math.max(420, Math.min(1040, W - 150));
-    var h = Math.max(320, H - 56);
-    place(win.el, 78 + ((n - 1) % 5) * 26, 24 + ((n - 1) % 5) * 22, w, h);
+    var w = Math.min(760, Math.max(420, Math.round(W * 0.56)));
+    var h = Math.min(500, Math.max(300, Math.round(H * 0.62)));
+    placeCentered(win.el, w, h);
   }
 
   function ensureInstalledWindow(app) {
@@ -1357,6 +1414,7 @@
         else renameInstalled(app);
       }
       if (act === "delete" && app && app.folder) deleteFolder(app.id);
+      if (act === "uninstall" && app && !app.builtin && !app.folder) uninstallApp(app.id);
       if (act === "out" && app && app.inFolder) removeFromFolder(app.inFolder, app.id);
       if (act === "move" && dest) {
         var ids = [];

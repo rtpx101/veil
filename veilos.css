@@ -242,7 +242,11 @@
   padding:0 10px;
   cursor:pointer;
   font-size:13px;
+  display:flex;
+  align-items:center;
+  gap:8px;
 }
+.vos-ctx button img{width:14px;height:14px;display:block;filter:invert(var(--page-icon-invert,1))}
 .vos-ctx button:hover{background:var(--panel2)}
 .vos-ctx button.is-off,
 .vos-ctx button:disabled{opacity:.35;cursor:default;pointer-events:none}
@@ -334,6 +338,8 @@ body.veil-os #menuInstall{display:flex}
 .vos-ctl:hover{background:var(--panel2);color:var(--text)}
 .vos-ctl:active{transform:scale(.92)}
 .vos-ctl.close:hover{background:#c42b2b;color:#fff}
+.vos-uninstall img{width:14px;height:14px;display:block;filter:invert(var(--page-icon-invert,1))}
+.vos-uninstall:hover{background:#c42b2b}
 .vos-body{
   position:absolute;
   left:0;
@@ -570,6 +576,9 @@ body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / 
 .vos-as-stars{color:#ff9f0a;font-size:12px;letter-spacing:1px;font-style:normal}
 .vos-get{flex:0 0 auto;min-width:72px;height:28px;padding:0 12px;border:0;border-radius:14px;background:#0a84ff;color:#fff;font-size:13px;font-weight:700;letter-spacing:.04em;cursor:pointer}
 .vos-get.is-open{background:#2c2c2e;color:#0a84ff}
+.vos-as-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.vos-trash{width:28px;height:28px;border:0;border-radius:14px;background:#2c2c2e;display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.vos-trash img{width:14px;height:14px;display:block;filter:invert(1)}
 .vos-as-back{margin:-4px 0 10px}
 .vos-as-back button{border:0;background:transparent;color:#0a84ff;font-size:17px;padding:4px 0;cursor:pointer}
 .vos-as-head{display:flex;align-items:center;gap:14px}
@@ -596,6 +605,8 @@ html[data-mode="light"] .vos-as-copy small,html[data-mode="light"] .vos-as-head 
 html[data-mode="light"] .vos-as-block p{color:#1c1c1e}
 html[data-mode="light"] .vos-get{background:#007aff}
 html[data-mode="light"] .vos-get.is-open{background:#e5e5ea;color:#007aff}
+html[data-mode="light"] .vos-trash{background:#e5e5ea}
+html[data-mode="light"] .vos-trash img{filter:none}
 html[data-mode="light"] .vos-glyph{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}
 html[data-mode="light"] .vos-glyph img,
 html[data-mode="light"] .vos-title img,
