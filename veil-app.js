@@ -6131,7 +6131,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=16";
+  link.href = BASE + "/veilos.css?v=17";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6142,7 +6142,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=16";
+  script.src = BASE + "/veilos.js?v=17";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7649,7 +7649,7 @@ function pushRecent(value2) {
 function openGamesPage() {
   if (document.body.classList.contains("veil-os") && typeof window.veilOSOpenApp === "function") {
     closeMenu();
-    window.veilOSOpenApp("games");
+    window.veilOSOpenApp("store");
     return;
   }
   closePanels();
@@ -7731,10 +7731,7 @@ function updateGamesChromeLocks() {
 function tileHTML(value) {
   const icon = gameId(value);
   const title = isFavorite(icon);
-  const onDesk = document.body.classList.contains("veil-os");
-  const added = gameOnDesktop(icon);
-  const deskBtn = onDesk ? "<button type=\"button\" class=\"tile-tool" + (added ? " on" : "") + "\" data-desk=\"" + escapeHTML(icon) + "\" title=\"Add to desktop\" aria-label=\"Add to desktop\"><img src=\"" + IMG + "download.svg\" alt=\"\"></button>" : "";
-  return "<div class=\"game-tile" + (title ? " fav" : "") + "\" data-play=\"" + escapeHTML(icon) + "\"><div class=\"thumb\"><img src=\"" + escapeHTML(smallThumb(value)) + "\" alt=\"\" onerror=\"this.style.opacity=.25\"><div class=\"tile-tools\"><button type=\"button\" class=\"tile-tool" + (title ? " on" : "") + "\" data-fav=\"" + escapeHTML(icon) + "\" title=\"Favorite\" aria-label=\"Favorite\"><img src=\"" + IMG + "star.svg\" alt=\"\"></button><button type=\"button\" class=\"tile-tool\" data-info=\"" + escapeHTML(icon) + "\" title=\"Info\" aria-label=\"Info\"><img src=\"" + IMG + "info.svg\" alt=\"\"></button>" + deskBtn + "</div></div><div class=\"meta\"><div class=\"name\">" + escapeHTML(value.name) + "</div><div class=\"cat\">" + escapeHTML(value.category || "") + "</div></div></div>";
+  return "<div class=\"game-tile" + (title ? " fav" : "") + "\" data-play=\"" + escapeHTML(icon) + "\"><div class=\"thumb\"><img src=\"" + escapeHTML(smallThumb(value)) + "\" alt=\"\" onerror=\"this.style.opacity=.25\"><div class=\"tile-tools\"><button type=\"button\" class=\"tile-tool" + (title ? " on" : "") + "\" data-fav=\"" + escapeHTML(icon) + "\" title=\"Favorite\" aria-label=\"Favorite\"><img src=\"" + IMG + "star.svg\" alt=\"\"></button><button type=\"button\" class=\"tile-tool\" data-info=\"" + escapeHTML(icon) + "\" title=\"Info\" aria-label=\"Info\"><img src=\"" + IMG + "info.svg\" alt=\"\"></button></div></div><div class=\"meta\"><div class=\"name\">" + escapeHTML(value.name) + "</div><div class=\"cat\">" + escapeHTML(value.category || "") + "</div></div></div>";
 }
 function byIds(value2) {
   const hex = {};
@@ -7981,22 +7978,6 @@ async function renderGamesPage(value3) {
         } else {
           gamesFavSection.style.display = "none";
         }
-      }
-      return;
-    }
-    const desk = value2.target.closest("[data-desk]");
-    if (desk) {
-      value2.preventDefault();
-      value2.stopPropagation();
-      const picked = desk.getAttribute("data-desk");
-      const game = gamesCatalog.find(value => gameId(value) === picked);
-      if (game && document.body.classList.contains("veil-os") && typeof window.veilOSInstall === "function") {
-        const added = window.veilOSInstall({
-          title: game.name,
-          url: "veil-game:" + picked,
-          icon: smallThumb(game)
-        });
-        if (added !== false) desk.classList.add("on");
       }
       return;
     }

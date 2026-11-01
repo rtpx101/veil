@@ -2,7 +2,7 @@
 (function () {
   var APPS = [
     { id: "browser", title: "Browser", icon: "favi" },
-    { id: "games", title: "Games", icon: "games" },
+    { id: "store", title: "App Store", icon: "store" },
     { id: "chat", title: "Chat", icon: "chat" },
     { id: "settings", title: "Settings", icon: "settings" }
   ];
@@ -38,6 +38,7 @@
   }
   function iconMarkup(kind) {
     if (kind === "favi") return '<img class="vos-logo" draggable="false" src="' + IMG + 'veil-logo-simple.png" alt="">';
+    if (kind === "store") return '<svg class="vos-store-mark" viewBox="0 0 56 56" aria-hidden="true"><rect width="56" height="56" rx="14" fill="#0A84FF"/><path fill="#fff" d="M16.5 40.5h6.1l1.9-5.2h7.2l1.9 5.2H40L29.2 14.2h-2.6L16.5 40.5zm9.6-9.6 2-5.6 2 5.6h-4z"/></svg>';
     if (kind === "games") return '<img draggable="false" src="' + IMG + 'games.svg" alt="">';
     if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
     return svgChat();
@@ -104,6 +105,7 @@
     folders = folders.filter(function (folder) { return folder && folder.id; });
     folders.forEach(function (folder) {
       if (!Array.isArray(folder.items)) folder.items = [];
+      folder.items = folder.items.map(function (id) { return id === "games" ? "store" : id; });
       folder.items = folder.items.filter(function (id) { return !!appById(id); });
     });
   }
@@ -244,6 +246,8 @@
   function loadLayout() {
     try {
       iconLayout = JSON.parse(localStorage.getItem(POS_KEY) || "{}") || {};
+      if (iconLayout.games && !iconLayout.store) iconLayout.store = iconLayout.games;
+      delete iconLayout.games;
     } catch (err) {
       iconLayout = {};
     }
@@ -606,13 +610,13 @@
     var H = box.height;
     if (W < 760) {
       place(wins.browser.el, 8, 8, W - 16, H - 16);
-      place(wins.games.el, 12, 12, W - 24, H - 24);
+      place(wins.store.el, 12, 12, W - 24, H - 24);
       place(wins.chat.el, 16, 16, W - 32, H - 32);
       place(wins.settings.el, 32, 20, W - 48, H - 40);
       return;
     }
     place(wins.browser.el, 104, 12, W - 124, H - 24);
-    place(wins.games.el, 124, 28, Math.min(1040, W - 150), H - 48);
+    place(wins.store.el, 124, 28, Math.min(1040, W - 150), H - 48);
     place(wins.chat.el, 148, 46, Math.min(920, W - 180), H - 70);
     place(wins.settings.el, 116, 20, Math.min(1100, W - 140), H - 36);
   }
@@ -696,25 +700,138 @@
     shell.classList.toggle("is-full", on);
   }
 
-  function ensureGames(body) {
-    if (body.dataset.ready === "1") return;
+  function ageLabel(code) {
+    var map = { E: "Everyone", "E10+": "Everyone 10+", T: "Teen", M: "Mature 17+", AO: "Adults Only", NR: "Not Rated" };
+    return map[code] || code || "Not Rated";
+  }
+  function starLine(n) {
+    var score = Math.round((Math.max(0, Math.min(10, Number(n) || 0)) / 10) * 5);
+    return "★★★★★".slice(0, score) + "☆☆☆☆☆".slice(0, 5 - score);
+  }
+  function ensureStore(body) {
+    if (!body || body.dataset.ready === "1") return;
     body.dataset.ready = "1";
-    var root = document.createElement("div");
-    root.className = "games-page";
-    root.innerHTML = '<div class="vos-app-wait">Loading games…</div>';
-    body.appendChild(root);
-    try {
-      var job = renderGamesPage(root);
-      if (job && typeof job.catch === "function") {
-        job.catch(function (err) {
-          console.warn("[veil] games", err);
-          root.innerHTML = '<div class="vos-app-wait">Games could not load.</div>';
+    body.innerHTML = '<div class="vos-store"><div class="vos-store-scroll" data-home></div><div class="vos-store-detail" data-detail hidden></div></div>';
+    var home = body.querySelector("[data-home]");
+    var detail = body.querySelector("[data-detail]");
+    var games = [];
+    var query = "";
+    function isInstalled(id) {
+      var url = "veil-game:" + id;
+      var hit = false;
+      installed.forEach(function (item) { if (item.url === url) hit = true; });
+      return hit;
+    }
+    function photosOf(game) {
+      var large = "";
+      var small = "";
+      try { large = largeThumb(game) || ""; } catch (err) {}
+      try { small = smallThumb(game) || ""; } catch (err) {}
+      var photos = [];
+      if (large) photos.push(large);
+      if (small && small !== large) photos.push(small);
+      if (!photos.length && small) photos.push(small);
+      return photos;
+    }
+    function getBtn(game) {
+      var id = gameId(game);
+      var open = isInstalled(id);
+      return '<button type="button" class="vos-get' + (open ? " is-open" : "") + '" data-get="' + esc(id) + '">' + (open ? "OPEN" : "GET") + "</button>";
+    }
+    function paintHome() {
+      var q = query.trim().toLowerCase();
+      var list = games.filter(function (game) {
+        if (!q) return true;
+        return String(game.name || "").toLowerCase().indexOf(q) !== -1 || String(game.category || "").toLowerCase().indexOf(q) !== -1;
+      });
+      var featured = "";
+      if (!q) {
+        featured = '<section class="vos-as-block"><h2>Featured</h2><div class="vos-as-rail">' + games.slice(0, 6).map(function (game) {
+          var photo = photosOf(game)[0] || "";
+          return '<button type="button" class="vos-as-card" data-open="' + esc(gameId(game)) + '"><img src="' + esc(photo) + '" alt=""><span><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(game.maturity || "NR") + "</small></span></button>";
+        }).join("") + "</div></section>";
+      }
+      var rows = list.map(function (game) {
+        var icon = "";
+        try { icon = smallThumb(game) || ""; } catch (err) {}
+        return '<div class="vos-as-row"><button type="button" class="vos-as-hit" data-open="' + esc(gameId(game)) + '"><img src="' + esc(icon) + '" alt=""><span class="vos-as-copy"><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(ageLabel(game.maturity)) + '</small><em class="vos-as-stars" title="Difficulty">' + starLine(game.difficulty) + "</em></span></button>" + getBtn(game) + "</div>";
+      }).join("");
+      home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1><input class="vos-as-search" type="search" placeholder="Search" value="' + esc(query) + '"></div>' + featured + '<section class="vos-as-block"><h2>Games</h2>' + (rows || '<p class="vos-as-empty">No games match.</p>') + "</section>";
+      var input = home.querySelector(".vos-as-search");
+      if (input) {
+        input.addEventListener("input", function () {
+          query = input.value;
+          var pos = input.selectionStart;
+          paintHome();
+          var next = home.querySelector(".vos-as-search");
+          if (next) {
+            next.focus();
+            try { next.setSelectionRange(pos, pos); } catch (err) {}
+          }
         });
       }
-    } catch (err) {
-      console.warn("[veil] games", err);
-      root.innerHTML = '<div class="vos-app-wait">Games could not load.</div>';
     }
+    function findGame(id) {
+      var found = null;
+      games.forEach(function (game) { if (gameId(game) === id) found = game; });
+      return found;
+    }
+    function paintDetail(id) {
+      var game = findGame(id);
+      if (!game) return;
+      var icon = "";
+      try { icon = smallThumb(game) || ""; } catch (err) {}
+      detail.hidden = false;
+      detail.innerHTML = '<div class="vos-as-back"><button type="button" data-back>‹ Apps</button></div>' +
+        '<div class="vos-as-head"><img src="' + esc(icon) + '" alt=""><div><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Games") + "</small></div>" + getBtn(game) + "</div>" +
+        '<div class="vos-as-shots">' + photosOf(game).map(function (src) { return '<img src="' + esc(src) + '" alt="">'; }).join("") + "</div>" +
+        '<section class="vos-as-block"><h2>Ratings</h2><div class="vos-as-rates"><div><em class="vos-as-stars">' + starLine(game.difficulty) + '</em><strong>' + esc(String(game.difficulty || "0")) + '</strong><small>Difficulty out of 10</small></div><div><strong class="vos-as-age">' + esc(game.maturity || "NR") + "</strong><small>" + esc(ageLabel(game.maturity)) + "</small></div></div></section>" +
+        '<section class="vos-as-block"><h2>About</h2><p>' + esc(game.description || "No description.") + "</p></section>" +
+        '<section class="vos-as-block"><h2>How to play</h2><p>' + esc(game.howToPlay || "Not listed.") + "</p><p>" + esc(game.controls || "") + "</p></section>" +
+        (game.sideNotes ? '<section class="vos-as-block"><h2>Notes</h2><p>' + esc(game.sideNotes) + "</p></section>" : "") +
+        '<section class="vos-as-block"><h2>Information</h2><dl class="vos-as-info"><div><dt>Category</dt><dd>' + esc(game.category || "Game") + "</dd></div><div><dt>Age</dt><dd>" + esc(ageLabel(game.maturity)) + "</dd></div><div><dt>Difficulty</dt><dd>" + esc(String(game.difficulty || "0")) + "/10</dd></div></dl></section>";
+    }
+    body.addEventListener("click", function (e) {
+      if (e.target.closest("[data-back]")) {
+        detail.hidden = true;
+        detail.innerHTML = "";
+        paintHome();
+        return;
+      }
+      var open = e.target.closest("[data-open]");
+      if (open) {
+        paintDetail(open.getAttribute("data-open"));
+        return;
+      }
+      var get = e.target.closest("[data-get]");
+      if (!get) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var id = get.getAttribute("data-get");
+      var game = findGame(id);
+      if (!game) return;
+      if (isInstalled(id)) {
+        var stored = null;
+        installed.forEach(function (item) { if (item.url === "veil-game:" + id) stored = item; });
+        if (stored) {
+          ensureInstalledWindow(stored);
+          openApp(stored.id);
+        }
+        return;
+      }
+      var icon = "";
+      try { icon = smallThumb(game) || ""; } catch (err) {}
+      installApp({ title: game.name, url: "veil-game:" + id, icon: icon });
+      if (!detail.hidden) paintDetail(id);
+      else paintHome();
+    });
+    home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1></div><p class="vos-as-empty">Loading…</p>';
+    Promise.resolve(typeof loadGameCatalog === "function" ? loadGameCatalog() : null).then(function () {
+      games = (typeof gamesCatalog !== "undefined" && gamesCatalog) ? gamesCatalog.slice() : [];
+      paintHome();
+    }).catch(function () {
+      home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1></div><p class="vos-as-empty">Could not load games.</p>';
+    });
   }
 
   function ensureChat(body) {
@@ -752,7 +869,7 @@
     var hidden = win.el.classList.contains("is-closed") || win.el.classList.contains("is-min") || win.el.classList.contains("is-closing") || win.el.classList.contains("is-minimizing");
     win.running = true;
     win.el.classList.remove("is-closed", "is-min", "is-closing", "is-minimizing");
-    if (id === "games") ensureGames(win.body);
+    if (id === "store") ensureStore(win.body);
     if (id === "chat") ensureChat(win.body);
     if (id === "settings") {
       try { fillWispSelect(); } catch (err) {}
