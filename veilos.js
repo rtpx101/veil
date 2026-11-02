@@ -147,18 +147,20 @@
     var real = [];
     (items || []).forEach(function (id) { if (appById(id)) real.push(id); });
     if (!real.length) return '<img draggable="false" src="' + IMG + 'folder.svg" alt="">';
+    var shown = real.slice(0, real.length > 4 ? 3 : 4);
     var cells = "";
-    real.slice(0, 4).forEach(function (id) {
+    shown.forEach(function (id) {
       var app = appById(id);
       var inner = app.iconUrl
         ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
         : iconMarkup(app.kind);
       cells += '<span class="vos-mini">' + inner + "</span>";
     });
-    while (real.slice(0, 4).length < 4 && cells.split("vos-mini").length - 1 < 4) {
-      cells += '<span class="vos-mini"></span>';
-    }
-    return '<span class="vos-folder-face">' + cells + "</span>";
+    if (real.length > 4) cells += '<span class="vos-mini vos-more">+' + (real.length - 3) + "</span>";
+    var face = "vos-folder-face";
+    if (real.length === 1) face += " one";
+    else if (real.length === 2) face += " two";
+    return '<span class="' + face + '">' + cells + "</span>";
   }
   function looseIds(ids) {
     return (ids || []).filter(function (id) {
@@ -177,6 +179,7 @@
     saveFolders();
     saveLayout();
     renderDesktopIcons();
+    onlyPick(folder.id);
     return folder;
   }
   function addToFolder(folderId, ids, silent) {
@@ -198,17 +201,40 @@
       if (openFolderId) paintFolder();
     }
   }
-  function removeFromFolder(folderId, id) {
+  function removeFromFolder(folderId, id, x, y) {
     var folder = findFolder(folderId);
     if (!folder) return;
     folder.items = folder.items.filter(function (item) { return item !== id; });
+    var px = 14;
+    var py = 16;
+    if (isFinite(x) && isFinite(y) && deskEl) {
+      var desk = deskEl.getBoundingClientRect();
+      var raw = clampIcon(x - desk.left - 43, y - desk.top - 30);
+      px = raw.x;
+      py = raw.y;
+    } else if (iconLayout[folderId]) {
+      px = iconLayout[folderId].x + 96;
+      py = iconLayout[folderId].y;
+    }
+    var skip = {};
+    skip[id] = true;
+    iconLayout[id] = freeSpot(px, py, skip);
     saveFolders();
+    saveLayout();
     renderDesktopIcons();
     paintFolder();
   }
   function deleteFolder(id) {
-    folders = folders.filter(function (folder) { return folder.id !== id; });
+    var folder = findFolder(id);
+    var anchor = iconLayout[id] || { x: 14, y: 16 };
+    var items = folder ? folder.items.slice() : [];
+    folders = folders.filter(function (entry) { return entry.id !== id; });
     delete iconLayout[id];
+    items.forEach(function (itemId, n) {
+      var skip = {};
+      skip[itemId] = true;
+      iconLayout[itemId] = freeSpot(anchor.x + (n % 4) * 96, anchor.y + Math.floor(n / 4) * 96, skip);
+    });
     if (openFolderId === id) closeFolder();
     saveFolders();
     saveLayout();
@@ -262,14 +288,72 @@
       y: Math.max(6, Math.min(y, Math.max(6, dh - 100)))
     };
   }
-  function iconPos(index, id) {
+  function spotsClose(a, b) {
+    return Math.abs(a.x - b.x) < 78 && Math.abs(a.y - b.y) < 78;
+  }
+  function occupiedSpots(ignore) {
+    var spots = [];
+    desktopItems().forEach(function (item, index) {
+      if (ignore && ignore[item.id]) return;
+      var saved = iconLayout[item.id];
+      if (saved && isFinite(saved.x) && isFinite(saved.y)) {
+        spots.push(clampIcon(saved.x, saved.y));
+        return;
+      }
+      var h = deskEl ? deskEl.clientHeight : 0;
+      if (!h) h = Math.max(240, window.innerHeight - 48);
+      var rows = Math.max(1, Math.floor((h - 20) / 96));
+      spots.push(clampIcon(14 + Math.floor(index / rows) * 96, 16 + (index % rows) * 96));
+    });
+    return spots;
+  }
+  function freeSpot(x, y, ignore) {
+    var spots = occupiedSpots(ignore);
+    function taken(p) {
+      var i;
+      for (i = 0; i < spots.length; i++) if (spotsClose(spots[i], p)) return true;
+      return false;
+    }
+    var prefer = clampIcon(isFinite(x) ? x : 14, isFinite(y) ? y : 16);
+    if (!taken(prefer)) return prefer;
+    var h = deskEl ? deskEl.clientHeight : 0;
+    var w = deskEl ? deskEl.clientWidth : 0;
+    if (!h) h = Math.max(240, window.innerHeight - 48);
+    if (!w) w = Math.max(320, window.innerWidth);
+    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    var cols = Math.max(1, Math.floor((w - 28) / 96));
+    var c;
+    var r;
+    for (c = 0; c < cols + 6; c++) {
+      for (r = 0; r < rows; r++) {
+        var p = clampIcon(14 + c * 96, 16 + r * 96);
+        if (!taken(p)) return p;
+      }
+    }
+    return prefer;
+  }
+  function iconPos(index, id, used) {
     var saved = id && iconLayout[id];
     if (saved && isFinite(saved.x) && isFinite(saved.y)) return clampIcon(saved.x, saved.y);
     var h = 0;
     try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
     if (!h) h = Math.max(240, window.innerHeight - 48);
     var rows = Math.max(1, Math.floor((h - 20) / 96));
-    return { x: 14 + Math.floor(index / rows) * 96, y: 16 + (index % rows) * 96 };
+    var n = index;
+    var guard = 0;
+    var list = used || [];
+    while (guard < 100) {
+      var spot = clampIcon(14 + Math.floor(n / rows) * 96, 16 + (n % rows) * 96);
+      var clash = false;
+      var i;
+      for (i = 0; i < list.length; i++) {
+        if (spotsClose(list[i], spot)) clash = true;
+      }
+      if (!clash) return spot;
+      n += 1;
+      guard += 1;
+    }
+    return clampIcon(14, 16);
   }
   function closeCtx() {
     ctxApp = null;
@@ -284,25 +368,27 @@
     ctxY = y;
     var html = "";
     if (!app) {
-      html = "<button type=\"button\" data-act=\"new\">New folder</button>";
+      html = "<button type=\"button\" data-act=\"new\"><span>New folder</span></button>";
     } else if (app.inFolder) {
-      html = "<button type=\"button\" data-act=\"open\">Open</button>";
+      html = "<button type=\"button\" data-act=\"open\"><span>Open</span></button>";
       html += app.builtin
-        ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\">Rename</button>"
-        : "<button type=\"button\" data-act=\"rename\">Rename</button>";
-      html += "<button type=\"button\" data-act=\"out\">Remove from folder</button>";
-      if (!app.builtin) html += "<button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\">Uninstall</button>";
+        ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\"><span>Rename</span></button>"
+        : "<button type=\"button\" data-act=\"rename\"><span>Rename</span></button>";
+      html += "<button type=\"button\" data-act=\"out\"><span>Remove from folder</span></button>";
+      if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     } else if (app.folder) {
-      html = "<button type=\"button\" data-act=\"open\">Open</button><button type=\"button\" data-act=\"rename\">Rename</button><button type=\"button\" data-act=\"delete\">Delete folder</button>";
+      html = "<button type=\"button\" data-act=\"open\"><span>Open</span></button><button type=\"button\" data-act=\"rename\"><span>Rename</span></button><div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"delete\"><span>Delete folder</span></button>";
     } else {
-      html = app.builtin
-        ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\">Rename</button>"
-        : "<button type=\"button\" data-act=\"rename\">Rename</button>";
+      html = "<button type=\"button\" data-act=\"open\"><span>Open</span></button>";
+      html += app.builtin
+        ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\"><span>Rename</span></button>"
+        : "<button type=\"button\" data-act=\"rename\"><span>Rename</span></button>";
+      if (folders.length) html += "<div class=\"vos-ctx-gap\"></div>";
       folders.forEach(function (folder) {
-        html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\">Move to " + esc(folder.title || "Folder") + "</button>";
+        html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\"><span>Move to " + esc(folder.title || "Folder") + "</span></button>";
       });
-      html += "<button type=\"button\" data-act=\"new\">New folder</button>";
-      if (!app.builtin) html += "<button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\">Uninstall</button>";
+      html += "<button type=\"button\" data-act=\"new\"><span>New folder</span></button>";
+      if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     }
     ctxEl.innerHTML = html;
     ctxEl.hidden = false;
@@ -371,31 +457,102 @@
     openApp(stored.id);
   }
   function folderAtPoint(x, y, ignore) {
+    if (folderWin && !folderWin.hidden && openFolderId && !(ignore && ignore[openFolderId])) {
+      var fb = folderWin.getBoundingClientRect();
+      if (x >= fb.left && x <= fb.right && y >= fb.top && y <= fb.bottom) return openFolderId;
+    }
     var hit = "";
     Object.keys(iconEls).forEach(function (id) {
       if (ignore && ignore[id]) return;
       var el = iconEls[id];
       if (!el || el.dataset.folder !== "1") return;
       var box = el.getBoundingClientRect();
-      if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) hit = id;
+      if (x >= box.left - 10 && x <= box.right + 10 && y >= box.top - 10 && y <= box.bottom + 10) hit = id;
     });
     return hit;
   }
+  function markDrop(over) {
+    Object.keys(iconEls).forEach(function (id) {
+      if (iconEls[id]) iconEls[id].classList.toggle("is-drop", !!over && id === over);
+    });
+    if (folderWin) folderWin.classList.toggle("is-drop", !!over && over === openFolderId && !folderWin.hidden);
+  }
+  function clearDropMarks() {
+    markDrop("");
+  }
+  function markOpenFolder() {
+    Object.keys(iconEls).forEach(function (id) {
+      if (iconEls[id]) iconEls[id].classList.toggle("is-open", id === openFolderId);
+    });
+  }
   function closeFolder() {
     openFolderId = null;
-    if (folderWin) folderWin.hidden = true;
+    if (folderWin) {
+      folderWin.hidden = true;
+      folderWin.classList.remove("is-focus", "is-drop");
+    }
+    markOpenFolder();
+  }
+  function raiseFolder() {
+    if (!folderWin) return;
+    zTop += 1;
+    folderWin.style.zIndex = String(zTop);
+    folderWin.classList.add("is-focus");
   }
   function placeFolder(id) {
     if (!folderWin || !deskEl) return;
     var desk = deskEl.getBoundingClientRect();
-    var w = 380;
-    var h = 280;
-    var x = Math.max(8, Math.round((desk.width - w) / 2));
-    var y = Math.max(8, Math.round((desk.height - h) / 2));
-    if (x + w > desk.width - 8) x = Math.max(8, desk.width - w - 8);
-    if (y + h > desk.height - 8) y = Math.max(8, desk.height - h - 8);
-    folderWin.style.left = x + "px";
-    folderWin.style.top = y + "px";
+    var w = folderWin.offsetWidth || 320;
+    var h = folderWin.offsetHeight || 220;
+    var x = 16;
+    var y = 16;
+    var el = iconEls[id];
+    if (el) {
+      var box = el.getBoundingClientRect();
+      x = box.right - desk.left + 12;
+      y = box.top - desk.top - 6;
+      if (x + w > desk.width - 8) x = box.left - desk.left - w - 12;
+      if (x < 8) x = 8;
+      if (y < 8) y = 8;
+      if (y + Math.min(h, 200) > desk.height - 8) y = Math.max(8, desk.height - h - 8);
+    }
+    folderWin.style.left = Math.round(x) + "px";
+    folderWin.style.top = Math.round(y) + "px";
+  }
+  function bindFolderDrag() {
+    var bar = folderWin.querySelector(".vos-fold-bar");
+    if (!bar || bar.dataset.bound === "1") return;
+    bar.dataset.bound = "1";
+    bar.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || e.target.closest("button")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      raiseFolder();
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+      var desk = deskEl.getBoundingClientRect();
+      var rect = folderWin.getBoundingClientRect();
+      var ox = e.clientX - rect.left;
+      var oy = e.clientY - rect.top;
+      function move(ev) {
+        var nx = ev.clientX - desk.left - ox;
+        var ny = ev.clientY - desk.top - oy;
+        var maxX = Math.max(8, desk.width - folderWin.offsetWidth - 8);
+        var maxY = Math.max(8, desk.height - 40);
+        nx = Math.max(8, Math.min(nx, maxX));
+        ny = Math.max(8, Math.min(ny, maxY));
+        folderWin.style.left = nx + "px";
+        folderWin.style.top = ny + "px";
+      }
+      function up() {
+        bar.removeEventListener("pointermove", move);
+        bar.removeEventListener("pointerup", up);
+        bar.removeEventListener("pointercancel", up);
+      }
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", up);
+      bar.addEventListener("pointercancel", up);
+    });
+    folderWin.addEventListener("pointerdown", function () { raiseFolder(); });
   }
   function paintFolder() {
     var folder = findFolder(openFolderId);
@@ -412,13 +569,14 @@
         closeFolder();
       };
       deskEl.appendChild(folderWin);
+      bindFolderDrag();
     }
     folderWin.hidden = false;
     folderWin.querySelector("b").textContent = folder.title || "Folder";
     var grid = folderWin.querySelector(".vos-fold-grid");
     grid.innerHTML = "";
     if (!folder.items.length) {
-      grid.innerHTML = "<p class=\"vos-fold-empty\">Empty folder</p>";
+      grid.innerHTML = "<p class=\"vos-fold-empty\">Drag apps here</p>";
       return;
     }
     folder.items.forEach(function (id) {
@@ -428,10 +586,73 @@
       btn.type = "button";
       btn.className = "vos-fold-item";
       btn.title = app.title;
+      btn.dataset.app = app.id;
       var glyph = app.iconUrl
         ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
         : iconMarkup(app.kind);
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
+      function choose() {
+        Array.prototype.forEach.call(grid.querySelectorAll(".vos-fold-item"), function (node) {
+          node.classList.remove("is-on");
+        });
+        btn.classList.add("is-on");
+      }
+      btn.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        closeStart();
+        closeCtx();
+        raiseFolder();
+        choose();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var moved = false;
+        var ghost = null;
+        var ended = false;
+        function move(ev) {
+          if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+          moved = true;
+          if (!ghost) {
+            ghost = document.createElement("div");
+            ghost.className = "vos-fold-item vos-fold-ghost";
+            ghost.innerHTML = btn.innerHTML;
+            document.body.appendChild(ghost);
+          }
+          ghost.style.left = (ev.clientX - 42) + "px";
+          ghost.style.top = (ev.clientY - 28) + "px";
+          var over = folderAtPoint(ev.clientX, ev.clientY, {});
+          if (over === folder.id) over = "";
+          markDrop(over);
+        }
+        function up(ev) {
+          if (ended) return;
+          ended = true;
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          window.removeEventListener("pointercancel", up);
+          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          var raw = moved ? folderAtPoint(ev.clientX, ev.clientY, {}) : "";
+          var selfEl = iconEls[folder.id];
+          var onSelf = false;
+          if (selfEl) {
+            var ib = selfEl.getBoundingClientRect();
+            onSelf = ev.clientX >= ib.left - 10 && ev.clientX <= ib.right + 10 && ev.clientY >= ib.top - 10 && ev.clientY <= ib.bottom + 10;
+          }
+          if (raw === folder.id || onSelf) raw = "";
+          clearDropMarks();
+          if (!moved || (!raw && onSelf)) return;
+          if (raw) {
+            addToFolder(raw, [id]);
+            return;
+          }
+          var box = folderWin.getBoundingClientRect();
+          var inside = ev.clientX >= box.left && ev.clientX <= box.right && ev.clientY >= box.top && ev.clientY <= box.bottom;
+          if (!inside) removeFromFolder(folder.id, id, ev.clientX, ev.clientY);
+        }
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
+      });
       btn.addEventListener("dblclick", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -441,6 +662,7 @@
         e.preventDefault();
         e.stopPropagation();
         closeStart();
+        choose();
         showCtx({
           id: app.id,
           title: app.title,
@@ -456,16 +678,22 @@
   }
   function openFolder(id) {
     if (!findFolder(id)) return;
+    var same = openFolderId === id && folderWin && !folderWin.hidden;
     openFolderId = id;
     paintFolder();
-    placeFolder(id);
+    if (!same) placeFolder(id);
+    raiseFolder();
+    markOpenFolder();
   }
   function renderDesktopIcons() {
     if (!iconsEl || !deskEl) return;
     closeCtx();
     iconsEl.innerHTML = "";
     iconEls = {};
+    var used = [];
+    var live = {};
     desktopItems().forEach(function (app, index) {
+      live[app.id] = true;
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "vos-icon";
@@ -478,7 +706,8 @@
           ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">'
           : iconMarkup(app.kind));
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
-      var spot = iconPos(index, app.id);
+      var spot = iconPos(index, app.id, used);
+      used.push(spot);
       btn.style.left = spot.x + "px";
       btn.style.top = spot.y + "px";
       iconEls[app.id] = btn;
@@ -523,20 +752,30 @@
             el.classList.add("is-moving");
           });
           var over = folderAtPoint(ev.clientX, ev.clientY, ignore);
-          Object.keys(iconEls).forEach(function (id) {
-            if (iconEls[id]) iconEls[id].classList.toggle("is-drop", id === over);
-          });
+          markDrop(over);
         }
+        var ended = false;
         function up(ev) {
+          if (ended) return;
+          ended = true;
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
+          window.removeEventListener("pointercancel", up);
           var over = moved ? folderAtPoint(ev.clientX, ev.clientY, ignore) : "";
-          Object.keys(iconEls).forEach(function (id) {
-            if (iconEls[id]) iconEls[id].classList.remove("is-drop", "is-moving");
+          clearDropMarks();
+          group.forEach(function (id) {
+            var el = iconEls[id];
+            if (el) el.classList.remove("is-moving");
           });
           if (over) {
             var ids = looseIds(group);
             if (!ids.length && !app.folder) ids = [app.id];
+            group.forEach(function (id) {
+              if (ids.indexOf(id) !== -1) return;
+              var el = iconEls[id];
+              if (!el || !moved) return;
+              iconLayout[id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
+            });
             if (ids.length) {
               addToFolder(over, ids);
               return;
@@ -551,6 +790,7 @@
         }
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", up);
       });
       btn.addEventListener("dblclick", function (e) {
         e.preventDefault();
@@ -562,12 +802,16 @@
         e.preventDefault();
         e.stopPropagation();
         closeStart();
-        onlyPick(app.id);
+        if (!picked[app.id]) onlyPick(app.id);
         showCtx(app, e.clientX, e.clientY);
       });
       iconsEl.appendChild(btn);
     });
+    Object.keys(picked).forEach(function (id) {
+      if (!live[id]) delete picked[id];
+    });
     paintPick();
+    markOpenFolder();
   }
   function installApp(info) {
     if (!info || !info.url) return false;
@@ -658,6 +902,7 @@
     focused = id;
     zTop += 1;
     win.el.style.zIndex = String(zTop);
+    if (folderWin) folderWin.classList.remove("is-focus");
     Object.keys(wins).forEach(function (key) {
       wins[key].el.classList.toggle("is-focus", key === id);
     });
@@ -1279,6 +1524,7 @@
       if (e.button !== 0) return;
       if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon") || e.target.closest(".vos-fold"))) return;
       closeStart();
+      closeFolder();
       var x0 = e.clientX;
       var y0 = e.clientY;
       var base = {};
@@ -1382,6 +1628,26 @@
         closeCtx();
         closeFolder();
       }
+      if (e.key !== "F2" || e.repeat) return;
+      var host = e.target;
+      if (host && host.closest && host.closest("input, textarea, .modal-overlay, .vos-win")) return;
+      if (folderWin && !folderWin.hidden && openFolderId) {
+        var chosen = folderWin.querySelector(".vos-fold-item.is-on");
+        if (chosen && chosen.dataset.app) {
+          e.preventDefault();
+          renameInstalled(appById(chosen.dataset.app));
+          return;
+        }
+      }
+      var ids = [];
+      Object.keys(picked).forEach(function (id) { if (picked[id]) ids.push(id); });
+      if (ids.length !== 1) return;
+      var target = null;
+      desktopItems().forEach(function (item) { if (item.id === ids[0]) target = item; });
+      if (!target) return;
+      e.preventDefault();
+      if (target.folder) renameFolder(findFolder(target.id));
+      else renameInstalled(target);
     });
     startWrap.appendChild(startBtn);
     startWrap.appendChild(menu);
@@ -1424,7 +1690,8 @@
       if (act === "new") {
         var box = deskEl.getBoundingClientRect();
         if (!app) {
-          makeFolder(nextFolderName(), [], ctxX - box.left - 28, ctxY - box.top - 16);
+          var spot = freeSpot(ctxX - box.left - 28, ctxY - box.top - 16, {});
+          makeFolder(nextFolderName(), [], spot.x, spot.y);
           return;
         }
         if (app.folder) return;
@@ -1443,13 +1710,25 @@
     installed.forEach(function (app) { ensureInstalledWindow(app); });
     renderDesktopIcons();
     window.addEventListener("resize", function () {
+      var used = [];
       desktopItems().forEach(function (app, index) {
         var el = iconEls[app.id];
         if (!el) return;
-        var spot = iconPos(index, app.id);
+        var spot = iconPos(index, app.id, used);
+        used.push(spot);
         el.style.left = spot.x + "px";
         el.style.top = spot.y + "px";
       });
+      if (openFolderId && folderWin && !folderWin.hidden && deskEl) {
+        var rect = folderWin.getBoundingClientRect();
+        var desk = deskEl.getBoundingClientRect();
+        var maxX = Math.max(8, desk.width - rect.width - 8);
+        var maxY = Math.max(8, desk.height - 40);
+        var x = Math.max(8, Math.min(rect.left - desk.left, maxX));
+        var y = Math.max(8, Math.min(rect.top - desk.top, maxY));
+        folderWin.style.left = Math.round(x) + "px";
+        folderWin.style.top = Math.round(y) + "px";
+      }
     });
     layoutDefaults();
     paintClock();
@@ -1535,6 +1814,9 @@
     boot.classList.add("done");
     var shell = document.getElementById("veilOS");
     if (shell) shell.classList.add("vos-ready");
+    setTimeout(function () {
+      if (shell) shell.classList.add("vos-settled");
+    }, 700);
     motionOn = motionOk();
     setTimeout(function () {
       boot.remove();
