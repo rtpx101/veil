@@ -6345,7 +6345,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=23";
+  link.href = BASE + "/veilos.css?v=24";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6356,7 +6356,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=23";
+  script.src = BASE + "/veilos.js?v=24";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -6438,6 +6438,40 @@ on("time24Switch", () => {
   highlightTheme();
   startWelcomeClock();
 });
+function fillDesktopSettings() {
+  setSwitch(document.getElementById("osBatterySwitch"), !settings || settings.osBatteryPct !== false);
+  const sound = document.getElementById("osTimerSound");
+  if (sound && document.activeElement !== sound) sound.value = (settings && settings.osTimerSound) || "chime";
+}
+on("osBatterySwitch", () => {
+  settings.osBatteryPct = settings.osBatteryPct === false;
+  setSwitch(document.getElementById("osBatterySwitch"), settings.osBatteryPct !== false);
+  save();
+  try { if (window.veilOSPaintBattery) window.veilOSPaintBattery(); } catch (err) {}
+});
+on("osWallPick", () => {
+  const input = document.getElementById("osWallFile");
+  if (input) input.click();
+});
+on("osWallReset", () => {
+  if (window.veilOSResetWall) window.veilOSResetWall();
+});
+const osWallFile = document.getElementById("osWallFile");
+if (osWallFile) {
+  osWallFile.addEventListener("change", () => {
+    const file = osWallFile.files && osWallFile.files[0];
+    osWallFile.value = "";
+    if (!file || String(file.type || "").indexOf("image/") !== 0) return;
+    if (window.veilOSSetWall) window.veilOSSetWall(file);
+  });
+}
+const osTimerSound = document.getElementById("osTimerSound");
+if (osTimerSound) {
+  osTimerSound.addEventListener("change", () => {
+    settings.osTimerSound = osTimerSound.value || "chime";
+    save();
+  });
+}
 document.querySelectorAll("[data-settings-tab]").forEach(value2 => {
   value2.addEventListener("click", () => {
     const token = value2.getAttribute("data-settings-tab");
@@ -6447,6 +6481,7 @@ document.querySelectorAll("[data-settings-tab]").forEach(value2 => {
     document.querySelectorAll("[data-settings-page]").forEach(value => {
       value.classList.toggle("active", value.getAttribute("data-settings-page") === token);
     });
+    if (token === "desktop") fillDesktopSettings();
   });
 });
 const animStyle = document.getElementById("animStyle");

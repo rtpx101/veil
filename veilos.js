@@ -4,7 +4,10 @@
     { id: "browser", title: "Browser", icon: "favi" },
     { id: "store", title: "App Store", icon: "store" },
     { id: "chat", title: "Chat", icon: "chat" },
-    { id: "settings", title: "Settings", icon: "settings" }
+    { id: "settings", title: "Settings", icon: "settings" },
+    { id: "calc", title: "Calculator", icon: "calc" },
+    { id: "timer", title: "Timer", icon: "clock" },
+    { id: "editor", title: "Code", icon: "editor" }
   ];
   var wins = {};
   var focused = null;
@@ -41,6 +44,9 @@
     if (kind === "games") return '<img draggable="false" src="' + IMG + 'games.svg" alt="">';
     if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
     if (kind === "chat") return '<img class="vos-chat" draggable="false" src="' + IMG + 'chat.svg" alt="">';
+    if (kind === "calc") return '<img draggable="false" src="' + IMG + 'calculator.svg" alt="">';
+    if (kind === "clock") return '<img draggable="false" src="' + IMG + 'clock.svg" alt="">';
+    if (kind === "editor") return '<img draggable="false" src="' + IMG + 'editor.svg" alt="">';
     return svgChat();
   }
   function sharpIcon(url) {
@@ -79,10 +85,11 @@
   }
   function fileDb() {
     return new Promise(function (resolve, reject) {
-      var req = indexedDB.open("veil_os_files", 1);
+      var req = indexedDB.open("veil_os_files", 2);
       req.onupgradeneeded = function () {
         var db = req.result;
         if (!db.objectStoreNames.contains("files")) db.createObjectStore("files", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("wall")) db.createObjectStore("wall", { keyPath: "id" });
       };
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
@@ -173,6 +180,164 @@
       return null;
     });
   }
+  function addCodeFile(info) {
+    info = info || {};
+    var title = String(info.title || "untitled.txt").trim().slice(0, 64) || "untitled.txt";
+    var existing = null;
+    if (info.id) files.forEach(function (item) { if (item.id === info.id) existing = item; });
+    var file = existing || {
+      id: "code_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      kind: "code"
+    };
+    file.title = title;
+    file.kind = "code";
+    file.lang = info.lang || file.lang || "javascript";
+    file.text = String(info.text || "");
+    file.input = String(info.input || "");
+    if (!existing) {
+      files.push(file);
+      iconLayout[file.id] = freeSpot(24, 16, {});
+    }
+    return saveFileRecord(file).then(function () {
+      saveLayout();
+      renderDesktopIcons();
+      if (openFolderId) paintFolder();
+      return file;
+    }).catch(function () { return null; });
+  }
+  var deviceWallUrl = "";
+  function readWallBlob() {
+    return fileDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction("wall", "readonly").objectStore("wall").get("current");
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+  function writeWallBlob(blob) {
+    return fileDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction("wall", "readwrite");
+        tx.objectStore("wall").put({ id: "current", blob: blob });
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function refreshDeviceWall() {
+    return readWallBlob().then(function (rec) {
+      if (deviceWallUrl) URL.revokeObjectURL(deviceWallUrl);
+      deviceWallUrl = rec && rec.blob ? URL.createObjectURL(rec.blob) : "";
+      paintDesk();
+    });
+  }
+  var pins = [];
+  function loadPins() {
+    pins = [];
+    try { pins = JSON.parse(localStorage.getItem("veil_os_pins") || "[]"); } catch (err) { pins = []; }
+    if (!Array.isArray(pins)) pins = [];
+  }
+  function savePins() {
+    try { localStorage.setItem("veil_os_pins", JSON.stringify(pins)); } catch (err) {}
+  }
+  function togglePin(id) {
+    if (!id) return;
+    var at = pins.indexOf(id);
+    if (at === -1) pins.push(id);
+    else pins.splice(at, 1);
+    savePins();
+    renderTasks();
+  }
+  function gridSnap(x, y) {
+    var h = deskEl ? deskEl.clientHeight : 0;
+    if (!h) h = Math.max(240, window.innerHeight - 48);
+    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    var col = Math.max(0, Math.round((x - 14) / 96));
+    var row = Math.max(0, Math.min(rows - 1, Math.round((y - 16) / 96)));
+    return clampIcon(14 + col * 96, 16 + row * 96);
+  }
+  function itemSpot(item, index) {
+    var saved = iconLayout[item.id];
+    if (saved && isFinite(saved.x) && isFinite(saved.y)) return clampIcon(saved.x, saved.y);
+    var h = deskEl ? deskEl.clientHeight : 0;
+    if (!h) h = Math.max(240, window.innerHeight - 48);
+    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    return clampIcon(14 + Math.floor(index / rows) * 96, 16 + (index % rows) * 96);
+  }
+  function nearestOpen(x, y, ignore, extra) {
+    var spots = occupiedSpots(ignore).concat(extra || []);
+    function taken(p) {
+      var i;
+      for (i = 0; i < spots.length; i++) if (spotsClose(spots[i], p)) return true;
+      return false;
+    }
+    var h = deskEl ? deskEl.clientHeight : 0;
+    var w = deskEl ? deskEl.clientWidth : 0;
+    if (!h) h = Math.max(240, window.innerHeight - 48);
+    if (!w) w = Math.max(320, window.innerWidth);
+    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    var cols = Math.max(1, Math.floor((w - 28) / 96));
+    var startC = Math.max(0, Math.round((x - 14) / 96));
+    var startR = Math.max(0, Math.round((y - 16) / 96));
+    var best = null;
+    var bestD = 1e9;
+    var c;
+    var r;
+    for (c = 0; c < cols + 4; c++) {
+      for (r = 0; r < rows; r++) {
+        var p = clampIcon(14 + c * 96, 16 + r * 96);
+        if (taken(p)) continue;
+        var down = r - startR;
+        if (down < 0) down += rows;
+        var side = Math.abs(c - startC);
+        var d = down * 10 + side * 14 + (c < startC ? 4 : 0);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+    }
+    return best || clampIcon(x, y);
+  }
+  function pushOccupant(spot, ignore, extra) {
+    var items = desktopItems();
+    var victim = "";
+    var i;
+    for (i = 0; i < items.length; i++) {
+      if (ignore[items[i].id] || victim) continue;
+      if (spotsClose(itemSpot(items[i], i), spot)) victim = items[i].id;
+    }
+    if (!victim) return;
+    ignore[victim] = true;
+    var next = nearestOpen(spot.x, spot.y + 96, ignore, (extra || []).concat([spot]));
+    iconLayout[victim] = next;
+    if (iconEls[victim]) {
+      iconEls[victim].style.left = next.x + "px";
+      iconEls[victim].style.top = next.y + "px";
+    }
+  }
+  function settleDragged(group) {
+    var ignore = {};
+    var used = [];
+    group.forEach(function (id) { ignore[id] = true; });
+    group.forEach(function (id) {
+      var el = iconEls[id];
+      if (!el) return;
+      var spot = gridSnap(parseFloat(el.style.left) || 0, parseFloat(el.style.top) || 0);
+      var guard = 0;
+      while (guard < 40) {
+        var clash = false;
+        var i;
+        for (i = 0; i < used.length; i++) if (spotsClose(used[i], spot)) clash = true;
+        if (!clash) break;
+        spot = freeSpot(spot.x, spot.y + 96, ignore);
+        guard += 1;
+      }
+      pushOccupant(spot, ignore, used);
+      used.push(spot);
+      iconLayout[id] = spot;
+      el.style.left = spot.x + "px";
+      el.style.top = spot.y + "px";
+    });
+  }
   function deleteFile(id) {
     var file = null;
     files.forEach(function (item) { if (item.id === id) file = item; });
@@ -199,9 +364,10 @@
       if (focused === id) focused = null;
     }
     try {
-      if (settings && settings.backgroundUrl === "veil-file:" + id) {
-        settings.backgroundUrl = "";
-        if (settings.animStyle === "custom") settings.animEnabled = false;
+      if (settings && (settings.backgroundUrl === "veil-file:" + id || settings.osWallId === id)) {
+        settings.backgroundUrl = settings.backgroundUrl === "veil-file:" + id ? "" : settings.backgroundUrl;
+        if (settings.osWallId === id) settings.osWall = "default";
+        if (settings.animStyle === "custom" && !settings.backgroundUrl) settings.animEnabled = false;
         if (typeof highlightTheme === "function") highlightTheme();
         if (typeof save === "function") save();
         if (typeof applyNewTabBackground === "function") applyNewTabBackground();
@@ -219,6 +385,8 @@
       settings.animEnabled = true;
       settings.animStyle = "custom";
       settings.backgroundUrl = "veil-file:" + id;
+      settings.osWall = "file";
+      settings.osWallId = id;
       if (typeof highlightTheme === "function") highlightTheme();
       if (typeof save === "function") save();
       if (typeof applyNewTabBackground === "function") applyNewTabBackground();
@@ -253,6 +421,10 @@
       list.push({ id: app.id, title: app.title, builtin: false, url: app.url, iconUrl: app.icon });
     });
     files.forEach(function (file) {
+      if (file.kind === "code") {
+        list.push({ id: file.id, title: file.title, builtin: false, file: true, code: true, kind: "editor", lang: file.lang || "javascript", text: file.text || "", input: file.input || "" });
+        return;
+      }
       list.push({ id: file.id, title: file.title, builtin: false, file: true, kind: "image", iconUrl: fileUrls[file.id] || "" });
     });
     return list;
@@ -541,8 +713,9 @@
       html += app.builtin
         ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\"><span>Rename</span></button>"
         : "<button type=\"button\" data-act=\"rename\"><span>Rename</span></button>";
+      if (!app.file && !app.folder) html += "<button type=\"button\" data-act=\"pin\"><span>" + (pins.indexOf(app.id) === -1 ? "Pin to taskbar" : "Unpin from taskbar") + "</span></button>";
       html += "<button type=\"button\" data-act=\"out\"><span>Remove from folder</span></button>";
-      if (app.file) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
+      if (app.file && !app.code) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
       if (app.file) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"deletefile\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Delete</span></button>";
       else if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     } else if (app.folder) {
@@ -552,12 +725,13 @@
       html += app.builtin
         ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\"><span>Rename</span></button>"
         : "<button type=\"button\" data-act=\"rename\"><span>Rename</span></button>";
+      if (!app.file) html += "<button type=\"button\" data-act=\"pin\"><span>" + (pins.indexOf(app.id) === -1 ? "Pin to taskbar" : "Unpin from taskbar") + "</span></button>";
       if (folders.length) html += "<div class=\"vos-ctx-gap\"></div>";
       folders.forEach(function (folder) {
         html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\"><span>Move to " + esc(folder.title || "Folder") + "</span></button>";
       });
       html += "<button type=\"button\" data-act=\"new\"><span>New folder</span></button>";
-      if (app.file) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
+      if (app.file && !app.code) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
       if (app.file) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"deletefile\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Delete</span></button>";
       else if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     }
@@ -582,7 +756,7 @@
     if (!current) return;
     var overlay = document.createElement("div");
     overlay.className = "modal-overlay rename-modal";
-    overlay.innerHTML = "<div class=\"modal-box\"><h2>" + (file ? "Rename image" : "Rename app") + "</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
+    overlay.innerHTML = "<div class=\"modal-box\"><h2>" + (file ? (file.kind === "code" ? "Rename file" : "Rename image") : "Rename app") + "</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
     document.body.appendChild(overlay);
     var input = overlay.querySelector("#vosRenameInput");
     input.focus();
@@ -626,6 +800,12 @@
     }
     if (app.builtin) {
       openApp(app.id);
+      return;
+    }
+    if (app.code) {
+      openApp("editor");
+      ensureEditor(wins.editor && wins.editor.body);
+      editorOpenSaved(app);
       return;
     }
     if (app.file) {
@@ -851,6 +1031,7 @@
           title: app.title,
           builtin: app.builtin,
           file: !!app.file,
+          code: !!app.code,
           url: app.url,
           iconUrl: app.iconUrl,
           kind: app.kind,
@@ -970,7 +1151,11 @@
             if (!el || !moved) return;
             iconLayout[id] = { x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0 };
           });
-          if (moved) saveLayout();
+          if (moved) {
+            settleDragged(group);
+            saveLayout();
+            renderDesktopIcons();
+          }
         }
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
@@ -1019,6 +1204,8 @@
     var current = null;
     installed.forEach(function (item) { if (item.id === id) current = item; });
     if (!current) return;
+    var at = pins.indexOf(id);
+    if (at !== -1) { pins.splice(at, 1); savePins(); }
     installed = installed.filter(function (item) { return item.id !== id; });
     folders.forEach(function (folder) {
       folder.items = folder.items.filter(function (item) { return item !== id; });
@@ -1101,7 +1288,8 @@
       list.push({ id: app.id, title: app.title, iconUrl: app.icon });
     });
     files.forEach(function (file) {
-      list.push({ id: file.id, title: file.title, iconUrl: fileUrls[file.id] || "" });
+      if (file.kind === "code") list.push({ id: file.id, title: file.title, icon: "editor" });
+      else list.push({ id: file.id, title: file.title, iconUrl: fileUrls[file.id] || "" });
     });
     return list;
   }
@@ -1112,7 +1300,8 @@
       live[app.id] = true;
       var win = wins[app.id];
       var btn = tasksEl.querySelector('[data-app="' + app.id + '"]');
-      if (!win || !win.running) {
+      var pinned = pins.indexOf(app.id) !== -1;
+      if (!win || (!win.running && !pinned)) {
         if (btn) btn.remove();
         return;
       }
@@ -1141,9 +1330,9 @@
       }
       var label = btn.querySelector("span");
       if (label) label.textContent = app.title;
-      var dim = win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing");
-      btn.classList.toggle("on", focused === app.id && !dim && !win.el.classList.contains("is-closing"));
-      btn.classList.toggle("is-min", dim);
+      var dim = win.running && (win.el.classList.contains("is-min") || win.el.classList.contains("is-minimizing"));
+      btn.classList.toggle("on", win.running && focused === app.id && !dim && !win.el.classList.contains("is-closing"));
+      btn.classList.toggle("is-min", dim || !win.running);
     });
     Array.prototype.forEach.call(tasksEl.querySelectorAll(".vos-taskbtn"), function (btn) {
       if (!live[btn.dataset.app]) btn.remove();
@@ -1362,7 +1551,11 @@
       try { fillWispSelect(); } catch (err) {}
       try { startLivePings(); } catch (err) {}
       try { fillChatSettings(); } catch (err) {}
+      try { fillDesktopSettings(); } catch (err) {}
     }
+    if (id === "calc") ensureCalc(win.body);
+    if (id === "timer") ensureTimer(win.body);
+    if (id === "editor") ensureEditor(win.body);
     if (win.installed) ensureProxy(win);
     if (win.file) paintFile(win);
     if (hidden && motionOn) {
@@ -1476,14 +1669,77 @@
     syncFull();
   }
 
+  function snapZone(ev) {
+    if (!deskEl) return "";
+    var desk = deskEl.getBoundingClientRect();
+    var x = ev.clientX - desk.left;
+    var y = ev.clientY - desk.top;
+    var edge = 22;
+    var left = x <= edge;
+    var right = x >= desk.width - edge;
+    var top = y <= edge;
+    var bottom = y >= desk.height - edge;
+    if (left && top) return "tl";
+    if (right && top) return "tr";
+    if (left && bottom) return "bl";
+    if (right && bottom) return "br";
+    if (left) return "left";
+    if (right) return "right";
+    if (top) return "top";
+    return "";
+  }
+  function snapBox(zone) {
+    var desk = deskEl.getBoundingClientRect();
+    var w = desk.width;
+    var h = desk.height;
+    var hw = Math.round(w / 2);
+    var hh = Math.round(h / 2);
+    if (zone === "left") return { x: 0, y: 0, w: hw, h: h };
+    if (zone === "right") return { x: hw, y: 0, w: w - hw, h: h };
+    if (zone === "tl") return { x: 0, y: 0, w: hw, h: hh };
+    if (zone === "tr") return { x: hw, y: 0, w: w - hw, h: hh };
+    if (zone === "bl") return { x: 0, y: hh, w: hw, h: h - hh };
+    if (zone === "br") return { x: hw, y: hh, w: w - hw, h: h - hh };
+    return null;
+  }
+  function showSnap(zone) {
+    var preview = deskEl && deskEl.querySelector(".vos-snap");
+    if (!preview) return;
+    if (!zone) { preview.style.display = "none"; return; }
+    if (zone === "top") {
+      preview.style.display = "block";
+      preview.style.left = "8px";
+      preview.style.top = "8px";
+      preview.style.width = Math.max(0, deskEl.clientWidth - 16) + "px";
+      preview.style.height = Math.max(0, deskEl.clientHeight - 16) + "px";
+      return;
+    }
+    var box = snapBox(zone);
+    if (!box) { preview.style.display = "none"; return; }
+    preview.style.display = "block";
+    preview.style.left = (box.x + 6) + "px";
+    preview.style.top = (box.y + 6) + "px";
+    preview.style.width = Math.max(0, box.w - 12) + "px";
+    preview.style.height = Math.max(0, box.h - 12) + "px";
+  }
   function bindDrag(win, title) {
     title.addEventListener("pointerdown", function (e) {
       if (e.button !== 0 || e.target.closest("button")) return;
-      if (win.el.classList.contains("is-max")) return;
       e.preventDefault();
       focusWin(win.id);
-      try { title.setPointerCapture(e.pointerId); } catch (err) {}
       var desk = deskEl.getBoundingClientRect();
+      if (win.el.classList.contains("is-max")) {
+        var oldW = parseFloat(win.el.dataset.rw) || Math.round(desk.width * 0.56);
+        var oldH = parseFloat(win.el.dataset.rh) || Math.round(desk.height * 0.62);
+        win.el.classList.remove("is-max");
+        win.el.style.width = oldW + "px";
+        win.el.style.height = oldH + "px";
+        win.el.style.left = Math.max(0, e.clientX - desk.left - oldW / 2) + "px";
+        win.el.style.top = Math.max(0, e.clientY - desk.top - 18) + "px";
+        syncFull();
+      }
+      try { title.setPointerCapture(e.pointerId); } catch (err) {}
+      desk = deskEl.getBoundingClientRect();
       var rect = win.el.getBoundingClientRect();
       var ox = e.clientX - rect.left;
       var oy = e.clientY - rect.top;
@@ -1494,13 +1750,35 @@
         y = Math.max(0, Math.min(y, desk.height - 36));
         win.el.style.left = x + "px";
         win.el.style.top = y + "px";
+        showSnap(snapZone(ev));
       }
-      function up() {
+      function up(ev) {
         title.removeEventListener("pointermove", move);
         title.removeEventListener("pointerup", up);
+        title.removeEventListener("pointercancel", up);
+        var zone = ev.type === "pointercancel" ? "" : snapZone(ev);
+        showSnap("");
+        if (!zone) { win.snap = ""; return; }
+        if (zone === "top") {
+          if (!win.el.classList.contains("is-max")) toggleMax(win.id);
+          win.snap = "top";
+          return;
+        }
+        if (!win.el.classList.contains("is-max")) {
+          win.el.dataset.rx = win.el.style.left;
+          win.el.dataset.ry = win.el.style.top;
+          win.el.dataset.rw = win.el.style.width;
+          win.el.dataset.rh = win.el.style.height;
+        } else win.el.classList.remove("is-max");
+        var box = snapBox(zone);
+        if (!box) return;
+        place(win.el, box.x, box.y, box.w, box.h);
+        win.snap = zone;
+        syncFull();
       }
       title.addEventListener("pointermove", move);
       title.addEventListener("pointerup", up);
+      title.addEventListener("pointercancel", up);
     });
     title.addEventListener("dblclick", function (e) {
       if (e.target.closest("button")) return;
@@ -1512,6 +1790,7 @@
     win.el.querySelectorAll(".vos-rz").forEach(function (handle) {
       handle.addEventListener("pointerdown", function (e) {
         if (e.button !== 0 || win.el.classList.contains("is-max")) return;
+        win.snap = "";
         e.preventDefault();
         e.stopPropagation();
         focusWin(win.id);
@@ -1713,6 +1992,720 @@
     }
   }
 
+  var timerJob = 0;
+  var battMgr = null;
+  var editorState = null;
+
+  var shellListeners = [];
+  function shellListen(target, type, fn) {
+    target.addEventListener(type, fn);
+    shellListeners.push(target, type, fn);
+  }
+  function clearShellListeners() {
+    var i;
+    for (i = 0; i < shellListeners.length; i += 3) shellListeners[i].removeEventListener(shellListeners[i + 1], shellListeners[i + 2]);
+    shellListeners = [];
+  }
+  function shutdownDesktop() {
+    closeStart();
+    closeCtx();
+    try { if (typeof closePanels === "function") closePanels(); } catch (err) {}
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = 0; }
+    if (timerJob) { clearInterval(timerJob); timerJob = 0; }
+    if (battMgr) {
+      try {
+        battMgr.removeEventListener("levelchange", paintBatteryDesk);
+        battMgr.removeEventListener("chargingchange", paintBatteryDesk);
+      } catch (err) {}
+    }
+    clearShellListeners();
+    var deskTab = document.querySelector('[data-settings-tab="desktop"]');
+    if (deskTab && deskTab.classList.contains("active")) {
+      var custom = document.querySelector('[data-settings-tab="custom"]');
+      if (custom) custom.click();
+    }
+    var settingsPanel = document.getElementById("settingsPanel");
+    var saver = document.getElementById("veilSaver");
+    var browser = document.getElementById("browser");
+    if (browser) {
+      if (saver && saver.parentNode) saver.parentNode.insertBefore(browser, saver);
+      else document.body.appendChild(browser);
+    }
+    if (settingsPanel) {
+      if (saver && saver.parentNode) saver.parentNode.insertBefore(settingsPanel, saver.nextSibling);
+      else document.body.appendChild(settingsPanel);
+    }
+    var shell = document.getElementById("veilOS");
+    if (shell) shell.remove();
+    if (ctxEl && ctxEl.parentNode) ctxEl.parentNode.removeChild(ctxEl);
+    ctxEl = null;
+    document.body.classList.remove("veil-os");
+    wins = {};
+    focused = null;
+    deskEl = null;
+    tasksEl = null;
+    iconsEl = null;
+    iconEls = {};
+    folderWin = null;
+    openFolderId = null;
+    editorState = null;
+    window.__veilOsStarted = false;
+    window.__veilOsBooting = false;
+  }
+  function realBattery(b) {
+    if (!b || typeof b.level !== "number") return false;
+    if (b.charging === true && b.level >= 0.995 && b.chargingTime === 0 && !isFinite(b.dischargingTime)) return false;
+    return true;
+  }
+  function paintBatteryDesk() {
+    var el = document.getElementById("vosBatt");
+    if (!el) return;
+    if (!realBattery(battMgr)) { el.hidden = true; return; }
+    el.hidden = false;
+    var charging = !!battMgr.charging;
+    var pct = Math.max(0, Math.min(100, Math.round(battMgr.level * 100)));
+    var step = Math.max(0, Math.min(100, Math.round(pct / 5) * 5));
+    var src = IMG + "battery/" + (charging ? "charging/batteryCharge" : "normal/battery") + step + ".svg";
+    var img = el.querySelector("img");
+    if (img && img.getAttribute("src") !== src) img.src = src;
+    var state = el.querySelector(".vos-batt-state");
+    if (state) state.textContent = charging ? "Charging" : "Not charging";
+    var num = el.querySelector(".vos-batt-pct");
+    var showPct = true;
+    try { showPct = !settings || settings.osBatteryPct !== false; } catch (err) {}
+    if (num) {
+      num.hidden = !showPct;
+      num.textContent = pct + "%";
+    }
+    el.title = (charging ? "Charging" : "Not charging") + (showPct ? ", " + pct + "%" : "");
+  }
+  function bootBattery() {
+    if (!navigator.getBattery) return;
+    navigator.getBattery().then(function (b) {
+      battMgr = b;
+      paintBatteryDesk();
+      b.addEventListener("levelchange", paintBatteryDesk);
+      b.addEventListener("chargingchange", paintBatteryDesk);
+    }).catch(function () {});
+  }
+  var timerAudio = null;
+  function primeTimerAudio() {
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    try {
+      if (!timerAudio) timerAudio = new AudioCtx();
+      if (timerAudio.state === "suspended") timerAudio.resume();
+    } catch (err) { return null; }
+    return timerAudio;
+  }
+  function playTimerSound() {
+    var kind = "chime";
+    try { kind = (settings && settings.osTimerSound) || "chime"; } catch (err) {}
+    if (kind === "none") return;
+    var ctx = primeTimerAudio();
+    if (!ctx) return;
+    try {
+      function tone(freq, at, dur, type) {
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = type || "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+        gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + at);
+        osc.stop(ctx.currentTime + at + dur + 0.05);
+      }
+      if (kind === "beep") tone(880, 0, 0.16, "square");
+      else if (kind === "bell") { tone(523, 0, 0.8, "sine"); tone(784, 0.03, 0.9, "sine"); }
+      else { tone(523, 0, 0.15, "sine"); tone(659, 0.16, 0.15, "sine"); tone(784, 0.32, 0.28, "sine"); }
+    } catch (err) {}
+  }
+  function ensureCalc(body) {
+    if (!body || body.dataset.ready === "1") return;
+    body.dataset.ready = "1";
+    body.tabIndex = 0;
+    body.innerHTML = '<div class="vos-calc"><div class="vos-calc-out">0</div><div class="vos-calc-keys"></div></div>';
+    var view = body.querySelector(".vos-calc-out");
+    var keys = body.querySelector(".vos-calc-keys");
+    var acc = null;
+    var entry = "0";
+    var oper = "";
+    var fresh = false;
+    function show() { view.textContent = entry; }
+    function apply(a, b, op) {
+      var x = Number(a);
+      var y = Number(b);
+      var n = y;
+      if (op === "+") n = x + y;
+      else if (op === "−") n = x - y;
+      else if (op === "×") n = x * y;
+      else if (op === "÷") n = y === 0 ? null : x / y;
+      if (n === null || !isFinite(n)) return "Error";
+      return String(Math.round(n * 1e10) / 1e10);
+    }
+    function typeDigit(d) {
+      if (entry === "Error") { entry = "0"; fresh = false; }
+      if (fresh) { entry = d === "." ? "0." : d; fresh = false; show(); return; }
+      if (d === "." && entry.indexOf(".") !== -1) return;
+      entry = entry === "0" && d !== "." ? d : entry + d;
+      if (entry.length > 14) entry = entry.slice(0, 14);
+      show();
+    }
+    function hit(label) {
+      if (label >= "0" && label <= "9" || label === ".") { typeDigit(label); return; }
+      if (label === "AC") { acc = null; entry = "0"; oper = ""; fresh = false; show(); return; }
+      if (label === "±") { if (entry !== "Error") entry = String(Number(entry) * -1); show(); return; }
+      if (label === "%") { if (entry !== "Error") entry = String(Number(entry) / 100); show(); return; }
+      if (label === "=") {
+        if (!oper || acc === null) return;
+        entry = apply(acc, entry, oper);
+        acc = entry === "Error" ? null : Number(entry);
+        oper = "";
+        fresh = true;
+        show();
+        return;
+      }
+      if (oper && acc !== null && !fresh) {
+        entry = apply(acc, entry, oper);
+        if (entry === "Error") { acc = null; oper = ""; fresh = true; show(); return; }
+      }
+      acc = Number(entry);
+      oper = label;
+      fresh = true;
+      show();
+    }
+    [["AC", ""], ["±", ""], ["%", ""], ["÷", "op"], ["7", ""], ["8", ""], ["9", ""], ["×", "op"], ["4", ""], ["5", ""], ["6", ""], ["−", "op"], ["1", ""], ["2", ""], ["3", ""], ["+", "op"], ["0", "zero"], [".", ""], ["=", "eq"]].forEach(function (pair) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = pair[0];
+      if (pair[1]) btn.className = pair[1];
+      btn.onclick = function () { hit(pair[0]); };
+      keys.appendChild(btn);
+    });
+    body.addEventListener("pointerdown", function (e) {
+      if (e.target.closest && e.target.closest("button")) return;
+      body.focus();
+    });
+    body.addEventListener("keydown", function (e) {
+      if (e.target && e.target.closest && e.target.closest("input, textarea")) return;
+      var map = { Enter: "=", Escape: "AC", "*": "×", "/": "÷", "-": "−", "+": "+" };
+      var key = map[e.key] || e.key;
+      if (/^[0-9.]$/.test(key) || key === "=" || key === "+" || key === "−" || key === "×" || key === "÷" || key === "AC") {
+        e.preventDefault();
+        hit(key);
+      }
+    });
+  }
+  function fmtDur(ms) {
+    var n = Math.max(0, Math.floor(ms));
+    var cs = Math.floor(n / 10) % 100;
+    var s = Math.floor(n / 1000) % 60;
+    var m = Math.floor(n / 60000) % 60;
+    var h = Math.floor(n / 3600000);
+    function z(v) { return (v < 10 ? "0" : "") + v; }
+    return (h ? h + ":" : "") + z(m) + ":" + z(s) + "." + z(cs);
+  }
+  function ensureTimer(body) {
+    if (!body || body.dataset.ready === "1") return;
+    body.dataset.ready = "1";
+    body.innerHTML = '<div class="vos-timeapp"><div class="vos-time-modes"><button type="button" data-mode="timer" class="on">Timer</button><button type="button" data-mode="watch">Stopwatch</button></div><div class="vos-time-read" data-read>00:00.00</div><div class="vos-time-set"><input data-h value="0" inputmode="numeric" aria-label="Hours"><input data-m value="1" inputmode="numeric" aria-label="Minutes"><input data-s value="0" inputmode="numeric" aria-label="Seconds"></div><div class="vos-time-actions"><button type="button" data-go>Start</button><button type="button" data-reset>Reset</button><button type="button" data-lap>Lap</button></div><div class="vos-laps" data-laps></div></div>';
+    var mode = "timer";
+    var running = false;
+    var remain = 60000;
+    var endAt = 0;
+    var watchBase = 0;
+    var watchStart = 0;
+    var laps = [];
+    var alarmed = false;
+    var read = body.querySelector("[data-read]");
+    var setRow = body.querySelector(".vos-time-set");
+    var lapBtn = body.querySelector("[data-lap]");
+    var lapsEl = body.querySelector("[data-laps]");
+    function fields() {
+      function n(sel) { return Math.max(0, Math.min(99, parseInt(body.querySelector(sel).value, 10) || 0)); }
+      return ((n("[data-h]") * 60 + n("[data-m]")) * 60 + n("[data-s]")) * 1000;
+    }
+    function paint() {
+      var ms = mode === "timer" ? remain : watchBase + (running ? Date.now() - watchStart : 0);
+      read.textContent = fmtDur(ms);
+      setRow.style.display = mode === "timer" && !running ? "flex" : "none";
+      lapBtn.style.display = mode === "watch" ? "" : "none";
+      body.querySelector("[data-go]").textContent = running ? "Pause" : "Start";
+    }
+    function tick() {
+      if (mode === "timer" && running) {
+        remain = Math.max(0, endAt - Date.now());
+        if (remain <= 0 && !alarmed) {
+          alarmed = true;
+          running = false;
+          playTimerSound();
+        }
+      }
+      paint();
+    }
+    body.querySelectorAll("[data-mode]").forEach(function (btn) {
+      btn.onclick = function () {
+        mode = btn.getAttribute("data-mode");
+        body.querySelectorAll("[data-mode]").forEach(function (other) { other.classList.toggle("on", other === btn); });
+        running = false;
+        paint();
+      };
+    });
+    body.querySelector("[data-go]").onclick = function () {
+      if (mode === "timer") {
+        if (running) { remain = Math.max(0, endAt - Date.now()); running = false; }
+        else {
+          if (remain <= 0) remain = fields();
+          if (remain <= 0) return;
+          alarmed = false;
+          endAt = Date.now() + remain;
+          running = true;
+          primeTimerAudio();
+        }
+      } else if (running) {
+        watchBase += Date.now() - watchStart;
+        running = false;
+      } else {
+        watchStart = Date.now();
+        running = true;
+        primeTimerAudio();
+      }
+      paint();
+    };
+    body.querySelector("[data-reset]").onclick = function () {
+      running = false;
+      alarmed = false;
+      if (mode === "timer") remain = fields() || 60000;
+      else { watchBase = 0; laps = []; lapsEl.innerHTML = ""; }
+      paint();
+    };
+    lapBtn.onclick = function () {
+      var ms = watchBase + (running ? Date.now() - watchStart : 0);
+      laps.unshift(ms);
+      lapsEl.innerHTML = laps.map(function (item, index) { return "<div>Lap " + (laps.length - index) + " · " + fmtDur(item) + "</div>"; }).join("");
+    };
+    ["[data-h]", "[data-m]", "[data-s]"].forEach(function (sel) {
+      body.querySelector(sel).addEventListener("input", function () {
+        if (!running) remain = fields();
+        paint();
+      });
+    });
+    if (timerJob) clearInterval(timerJob);
+    timerJob = setInterval(tick, 50);
+    paint();
+  }
+  var LANGS = [
+    { id: "javascript", name: "JavaScript", ext: "js" },
+    { id: "html", name: "HTML", ext: "html" },
+    { id: "css", name: "CSS", ext: "css" },
+    { id: "markdown", name: "Markdown", ext: "md" },
+    { id: "python", name: "Python", ext: "py" },
+    { id: "lua", name: "Lua", ext: "lua" },
+    { id: "sql", name: "SQL", ext: "sql" },
+    { id: "brainfuck", name: "Brainfuck", ext: "bf" },
+    { id: "processing", name: "Processing (p5.js)", ext: "js" }
+  ];
+  var LANG_KEYS = {
+    javascript: "const let var function return if else for while do switch case break continue new this class extends super try catch finally throw typeof instanceof import export from default async await of in",
+    processing: "const let var function return if else for while setup draw new this class",
+    python: "def class return if elif else for while import from as try except finally with lambda yield pass break continue and or not None True False async await",
+    lua: "function end if then else elseif for while do return local repeat until break and or not nil true false",
+    sql: "select from where insert into values update set delete create table drop join left right inner outer on group by order limit as and or not null primary key",
+    css: "color background background-color border margin padding display flex grid width height font font-size position absolute relative none block inline content hover",
+    html: "",
+    markdown: "",
+    brainfuck: ""
+  };
+  function highlightCode(src, lang) {
+    var raw = String(src || "");
+    var keySrc = Object.prototype.hasOwnProperty.call(LANG_KEYS, lang) ? LANG_KEYS[lang] : LANG_KEYS.javascript;
+    var keys = {};
+    String(keySrc || "").split(" ").forEach(function (word) { if (word) keys[word] = true; });
+    var out = "";
+    var i = 0;
+    function push(text, cls) {
+      var safe = esc(text);
+      out += cls ? '<span class="' + cls + '">' + safe + "</span>" : safe;
+    }
+    while (i < raw.length) {
+      var rest = raw.slice(i);
+      var m = null;
+      if (lang !== "python" && lang !== "sql" && (m = /^\/\*[\s\S]*?\*\//.exec(rest))) { push(m[0], "tok-c"); i += m[0].length; continue; }
+      if (lang !== "python" && lang !== "sql" && (m = /^\/\/[^\n]*/.exec(rest))) { push(m[0], "tok-c"); i += m[0].length; continue; }
+      if (lang === "python" && (m = /^#[^\n]*/.exec(rest))) { push(m[0], "tok-c"); i += m[0].length; continue; }
+      if ((lang === "lua" || lang === "sql") && (m = /^--[^\n]*/.exec(rest))) { push(m[0], "tok-c"); i += m[0].length; continue; }
+      if ((m = /^(?:`(?:\\.|[^`])*`|'(?:\\.|[^'\n])*'|"(?:\\.|[^"\n])*")/.exec(rest))) { push(m[0], "tok-s"); i += m[0].length; continue; }
+      if ((m = /^(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b/.exec(rest))) { push(m[0], "tok-n"); i += m[0].length; continue; }
+      if (lang === "html" && (m = /^<\/?[A-Za-z][^>\n]*>/.exec(rest))) { push(m[0], "tok-k"); i += m[0].length; continue; }
+      if ((m = /^[A-Za-z_][\w]*/.exec(rest))) { push(m[0], keys[m[0]] ? "tok-k" : ""); i += m[0].length; continue; }
+      push(raw.charAt(i), "");
+      i += 1;
+    }
+    return out + "\n";
+  }
+  function loadScriptOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var found = document.querySelector('script[data-vos="' + src + '"]');
+      if (found && found.dataset.ready === "1") { resolve(); return; }
+      var script = found || document.createElement("script");
+      function ok() { script.dataset.ready = "1"; resolve(); }
+      function bad() { reject(new Error("Could not load that runtime.")); }
+      script.addEventListener("load", ok, { once: true });
+      script.addEventListener("error", bad, { once: true });
+      if (!found) {
+        script.src = src;
+        script.dataset.vos = src;
+        document.head.appendChild(script);
+      }
+    });
+  }
+  function runBrainfuck(code, input) {
+    var mem = [];
+    var ptr = 0;
+    var ip = 0;
+    var inn = 0;
+    var out = "";
+    var jumps = {};
+    var stack = [];
+    var i;
+    for (i = 0; i < code.length; i++) {
+      if (code.charAt(i) === "[") stack.push(i);
+      else if (code.charAt(i) === "]") {
+        var open = stack.pop();
+        jumps[open] = i;
+        jumps[i] = open;
+      }
+    }
+    var steps = 0;
+    while (ip < code.length && steps < 1000000) {
+      var c = code.charAt(ip);
+      if (!mem[ptr]) mem[ptr] = 0;
+      if (c === ">") ptr += 1;
+      else if (c === "<") ptr = Math.max(0, ptr - 1);
+      else if (c === "+") mem[ptr] = (mem[ptr] + 1) & 255;
+      else if (c === "-") mem[ptr] = (mem[ptr] + 255) & 255;
+      else if (c === ".") out += String.fromCharCode(mem[ptr]);
+      else if (c === ",") mem[ptr] = inn < input.length ? input.charCodeAt(inn++) : 0;
+      else if (c === "[" && !mem[ptr]) ip = jumps[ip] || ip;
+      else if (c === "]" && mem[ptr]) ip = jumps[ip] || ip;
+      ip += 1;
+      steps += 1;
+    }
+    return { out: out, error: steps >= 1000000 ? "Stopped: too many steps" : "" };
+  }
+  function renderMarkdown(src) {
+    var inCode = false;
+    return String(src || "").split("\n").map(function (line) {
+      if (/^```/.test(line)) { inCode = !inCode; return inCode ? "<pre>" : "</pre>"; }
+      if (inCode) return esc(line);
+      var text = esc(line).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      if (/^### /.test(line)) return "<h3>" + text.slice(4) + "</h3>";
+      if (/^## /.test(line)) return "<h2>" + text.slice(3) + "</h2>";
+      if (/^# /.test(line)) return "<h1>" + text.slice(2) + "</h1>";
+      if (/^- /.test(line)) return "<div>• " + text.slice(2) + "</div>";
+      return "<div>" + (text || "&nbsp;") + "</div>";
+    }).join("");
+  }
+  function editorSync() {
+    if (!editorState) return;
+    var tab = editorState.tabs[editorState.active];
+    var body = editorState.body;
+    if (!tab || !body) return;
+    var area = body.querySelector("[data-code]");
+    var name = body.querySelector("[data-name]");
+    var lang = body.querySelector("[data-lang]");
+    var input = body.querySelector("[data-in]");
+    if (area) tab.text = area.value;
+    if (name) tab.name = name.value.trim().slice(0, 64) || tab.name;
+    if (lang) tab.lang = lang.value;
+    if (input) tab.input = input.value;
+  }
+  function editorPaint() {
+    if (!editorState) return;
+    var body = editorState.body;
+    var tab = editorState.tabs[editorState.active];
+    if (!body || !tab) return;
+    var tabs = body.querySelector("[data-tabs]");
+    tabs.innerHTML = "";
+    editorState.tabs.forEach(function (item, index) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "vos-edit-tab" + (index === editorState.active ? " on" : "");
+      btn.textContent = item.name || "untitled";
+      btn.onclick = function () { editorSync(); editorState.active = index; editorPaint(); };
+      tabs.appendChild(btn);
+    });
+    var add = document.createElement("button");
+    add.type = "button";
+    add.className = "vos-edit-tab";
+    add.textContent = "+";
+    add.onclick = function () {
+      editorSync();
+      editorState.tabs.push({ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" });
+      editorState.active = editorState.tabs.length - 1;
+      editorPaint();
+    };
+    tabs.appendChild(add);
+    body.querySelector("[data-name]").value = tab.name;
+    body.querySelector("[data-lang]").value = tab.lang;
+    body.querySelector("[data-in]").value = tab.input || "";
+    body.querySelector("[data-code]").value = tab.text || "";
+    body.querySelector("[data-hl]").innerHTML = highlightCode(tab.text || "", tab.lang);
+    body.querySelector("[data-out]").textContent = "";
+    body.querySelector("[data-console]").textContent = "";
+    editorState.runId = (editorState.runId || 0) + 1;
+  }
+  function editorOpenSaved(app) {
+    if (!editorState || !app) return;
+    var tabs = editorState.tabs;
+    var i;
+    for (i = 0; i < tabs.length; i++) {
+      if (tabs[i].fileId && tabs[i].fileId === app.id) { editorState.active = i; editorPaint(); return; }
+    }
+    var blank = tabs.length === 1 && !tabs[0].fileId && !tabs[0].text;
+    var tab = blank ? tabs[0] : { fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" };
+    tab.fileId = app.id;
+    tab.name = app.title || tab.name;
+    tab.lang = app.lang || "javascript";
+    tab.text = app.text || "";
+    tab.input = app.input || "";
+    if (!blank) tabs.push(tab);
+    editorState.active = blank ? 0 : tabs.length - 1;
+    editorPaint();
+  }
+  function editorNote(text) {
+    if (!editorState) return;
+    var note = editorState.body.querySelector("[data-note]");
+    if (note) note.textContent = text || "";
+  }
+  function editorSave() {
+    editorSync();
+    var tab = editorState && editorState.tabs[editorState.active];
+    if (!tab) return;
+    addCodeFile({ id: tab.fileId, title: tab.name, lang: tab.lang, text: tab.text, input: tab.input }).then(function (file) {
+      if (!editorState) return;
+      if (!file) { editorNote("Could not save."); return; }
+      tab.fileId = file.id;
+      tab.name = file.title;
+      var name = editorState.body.querySelector("[data-name]");
+      if (name) name.value = file.title;
+      var tabs = editorState.body.querySelectorAll(".vos-edit-tab");
+      if (tabs[editorState.active]) tabs[editorState.active].textContent = file.title;
+      editorNote("Saved to the desktop.");
+    });
+  }
+  function editorFrame(html) {
+    var out = editorState.body.querySelector("[data-out]");
+    out.innerHTML = "";
+    var frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.style.cssText = "width:100%;height:100%;border:0;background:#fff";
+    frame.srcdoc = html;
+    out.appendChild(frame);
+  }
+  function editorRun() {
+    editorSync();
+    var tab = editorState.tabs[editorState.active];
+    var out = editorState.body.querySelector("[data-out]");
+    var con = editorState.body.querySelector("[data-console]");
+    out.textContent = "";
+    con.textContent = "";
+    editorState.runId = (editorState.runId || 0) + 1;
+    var runId = editorState.runId;
+    function live() { return !!(editorState && editorState.runId === runId && out.isConnected); }
+    editorNote("Running…");
+    var code = tab.text || "";
+    var input = tab.input || "";
+    if (tab.lang === "javascript") {
+      var blob = new Blob(["self.onmessage=function(e){var input=e.data.input;var logs=[];console.log=function(){var t=[].join.call(arguments,' ');logs.push(t);self.postMessage({type:'log',text:t});};try{var result=eval(e.data.code);if(result&&typeof result.then==='function'){result.then(function(v){self.postMessage({type:'done',value:v==null?'':String(v)});},function(err){self.postMessage({type:'error',text:String(err)});});}else self.postMessage({type:'done',value:result==null?'':String(result)});}catch(err){self.postMessage({type:'error',text:String(err&&err.stack||err)});}};"], { type: "text/javascript" });
+      var url = URL.createObjectURL(blob);
+      var worker = new Worker(url);
+      var timer = setTimeout(function () {
+        worker.terminate();
+        if (!live()) return;
+        con.textContent += "Stopped: took too long\n";
+        editorNote("Stopped");
+      }, 8000);
+      worker.onmessage = function (ev) {
+        if (!live()) { clearTimeout(timer); worker.terminate(); return; }
+        var data = ev.data || {};
+        if (data.type === "log") con.textContent += data.text + "\n";
+        if (data.type === "done") { out.textContent = data.value || ""; editorNote("Finished"); clearTimeout(timer); worker.terminate(); }
+        if (data.type === "error") { con.textContent += data.text + "\n"; editorNote("Error"); clearTimeout(timer); worker.terminate(); }
+      };
+      worker.onerror = function (ev) {
+        if (!live()) return;
+        con.textContent += String(ev.message || ev) + "\n";
+        editorNote("Error");
+        clearTimeout(timer);
+      };
+      worker.postMessage({ code: code, input: input });
+      return;
+    }
+    if (tab.lang === "html") {
+      editorFrame("<script>window.onerror=function(m){parent.postMessage({veilOut:1,type:'error',text:String(m)},'*');};['log','warn','error'].forEach(function(k){var old=console[k];console[k]=function(){parent.postMessage({veilOut:1,type:'log',text:[].join.call(arguments,' ')},'*');if(old)old.apply(console,arguments);};});<\/script>" + code.replace(/<\/script/gi, "<\\/script"));
+      editorNote("Preview");
+      return;
+    }
+    if (tab.lang === "css") {
+      editorFrame("<style>" + code.replace(/<\/style/gi, "") + "</style><body style='margin:0;background:#111;color:#eee;font-family:sans-serif'><div style='padding:16px'><h1>Heading</h1><p>Sample paragraph for this stylesheet.</p><button>Button</button><a href='#'>Link</a></div>");
+      editorNote("Preview");
+      return;
+    }
+    if (tab.lang === "markdown") {
+      out.innerHTML = renderMarkdown(code);
+      editorNote("Rendered");
+      return;
+    }
+    if (tab.lang === "brainfuck") {
+      var bf = runBrainfuck(code, input);
+      out.textContent = bf.out;
+      if (bf.error) con.textContent = bf.error;
+      editorNote(bf.error ? "Stopped" : "Finished");
+      return;
+    }
+    if (tab.lang === "python") {
+      editorNote("Loading Python…");
+      var pyUrl = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js";
+      loadScriptOnce(pyUrl).then(function () {
+        if (!editorState.py) editorState.py = window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" });
+        return editorState.py;
+      }).then(function (py) {
+        if (!live()) return;
+        var logs = [];
+        py.setStdout({ batched: function (text) { logs.push(text); } });
+        py.setStderr({ batched: function (text) { logs.push(text); } });
+        return py.runPythonAsync("import sys\nfrom io import StringIO\nsys.stdin = StringIO(" + JSON.stringify(input) + ")\n").then(function () {
+          return py.runPythonAsync(code);
+        }).then(function (value) {
+          if (!live()) return;
+          out.textContent = value == null ? "" : String(value);
+          con.textContent = logs.join("");
+          editorNote("Finished");
+        });
+      }).catch(function (err) {
+        if (!live()) return;
+        con.textContent = String(err && err.message || err);
+        editorNote("Python could not run");
+      });
+      return;
+    }
+    if (tab.lang === "lua") {
+      editorNote("Loading Lua…");
+      loadScriptOnce("https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js").then(function () {
+        if (!live()) return;
+        var fengari = window.fengari;
+        var lua = fengari.lua;
+        var lauxlib = fengari.lauxlib;
+        var L = lauxlib.luaL_newstate();
+        fengari.lualib.luaL_openlibs(L);
+        var logs = [];
+        if (lua.lua_pushjsfunction) {
+          lua.lua_pushjsfunction(L, function (LL) {
+            var n = lua.lua_gettop(LL);
+            var parts = [];
+            var i;
+            for (i = 1; i <= n; i++) {
+              lauxlib.luaL_tolstring(LL, i, null);
+              var str = lua.lua_tostring(LL, -1);
+              parts.push(str ? fengari.to_jsstring(str) : "");
+              lua.lua_pop(LL, 1);
+            }
+            logs.push(parts.join("\t"));
+            return 0;
+          });
+          lua.lua_setglobal(L, fengari.to_luastring("print"));
+        }
+        lua.lua_pushstring(L, fengari.to_luastring(input));
+        lua.lua_setglobal(L, fengari.to_luastring("input"));
+        var prelude = "local __veil_src = input or ''\nlocal __veil_at = 1\nfunction io.read(...)\n  if __veil_at > #__veil_src then return nil end\n  local nl = string.find(__veil_src, '\\n', __veil_at, true)\n  local line\n  if nl then line = string.sub(__veil_src, __veil_at, nl - 1); __veil_at = nl + 1 else line = string.sub(__veil_src, __veil_at); __veil_at = #__veil_src + 1 end\n  return line\nend\n";
+        var status = lauxlib.luaL_dostring(L, fengari.to_luastring(prelude + code));
+        if (status !== 0) {
+          var msg = "Lua error";
+          try { msg = fengari.to_jsstring(lua.lua_tostring(L, -1)) || msg; } catch (err) {}
+          con.textContent = msg;
+        } else con.textContent = logs.join("\n");
+        editorNote(status === 0 ? "Finished" : "Error");
+      }).catch(function (err) {
+        if (!live()) return;
+        con.textContent = String(err && err.message || err);
+        editorNote("Lua could not run");
+      });
+      return;
+    }
+    if (tab.lang === "sql") {
+      editorNote("Loading SQL…");
+      loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.js").then(function () {
+        if (!editorState.sql) editorState.sql = window.initSqlJs({ locateFile: function (file) { return "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/" + file; } });
+        return editorState.sql;
+      }).then(function (SQL) {
+        if (!live()) return;
+        var db = new SQL.Database();
+        var rows = db.exec(code);
+        var text = rows.map(function (row) {
+          return row.columns.join(" | ") + "\n" + row.values.map(function (line) { return line.join(" | "); }).join("\n");
+        }).join("\n\n");
+        out.textContent = text || "Done. No rows.";
+        try { db.close(); } catch (err) {}
+        editorNote("Finished");
+      }).catch(function (err) {
+        if (!live()) return;
+        con.textContent = String(err && err.message || err);
+        editorNote("SQL could not run");
+      });
+      return;
+    }
+    if (tab.lang === "processing") {
+      editorFrame("<script src='https://cdn.jsdelivr.net/npm/p5@1.11.2/lib/p5.min.js'><\/script><script>['log','warn','error'].forEach(function(k){var old=console[k];console[k]=function(){parent.postMessage({veilOut:1,type:'log',text:[].join.call(arguments,' ')},'*');if(old)old.apply(console,arguments);};});window.onerror=function(m){parent.postMessage({veilOut:1,type:'error',text:String(m)},'*');};<\/script><script>" + code.replace(/<\/script/gi, "<\\/script") + "<\/script>");
+      editorNote("Sketch");
+      return;
+    }
+    editorNote("That language cannot run here.");
+  }
+  function ensureEditor(body) {
+    if (!body || (body.dataset.ready === "1" && editorState)) return;
+    body.dataset.ready = "1";
+    var options = LANGS.map(function (lang) { return '<option value="' + lang.id + '">' + lang.name + "</option>"; }).join("");
+    body.innerHTML = '<div class="vos-edit"><div class="vos-edit-tabs" data-tabs></div><div class="vos-edit-tools"><input data-name spellcheck="false" aria-label="File name"><select data-lang>' + options + '</select><button type="button" data-run>Run</button><button type="button" data-save>Save</button></div><div class="vos-codewrap"><pre data-hl></pre><textarea data-code spellcheck="false" aria-label="Code"></textarea></div><div class="vos-io"><label>Input<textarea data-in spellcheck="false"></textarea></label><label>Output<div class="vos-out" data-out></div></label><label>Console<pre data-console></pre></label></div><div class="vos-edit-note" data-note></div></div>';
+    editorState = { body: body, tabs: [{ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" }], active: 0, py: null, sql: null };
+    var area = body.querySelector("[data-code]");
+    var pre = body.querySelector("[data-hl]");
+    area.addEventListener("input", function () { editorSync(); pre.innerHTML = highlightCode(area.value, editorState.tabs[editorState.active].lang); });
+    area.addEventListener("scroll", function () { pre.scrollTop = area.scrollTop; pre.scrollLeft = area.scrollLeft; });
+    area.addEventListener("keydown", function (e) {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        var start = area.selectionStart;
+        area.value = area.value.slice(0, start) + "  " + area.value.slice(area.selectionEnd);
+        area.selectionStart = area.selectionEnd = start + 2;
+        area.dispatchEvent(new Event("input"));
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); editorSave(); }
+    });
+    body.querySelector("[data-lang]").addEventListener("change", function () {
+      editorSync();
+      var tab = editorState.tabs[editorState.active];
+      var lang = LANGS.filter(function (item) { return item.id === tab.lang; })[0];
+      if (lang && /^untitled\./.test(tab.name)) tab.name = "untitled." + lang.ext;
+      editorPaint();
+    });
+    body.querySelector("[data-save]").onclick = editorSave;
+    body.querySelector("[data-run]").onclick = editorRun;
+    if (!body.dataset.msg) {
+      body.dataset.msg = "1";
+      shellListen(window, "message", function (ev) {
+        var data = ev.data;
+        if (!data || data.veilOut !== 1 || !editorState) return;
+        var con = editorState.body.querySelector("[data-console]");
+        if (con) con.textContent += (data.text || "") + "\n";
+      });
+    }
+    editorPaint();
+  }
+
   function paintClock() {
     var el = document.getElementById("vosClock");
     if (!el) return;
@@ -1735,8 +2728,12 @@
     loadInstalled();
     loadFolders();
     loadLayout();
+    loadPins();
     icons.addEventListener("dragstart", function (e) { e.preventDefault(); });
     desk.appendChild(icons);
+    var snap = document.createElement("div");
+    snap.className = "vos-snap";
+    desk.appendChild(snap);
     desk.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
       if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon") || e.target.closest(".vos-fold"))) return;
@@ -1839,6 +2836,19 @@
       };
       menu.appendChild(item);
     });
+    var gap = document.createElement("div");
+    gap.className = "vos-start-gap";
+    menu.appendChild(gap);
+    var power = document.createElement("button");
+    power.type = "button";
+    power.className = "vos-startitem vos-power";
+    power.setAttribute("role", "menuitem");
+    power.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.2v7.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.1 6.4a7 7 0 1 0 9.8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Shut down</span>';
+    power.onclick = function () {
+      closeStart();
+      shutdownDesktop();
+    };
+    menu.appendChild(power);
     function setStart(open) {
       menu.classList.toggle("is-open", open);
       startBtn.classList.toggle("on", open);
@@ -1849,7 +2859,7 @@
       e.stopPropagation();
       setStart(!menu.classList.contains("is-open"));
     };
-    document.addEventListener("pointerdown", function (e) {
+    shellListen(document, "pointerdown", function (e) {
       if (e.button === 2) return;
       if (Date.now() - ctxAt < 400) return;
       if (ctxEl && !ctxEl.hidden && !ctxEl.contains(e.target)) closeCtx();
@@ -1857,7 +2867,7 @@
       if (startWrap.contains(e.target)) return;
       closeStart();
     });
-    document.addEventListener("keydown", function (e) {
+    shellListen(document, "keydown", function (e) {
       if (e.key === "Escape") {
         closeStart();
         closeCtx();
@@ -1888,11 +2898,17 @@
     startWrap.appendChild(menu);
     var tasks = document.createElement("div");
     tasks.className = "vos-tasks";
+    var batt = document.createElement("div");
+    batt.className = "vos-batt";
+    batt.id = "vosBatt";
+    batt.hidden = true;
+    batt.innerHTML = '<img alt=""><span class="vos-batt-state">Not charging</span><span class="vos-batt-pct"></span>';
     var clock = document.createElement("div");
     clock.className = "vos-clock";
     clock.id = "vosClock";
     bar.appendChild(startWrap);
     bar.appendChild(tasks);
+    bar.appendChild(batt);
     bar.appendChild(clock);
     shell.appendChild(desk);
     shell.appendChild(bar);
@@ -1915,7 +2931,8 @@
       if (act === "delete" && app && app.folder) deleteFolder(app.id);
       if (act === "uninstall" && app && !app.builtin && !app.folder && !app.file) uninstallApp(app.id);
       if (act === "deletefile" && app && app.file) deleteFile(app.id);
-      if (act === "wall" && app && app.file) setWallpaper(app.id);
+      if (act === "wall" && app && app.file && !app.code) setWallpaper(app.id);
+      if (act === "pin" && app && !app.folder && !app.file) togglePin(app.id);
       if (act === "out" && app && app.inFolder) removeFromFolder(app.inFolder, app.id);
       if (act === "move" && dest) {
         var ids = [];
@@ -1946,7 +2963,7 @@
     tasksEl = tasks;
     installed.forEach(function (app) { ensureInstalledWindow(app); });
     renderDesktopIcons();
-    window.addEventListener("resize", function () {
+    shellListen(window, "resize", function () {
       var used = [];
       desktopItems().forEach(function (app, index) {
         var el = iconEls[app.id];
@@ -1969,9 +2986,15 @@
     });
     layoutDefaults();
     paintClock();
+    paintBatteryDesk();
+    bootBattery();
     if (clockTimer) clearInterval(clockTimer);
-    clockTimer = setInterval(paintClock, 1000);
+    clockTimer = setInterval(function () {
+      paintClock();
+      paintBatteryDesk();
+    }, 1000);
     paintDesk();
+    refreshDeviceWall();
     loadFiles().then(function (loaded) {
       if (loaded === false) return;
       pruneMissingFiles();
@@ -1990,33 +3013,37 @@
       canvas.setAttribute("data-home-fx", "");
       deskEl.insertBefore(canvas, deskEl.firstChild);
     }
-    try { setupHomeFx(deskEl); } catch (err) {}
-    deskEl.querySelectorAll(".vos-wall").forEach(function (node) { node.remove(); });
-    var url = "";
+    deskEl.querySelectorAll(".vos-wall,.vos-markwall").forEach(function (node) { node.remove(); });
+    var mode = "logo";
+    var src = "";
     try {
-      if (settings && settings.animEnabled && settings.animStyle === "custom") {
-        url = String(settings.backgroundUrl || "").trim();
+      if (settings && settings.osWall === "device" && deviceWallUrl) {
+        mode = "image";
+        src = deviceWallUrl;
+      } else if (settings && settings.osWall === "file") {
+        mode = "image";
+        src = fileUrls[settings.osWallId] || "";
+      } else if (settings && settings.osWall !== "default" && settings.animEnabled && settings.animStyle === "custom") {
+        src = String(settings.backgroundUrl || "").trim();
+        if (src.indexOf("veil-file:") === 0) src = fileUrls[src.slice("veil-file:".length)] || "";
+        if (src) mode = "image";
       }
     } catch (err) {}
-    if (url.indexOf("veil-file:") === 0) url = fileUrls[url.slice("veil-file:".length)] || "";
-    if (!url) return;
-    var wall;
-    if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) {
-      wall = document.createElement("video");
-      wall.autoplay = true;
-      wall.loop = true;
-      wall.muted = true;
-      wall.playsInline = true;
-      wall.setAttribute("playsinline", "");
-      wall.src = url;
-      wall.play().catch(function () {});
-    } else {
-      wall = document.createElement("img");
+    if (canvas) canvas.style.display = "none";
+    if (mode === "image" && src) {
+      var wall = document.createElement("img");
+      wall.className = "vos-wall";
       wall.alt = "";
-      wall.src = url;
+      wall.src = src;
+      deskEl.insertBefore(wall, canvas.nextSibling);
+      return;
     }
-    wall.className = "vos-wall";
-    deskEl.insertBefore(wall, canvas.nextSibling);
+    var mark = document.createElement("img");
+    mark.className = "vos-markwall";
+    mark.alt = "";
+    mark.draggable = false;
+    mark.src = IMG + "veil-logo-simple.png";
+    deskEl.insertBefore(mark, canvas.nextSibling);
   }
 
   function mountBrowser() {
@@ -2078,6 +3105,29 @@
     if (!info) return Promise.resolve(null);
     return addImageFile(info.blob || null, info.name || "Image", info.remote || "");
   };
+  window.veilOSSetWall = function (file) {
+    if (!file) return Promise.resolve();
+    return shrinkBlob(file).then(function (out) {
+      return writeWallBlob(out || file);
+    }).then(function () {
+      try {
+        settings.osWall = "device";
+        if (typeof save === "function") save();
+      } catch (err) {}
+      return refreshDeviceWall();
+    }).catch(function () {
+      try { alert("Could not use that image."); } catch (err) {}
+    });
+  };
+  window.veilOSResetWall = function () {
+    try {
+      settings.osWall = "default";
+      if (typeof save === "function") save();
+    } catch (err) {}
+    paintDesk();
+  };
+  window.veilOSPaintBattery = paintBatteryDesk;
+  window.veilOSSaveCode = addCodeFile;
   window.veilOSOpenApp = function (id) {
     if (!wins[id]) return;
     openApp(id);
