@@ -242,8 +242,9 @@
   border-color:color-mix(in srgb, #3b82f6 70%, var(--border));
   box-shadow:none;
 }
-.vos-glyph img.vos-logo{width:100%;height:100%;padding:4px}
-.vos-glyph img.vos-chat{padding:9px;box-sizing:border-box}
+.vos-glyph img.vos-logo{width:100%;height:100%;padding:9px}
+.vos-glyph img.vos-chat,
+.vos-glyph img.vos-pad{padding:9px;box-sizing:border-box}
 .vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
 .vos-logo{filter:none !important}
 .vos-glyph .vos-appicon{filter:none !important;width:100%;height:100%;object-fit:cover;border-radius:16px;padding:0}
@@ -342,7 +343,7 @@ body.veil-os #menuInstall{display:flex}
   border-radius:0;
   border-color:transparent;
 }
-#veilOS.is-full .vos-win:not(.is-max){visibility:hidden !important;pointer-events:none !important}
+#veilOS.is-full .vos-win:not(.is-max):not(.is-focus){visibility:hidden !important;pointer-events:none !important}
 .vos-win.is-max .vos-rz{display:none}
 .vos-win.is-focus{
   border-color:color-mix(in srgb, var(--text) 32%, var(--border));
@@ -612,45 +613,72 @@ html[data-mode="light"] .vos-markwall{filter:invert(1)}
 .vos-start-gap{height:1px;background:var(--border);margin:6px 4px}
 .vos-power{color:var(--muted) !important}
 .vos-calc,.vos-timeapp,.vos-edit{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:var(--bg);color:var(--text)}
-.vos-calc{padding:16px;gap:12px}
-.vos-calc-out{height:76px;border-radius:12px;background:var(--panel);border:1px solid var(--border);display:flex;align-items:flex-end;justify-content:flex-end;padding:12px 14px;font-size:34px;font-variant-numeric:tabular-nums;overflow:hidden}
+.vos-rise{animation:vosIn .32s cubic-bezier(.2,.8,.2,1) both}
+.vos-calc{padding:16px;gap:12px;background:#161616;overflow:auto}
+.vos-calc-out{height:84px;border-radius:16px;background:#101010;border:1px solid var(--border);display:flex;align-items:flex-end;justify-content:flex-end;padding:12px 16px;font-size:36px;font-variant-numeric:tabular-nums;overflow:hidden;transition:transform .12s ease}
+.vos-calc-out.is-tick{animation:vosTick .18s ease}
+@keyframes vosTick{50%{transform:scale(.985)}}
 .vos-calc-keys{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;min-height:0}
-.vos-calc-keys button{border:0;border-radius:12px;background:var(--panel);color:var(--text);font-size:18px;cursor:pointer}
-.vos-calc-keys button:hover{background:var(--panel2)}
+.vos-calc-keys button{border:0;border-radius:14px;background:#242424;color:var(--text);font-size:20px;cursor:pointer;transition:transform .08s ease,background .12s ease}
+.vos-calc-keys button:hover{background:#2e2e2e}
+.vos-calc-keys button:active{transform:scale(.94)}
 .vos-calc-keys button.eq{background:var(--accent);color:var(--accentText)}
 .vos-calc-keys button.zero{grid-column:span 2}
-.vos-timeapp{padding:18px;gap:14px}
+.vos-timeapp{padding:22px 18px;gap:16px;overflow:auto}
 .vos-time-modes,.vos-time-actions,.vos-time-set{display:flex;gap:8px;justify-content:center}
-.vos-time-modes button,.vos-time-actions button{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer}
+.vos-time-modes button,.vos-time-actions button{height:34px;padding:0 16px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;transition:transform .1s ease,background .15s ease}
 .vos-time-modes button.on,.vos-time-actions button.on{background:var(--panel)}
-.vos-time-read{font-size:52px;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
-.vos-time-set input{width:74px;height:38px;text-align:center;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:18px}
+.vos-time-modes button:active,.vos-time-actions button:active{transform:scale(.96)}
+.vos-time-read{font-size:56px;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.04em;transition:opacity .2s ease}
+.vos-timeapp.is-run .vos-time-read{animation:vosPulse 1.4s ease-in-out infinite}
+@keyframes vosPulse{0%,100%{opacity:1}50%{opacity:.55}}
+.vos-time-set input{width:74px;height:40px;text-align:center;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:18px;transition:border-color .15s ease}
+.vos-time-set input:focus{border-color:color-mix(in srgb, var(--text) 40%, var(--border))}
 .vos-laps{flex:1;overflow:auto;font-size:13px;color:var(--muted);min-height:0}
-.vos-laps div{padding:6px 2px;border-bottom:1px solid var(--border)}
-.vos-edit-tabs{display:flex;gap:4px;padding:8px 8px 0;overflow:auto;flex:0 0 auto}
-.vos-edit-tab{height:28px;padding:0 10px;border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:0;background:var(--panel);color:var(--text);cursor:pointer;font-size:12px;white-space:nowrap}
-.vos-edit-tab.on{background:var(--bg2)}
-.vos-edit-tools{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid var(--border);flex:0 0 auto}
-.vos-edit-tools input,.vos-edit-tools select{height:30px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 8px;font-size:12px}
-.vos-edit-tools input{flex:1;min-width:0}
-.vos-edit-tools button{height:30px;padding:0 12px;border:0;border-radius:8px;background:var(--panel);color:var(--text);cursor:pointer}
-.vos-edit-tools button:hover,.vos-edit-tab:hover,.vos-time-modes button:hover,.vos-time-actions button:hover{background:var(--panel2)}
-.vos-codewrap{position:relative;flex:1;min-height:80px;background:#101010}
-.vos-codewrap pre,.vos-codewrap textarea{position:absolute;inset:0;margin:0;padding:12px 14px;border:0;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow:auto;tab-size:2;box-sizing:border-box}
-.vos-codewrap textarea{color:transparent;caret-color:#f3f3f3;background:transparent;resize:none}
-.vos-codewrap pre{color:#e8e8e8;pointer-events:none;overflow:hidden}
-.vos-edit textarea,.vos-edit input,.vos-io textarea,.vos-time-set input{user-select:text}
-.tok-k{color:#8eb4ff}
-.tok-s{color:#9ddea0}
-.tok-c{color:#8d8d8d}
-.tok-n{color:#e6b07a}
-.vos-io{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:8px;border-top:1px solid var(--border);height:148px;flex:0 0 auto}
-.vos-io label{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:11px;color:var(--muted)}
-.vos-io textarea,.vos-io pre,.vos-io .vos-out{flex:1;min-height:0;margin:0;border-radius:8px;border:1px solid var(--border);background:#101010;color:var(--text);padding:8px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;white-space:pre-wrap}
-.vos-edit-note{padding:0 10px 8px;color:var(--muted);font-size:12px;min-height:16px}
-html[data-mode="light"] .vos-codewrap,html[data-mode="light"] .vos-io textarea,html[data-mode="light"] .vos-io pre,html[data-mode="light"] .vos-io .vos-out{background:#f7f7f7}
-html[data-mode="light"] .vos-codewrap textarea{caret-color:#111}
-html[data-mode="light"] .vos-codewrap pre{color:#1a1a1a}
+.vos-laps div{padding:6px 2px;border-bottom:1px solid var(--border);animation:vosIn .2s ease}
+.vos-edit{background:#1e1e1e;color:#d4d4d4;font-family:"Segoe UI",Inter,ui-sans-serif,system-ui,sans-serif}
+.vos-edit-tabs{display:flex;align-items:stretch;height:35px;background:#252526;overflow:auto;flex:0 0 35px}
+.vos-edit-tab,.vos-edit-add{height:35px;border:0;border-right:1px solid #1e1e1e;background:#2d2d2d;color:#969696;cursor:pointer;font-size:13px;white-space:nowrap;border-radius:0;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;transition:background .12s ease,color .12s ease}
+.vos-edit-add{padding:0 12px;font-size:16px}
+.vos-edit-tab.on{background:#1e1e1e;color:#fff;box-shadow:inset 0 1px 0 #007acc}
+.vos-edit-tab:hover,.vos-edit-add:hover{color:#fff}
+.vos-tab-x{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;opacity:0}
+.vos-edit-tab.on .vos-tab-x,.vos-edit-tab:hover .vos-tab-x{opacity:1}
+.vos-tab-x:hover{background:#3c3c3c;color:#fff}
+.vos-edit-bar{height:34px;display:flex;align-items:center;gap:8px;padding:0 8px;background:#1e1e1e;border-bottom:1px solid #2a2a2a;flex:0 0 auto}
+.vos-edit-bar input{flex:1;min-width:0;height:24px;border:0;background:transparent;color:#ccc;font-size:12px}
+.vos-edit-bar select{height:24px;border-radius:4px;border:1px solid #3c3c3c;background:#3c3c3c;color:#ccc;padding:0 6px;font-size:12px}
+.vos-edit-bar button{height:24px;padding:0 12px;border:0;border-radius:4px;background:#0e639c;color:#fff;cursor:pointer;font-size:12px;transition:background .12s ease,transform .08s ease}
+.vos-edit-bar button[data-save]{background:#3c3c3c}
+.vos-edit-bar button:hover{filter:brightness(1.08)}
+.vos-edit-bar button:active{transform:scale(.96)}
+.vos-edit-main{flex:1;min-height:0;display:flex}
+.vos-codewrap{position:relative;flex:1;min-width:0;min-height:0;background:#1e1e1e}
+.vos-gutter{position:absolute;left:0;top:0;bottom:0;width:48px;padding:10px 0;overflow:hidden;text-align:right;color:#858585;background:#1e1e1e;font:13px/20px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;user-select:none;z-index:2}
+.vos-gutter div{height:20px;padding-right:12px}
+.vos-gutter div.on{color:#c6c6c6}
+.vos-codewrap pre,.vos-codewrap textarea{position:absolute;inset:0;margin:0;padding:10px 16px 10px 60px;border:0;font:13px/20px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;tab-size:2;box-sizing:border-box}
+.vos-codewrap textarea{color:transparent;caret-color:#aeafad;background:transparent;resize:none;overflow:auto}
+.vos-codewrap textarea::selection{background:rgba(38,79,120,.6);color:transparent}
+.vos-codewrap pre{color:#d4d4d4;pointer-events:none;overflow:hidden}
+.vos-time-set input,.vos-edit textarea,.vos-edit input{user-select:text}
+.tok-k{color:#569cd6}
+.tok-s{color:#ce9178}
+.tok-c{color:#6a9955}
+.tok-n{color:#b5cea8}
+.vos-preview{flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border-left:1px solid #333;animation:vosIn .22s ease}
+.vos-preview[hidden]{display:none !important}
+.vos-stage{flex:1;min-height:0;background:#fff}
+.vos-stage iframe{width:100%;height:100%;border:0;background:#fff;display:block}
+.vos-panel{flex:0 0 128px;display:flex;flex-direction:column;min-height:0;background:#1e1e1e;border-top:1px solid #2a2a2a}
+.vos-edit.is-split:not(.has-log) .vos-panel{display:none}
+.vos-panel-tabs{display:flex;height:28px;background:#252526;flex:0 0 28px}
+.vos-panel-tabs button{height:28px;padding:0 12px;border:0;background:transparent;color:#969696;cursor:pointer;font-size:12px;border-radius:0}
+.vos-panel-tabs button.on{color:#fff;box-shadow:inset 0 -1px 0 #007acc}
+.vos-panel-body{flex:1;min-height:0;position:relative}
+.vos-out,.vos-panel-body pre{position:absolute;inset:0;margin:0;padding:8px 12px;overflow:auto;background:#1e1e1e;color:#ccc;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap}
+.vos-statusbar{flex:0 0 22px;height:22px;background:#007acc;color:#fff;display:flex;align-items:center;gap:14px;padding:0 10px;font-size:12px}
+.vos-statusbar [data-note]{margin-left:auto;opacity:.9}
 .settings-tab[data-settings-tab="desktop"]{display:none}
 body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 
@@ -803,6 +831,7 @@ html[data-mode="light"] .vos-startitem img{filter:none}
 
 @media (prefers-reduced-motion:reduce){
   .vos-icon,.vos-taskbar,.vos-taskbtn,.vos-win,.vos-glyph,.vos-ctl,.vos-startmenu,
+  .vos-rise,.vos-preview,.vos-calc-out,.vos-time-read,.vos-laps div,
   body.veil-os #osApp-settings .settings-page.active{
     animation:none !important;
     transition:none !important;

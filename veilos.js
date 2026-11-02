@@ -7,7 +7,7 @@
     { id: "settings", title: "Settings", icon: "settings" },
     { id: "calc", title: "Calculator", icon: "calc" },
     { id: "timer", title: "Timer", icon: "clock" },
-    { id: "editor", title: "Code", icon: "editor" }
+    { id: "editor", title: "Code Editor", icon: "editor" }
   ];
   var wins = {};
   var focused = null;
@@ -40,13 +40,14 @@
   }
   function iconMarkup(kind) {
     if (kind === "favi") return '<img class="vos-logo" draggable="false" src="' + IMG + 'veil-logo-simple.png" alt="">';
-    if (kind === "store") return '<img draggable="false" src="' + IMG + 'appstore.svg" alt="">';
+    if (kind === "store") return '<img class="vos-pad" draggable="false" src="' + IMG + 'appstore.svg" alt="">';
     if (kind === "games") return '<img draggable="false" src="' + IMG + 'games.svg" alt="">';
-    if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
+    if (kind === "settings") return '<img class="vos-pad" draggable="false" src="' + IMG + 'settings.svg" alt="">';
     if (kind === "chat") return '<img class="vos-chat" draggable="false" src="' + IMG + 'chat.svg" alt="">';
-    if (kind === "calc") return '<img draggable="false" src="' + IMG + 'calculator.svg" alt="">';
-    if (kind === "clock") return '<img draggable="false" src="' + IMG + 'clock.svg" alt="">';
-    if (kind === "editor") return '<img draggable="false" src="' + IMG + 'editor.svg" alt="">';
+    if (kind === "calc") return '<img class="vos-pad" draggable="false" src="' + IMG + 'calculator.svg" alt="">';
+    if (kind === "clock") return '<img class="vos-pad" draggable="false" src="' + IMG + 'clock.svg" alt="">';
+    if (kind === "editor") return '<img class="vos-pad" draggable="false" src="' + IMG + 'editor.svg" alt="">';
+    if (kind === "file") return '<img class="vos-pad" draggable="false" src="' + IMG + 'file.svg" alt="">';
     return svgChat();
   }
   function sharpIcon(url) {
@@ -422,7 +423,7 @@
     });
     files.forEach(function (file) {
       if (file.kind === "code") {
-        list.push({ id: file.id, title: file.title, builtin: false, file: true, code: true, kind: "editor", lang: file.lang || "javascript", text: file.text || "", input: file.input || "" });
+        list.push({ id: file.id, title: file.title, builtin: false, file: true, code: true, kind: "file", lang: file.lang || "javascript", text: file.text || "", input: file.input || "" });
         return;
       }
       list.push({ id: file.id, title: file.title, builtin: false, file: true, kind: "image", iconUrl: fileUrls[file.id] || "" });
@@ -1265,6 +1266,10 @@
     ["browser", "store", "chat", "settings"].forEach(function (id) {
       if (wins[id]) placeCentered(wins[id].el, w, h);
     });
+    ["calc", "timer", "editor"].forEach(function (id) {
+      var size = appSize(id);
+      if (wins[id] && size) placeCentered(wins[id].el, size.w, size.h);
+    });
   }
 
   function focusWin(id) {
@@ -1288,7 +1293,7 @@
       list.push({ id: app.id, title: app.title, iconUrl: app.icon });
     });
     files.forEach(function (file) {
-      if (file.kind === "code") list.push({ id: file.id, title: file.title, icon: "editor" });
+      if (file.kind === "code") list.push({ id: file.id, title: file.title, icon: "file" });
       else list.push({ id: file.id, title: file.title, iconUrl: fileUrls[file.id] || "" });
     });
     return list;
@@ -1535,6 +1540,44 @@
     catch (err) { return true; }
   }
 
+  function restoreMax(id) {
+    var win = wins[id];
+    if (!win) return;
+    var el = win.el;
+    if (!el.classList.contains("is-max")) return;
+    el.classList.remove("is-max");
+    if (el.dataset.rw) {
+      el.style.left = el.dataset.rx || el.style.left;
+      el.style.top = el.dataset.ry || el.style.top;
+      el.style.width = el.dataset.rw;
+      el.style.height = el.dataset.rh || el.style.height;
+      return;
+    }
+    win.placed = false;
+    ensurePlaced(win);
+  }
+  function appSize(id) {
+    if (id === "calc") return { w: 372, h: 680 };
+    if (id === "timer") return { w: 420, h: 560 };
+    if (id === "editor") return { w: 1100, h: 720 };
+    return null;
+  }
+  function ensurePlaced(win) {
+    if (!win || win.placed || !deskEl) return;
+    var desk = deskEl.getBoundingClientRect();
+    if (desk.width < 200 || desk.height < 200) return;
+    var size = appSize(win.id);
+    if (!size) {
+      if (win.el.style.width) { win.placed = true; return; }
+      size = {
+        w: Math.min(860, Math.round(desk.width * 0.62)),
+        h: Math.min(640, Math.round(desk.height * 0.72))
+      };
+    }
+    win.placed = true;
+    placeCentered(win.el, size.w, size.h);
+  }
+
   function openApp(id) {
     var win = wins[id];
     if (!win) return;
@@ -1543,8 +1586,12 @@
       closeTimers[id] = 0;
     }
     var hidden = win.el.classList.contains("is-closed") || win.el.classList.contains("is-min") || win.el.classList.contains("is-closing") || win.el.classList.contains("is-minimizing");
-    win.running = true;
-    win.el.classList.remove("is-closed", "is-min", "is-closing", "is-minimizing");
+    if (!win.el.classList.contains("is-max")) {
+      Object.keys(wins).forEach(function (key) {
+        if (key !== id) restoreMax(key);
+      });
+    }
+    ensurePlaced(win);
     if (id === "store") ensureStore(win.body);
     if (id === "chat") ensureChat(win.body);
     if (id === "settings") {
@@ -1558,6 +1605,8 @@
     if (id === "editor") ensureEditor(win.body);
     if (win.installed) ensureProxy(win);
     if (win.file) paintFile(win);
+    win.running = true;
+    win.el.classList.remove("is-closed", "is-min", "is-closing", "is-minimizing");
     if (hidden && motionOn) {
       win.el.classList.add("is-opening");
       void win.el.offsetWidth;
@@ -2016,6 +2065,8 @@
       try {
         battMgr.removeEventListener("levelchange", paintBatteryDesk);
         battMgr.removeEventListener("chargingchange", paintBatteryDesk);
+        battMgr.removeEventListener("chargingtimechange", paintBatteryDesk);
+        battMgr.removeEventListener("dischargingtimechange", paintBatteryDesk);
       } catch (err) {}
     }
     clearShellListeners();
@@ -2053,17 +2104,15 @@
     window.__veilOsBooting = false;
   }
   function realBattery(b) {
-    if (!b || typeof b.level !== "number") return false;
-    if (b.charging === true && b.level >= 0.995 && b.chargingTime === 0 && !isFinite(b.dischargingTime)) return false;
-    return true;
+    return !!(b && typeof b.level === "number" && isFinite(b.level));
   }
   function paintBatteryDesk() {
     var el = document.getElementById("vosBatt");
     if (!el) return;
-    if (!realBattery(battMgr)) { el.hidden = true; return; }
+    var level = realBattery(battMgr) ? battMgr.level : 1;
+    var charging = battMgr ? !!battMgr.charging : true;
     el.hidden = false;
-    var charging = !!battMgr.charging;
-    var pct = Math.max(0, Math.min(100, Math.round(battMgr.level * 100)));
+    var pct = Math.max(0, Math.min(100, Math.round(level * 100)));
     var step = Math.max(0, Math.min(100, Math.round(pct / 5) * 5));
     var src = IMG + "battery/" + (charging ? "charging/batteryCharge" : "normal/battery") + step + ".svg";
     var img = el.querySelector("img");
@@ -2080,13 +2129,16 @@
     el.title = (charging ? "Charging" : "Not charging") + (showPct ? ", " + pct + "%" : "");
   }
   function bootBattery() {
+    paintBatteryDesk();
     if (!navigator.getBattery) return;
     navigator.getBattery().then(function (b) {
       battMgr = b;
       paintBatteryDesk();
       b.addEventListener("levelchange", paintBatteryDesk);
       b.addEventListener("chargingchange", paintBatteryDesk);
-    }).catch(function () {});
+      b.addEventListener("chargingtimechange", paintBatteryDesk);
+      b.addEventListener("dischargingtimechange", paintBatteryDesk);
+    }).catch(function () { paintBatteryDesk(); });
   }
   var timerAudio = null;
   function primeTimerAudio() {
@@ -2127,14 +2179,19 @@
     if (!body || body.dataset.ready === "1") return;
     body.dataset.ready = "1";
     body.tabIndex = 0;
-    body.innerHTML = '<div class="vos-calc"><div class="vos-calc-out">0</div><div class="vos-calc-keys"></div></div>';
+    body.innerHTML = '<div class="vos-calc vos-rise"><div class="vos-calc-out">0</div><div class="vos-calc-keys"></div></div>';
     var view = body.querySelector(".vos-calc-out");
     var keys = body.querySelector(".vos-calc-keys");
     var acc = null;
     var entry = "0";
     var oper = "";
     var fresh = false;
-    function show() { view.textContent = entry; }
+    function show() {
+      view.textContent = entry;
+      view.classList.remove("is-tick");
+      void view.offsetWidth;
+      view.classList.add("is-tick");
+    }
     function apply(a, b, op) {
       var x = Number(a);
       var y = Number(b);
@@ -2211,7 +2268,7 @@
   function ensureTimer(body) {
     if (!body || body.dataset.ready === "1") return;
     body.dataset.ready = "1";
-    body.innerHTML = '<div class="vos-timeapp"><div class="vos-time-modes"><button type="button" data-mode="timer" class="on">Timer</button><button type="button" data-mode="watch">Stopwatch</button></div><div class="vos-time-read" data-read>00:00.00</div><div class="vos-time-set"><input data-h value="0" inputmode="numeric" aria-label="Hours"><input data-m value="1" inputmode="numeric" aria-label="Minutes"><input data-s value="0" inputmode="numeric" aria-label="Seconds"></div><div class="vos-time-actions"><button type="button" data-go>Start</button><button type="button" data-reset>Reset</button><button type="button" data-lap>Lap</button></div><div class="vos-laps" data-laps></div></div>';
+    body.innerHTML = '<div class="vos-timeapp vos-rise"><div class="vos-time-modes"><button type="button" data-mode="timer" class="on">Timer</button><button type="button" data-mode="watch">Stopwatch</button></div><div class="vos-time-read" data-read>00:00.00</div><div class="vos-time-set"><input data-h value="0" inputmode="numeric" aria-label="Hours"><input data-m value="1" inputmode="numeric" aria-label="Minutes"><input data-s value="0" inputmode="numeric" aria-label="Seconds"></div><div class="vos-time-actions"><button type="button" data-go>Start</button><button type="button" data-reset>Reset</button><button type="button" data-lap>Lap</button></div><div class="vos-laps" data-laps></div></div>';
     var mode = "timer";
     var running = false;
     var remain = 60000;
@@ -2231,6 +2288,7 @@
     function paint() {
       var ms = mode === "timer" ? remain : watchBase + (running ? Date.now() - watchStart : 0);
       read.textContent = fmtDur(ms);
+      body.querySelector(".vos-timeapp").classList.toggle("is-run", running);
       setRow.style.display = mode === "timer" && !running ? "flex" : "none";
       lapBtn.style.display = mode === "watch" ? "" : "none";
       body.querySelector("[data-go]").textContent = running ? "Pause" : "Start";
@@ -2344,15 +2402,19 @@
       push(raw.charAt(i), "");
       i += 1;
     }
-    return out + "\n";
+    return out || "\n";
   }
   function loadScriptOnce(src) {
     return new Promise(function (resolve, reject) {
       var found = document.querySelector('script[data-vos="' + src + '"]');
       if (found && found.dataset.ready === "1") { resolve(); return; }
+      if (found && found.dataset.failed === "1" && found.parentNode) {
+        found.parentNode.removeChild(found);
+        found = null;
+      }
       var script = found || document.createElement("script");
-      function ok() { script.dataset.ready = "1"; resolve(); }
-      function bad() { reject(new Error("Could not load that runtime.")); }
+      function ok() { script.dataset.ready = "1"; script.dataset.failed = ""; resolve(); }
+      function bad() { script.dataset.failed = "1"; reject(new Error("Could not load that runtime.")); }
       script.addEventListener("load", ok, { once: true });
       script.addEventListener("error", bad, { once: true });
       if (!found) {
@@ -2417,11 +2479,87 @@
     var area = body.querySelector("[data-code]");
     var name = body.querySelector("[data-name]");
     var lang = body.querySelector("[data-lang]");
-    var input = body.querySelector("[data-in]");
     if (area) tab.text = area.value;
     if (name) tab.name = name.value.trim().slice(0, 64) || tab.name;
     if (lang) tab.lang = lang.value;
-    if (input) tab.input = input.value;
+  }
+  function editorLangName(id) {
+    var found = "JavaScript";
+    LANGS.forEach(function (lang) { if (lang.id === id) found = lang.name; });
+    return found;
+  }
+  function editorSplit(lang) {
+    return lang === "html" || lang === "css" || lang === "processing";
+  }
+  function editorShowPane(which) {
+    if (!editorState) return;
+    editorState.pane = which === "con" ? "con" : "out";
+    var body = editorState.body;
+    var out = body.querySelector("[data-out]");
+    var con = body.querySelector("[data-console]");
+    if (out) out.hidden = editorState.pane !== "out";
+    if (con) con.hidden = editorState.pane !== "con";
+    body.querySelectorAll("[data-pane]").forEach(function (btn) {
+      btn.classList.toggle("on", btn.getAttribute("data-pane") === editorState.pane);
+    });
+    editorTouchLog();
+  }
+  function editorTouchLog() {
+    if (!editorState) return;
+    var body = editorState.body;
+    var out = body.querySelector("[data-out]");
+    var con = body.querySelector("[data-console]");
+    var root = body.querySelector(".vos-edit");
+    var has = !!((out && out.textContent.trim()) || (con && con.textContent.trim()));
+    if (root) root.classList.toggle("has-log", has);
+  }
+  function editorGutter() {
+    if (!editorState) return;
+    var body = editorState.body;
+    var area = body.querySelector("[data-code]");
+    var gutter = body.querySelector("[data-gutter]");
+    var pre = body.querySelector("[data-hl]");
+    if (!area || !gutter) return;
+    var text = area.value;
+    var before = text.slice(0, area.selectionStart || 0);
+    var line = before.split("\n").length;
+    var col = before.length - before.lastIndexOf("\n");
+    var count = Math.max(1, text.split("\n").length);
+    var html = "";
+    var i;
+    for (i = 1; i <= count; i++) html += "<div" + (i === line ? " class=\"on\"" : "") + ">" + i + "</div>";
+    gutter.innerHTML = html;
+    gutter.scrollTop = area.scrollTop;
+    if (pre) {
+      pre.scrollTop = area.scrollTop;
+      pre.scrollLeft = area.scrollLeft;
+    }
+    var pos = body.querySelector("[data-status-pos]");
+    if (pos) pos.textContent = "Ln " + line + ", Col " + col;
+  }
+  function editorLayout() {
+    if (!editorState) return;
+    var tab = editorState.tabs[editorState.active];
+    var root = editorState.body.querySelector(".vos-edit");
+    var preview = editorState.body.querySelector("[data-preview]");
+    var split = !!(tab && editorSplit(tab.lang));
+    if (root) root.classList.toggle("is-split", split);
+    if (preview) preview.hidden = !split;
+    var lang = editorState.body.querySelector("[data-status-lang]");
+    if (lang && tab) lang.textContent = editorLangName(tab.lang);
+  }
+  function editorCloseTab(index) {
+    if (!editorState) return;
+    editorSync();
+    if (editorState.tabs.length <= 1) {
+      editorState.tabs[0] = { fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" };
+      editorState.active = 0;
+    } else {
+      editorState.tabs.splice(index, 1);
+      if (editorState.active > index) editorState.active -= 1;
+      if (editorState.active >= editorState.tabs.length) editorState.active = editorState.tabs.length - 1;
+    }
+    editorPaint();
   }
   function editorPaint() {
     if (!editorState) return;
@@ -2434,13 +2572,31 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "vos-edit-tab" + (index === editorState.active ? " on" : "");
-      btn.textContent = item.name || "untitled";
-      btn.onclick = function () { editorSync(); editorState.active = index; editorPaint(); };
+      btn.innerHTML = "<span data-tab-name></span><span class=\"vos-tab-x\" title=\"Close\" aria-label=\"Close\">×</span>";
+      btn.querySelector("[data-tab-name]").textContent = item.name || "untitled";
+      btn.onclick = function () {
+        if (editorState.active === index) return;
+        editorSync();
+        editorState.active = index;
+        editorPaint();
+      };
+      btn.querySelector(".vos-tab-x").addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        editorCloseTab(index);
+      });
+      btn.addEventListener("auxclick", function (e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        editorCloseTab(index);
+      });
       tabs.appendChild(btn);
     });
     var add = document.createElement("button");
     add.type = "button";
-    add.className = "vos-edit-tab";
+    add.className = "vos-edit-add";
+    add.title = "New file";
+    add.setAttribute("aria-label", "New file");
     add.textContent = "+";
     add.onclick = function () {
       editorSync();
@@ -2449,14 +2605,27 @@
       editorPaint();
     };
     tabs.appendChild(add);
-    body.querySelector("[data-name]").value = tab.name;
-    body.querySelector("[data-lang]").value = tab.lang;
-    body.querySelector("[data-in]").value = tab.input || "";
-    body.querySelector("[data-code]").value = tab.text || "";
-    body.querySelector("[data-hl]").innerHTML = highlightCode(tab.text || "", tab.lang);
-    body.querySelector("[data-out]").textContent = "";
-    body.querySelector("[data-console]").textContent = "";
+    var name = body.querySelector("[data-name]");
+    if (name) name.value = tab.name;
+    var lang = body.querySelector("[data-lang]");
+    if (lang) lang.value = tab.lang;
+    var area = body.querySelector("[data-code]");
+    if (area) area.value = tab.text || "";
+    var pre = body.querySelector("[data-hl]");
+    if (pre) pre.innerHTML = highlightCode(tab.text || "", tab.lang);
+    var out = body.querySelector("[data-out]");
+    var con = body.querySelector("[data-console]");
+    if (out) out.textContent = "";
+    if (con) con.textContent = "";
     editorState.runId = (editorState.runId || 0) + 1;
+    editorLayout();
+    editorGutter();
+    editorTouchLog();
+    if (editorSplit(tab.lang) && tab.lang !== "processing") editorPreviewLive();
+    else {
+      var stage = body.querySelector("[data-stage]");
+      if (stage) stage.innerHTML = "";
+    }
   }
   function editorOpenSaved(app) {
     if (!editorState || !app) return;
@@ -2492,19 +2661,46 @@
       tab.name = file.title;
       var name = editorState.body.querySelector("[data-name]");
       if (name) name.value = file.title;
-      var tabs = editorState.body.querySelectorAll(".vos-edit-tab");
-      if (tabs[editorState.active]) tabs[editorState.active].textContent = file.title;
+      var label = editorState.body.querySelector(".vos-edit-tab.on [data-tab-name]");
+      if (label) label.textContent = file.title;
       editorNote("Saved to the desktop.");
     });
   }
   function editorFrame(html) {
-    var out = editorState.body.querySelector("[data-out]");
-    out.innerHTML = "";
+    var stage = editorState && editorState.body.querySelector("[data-stage]");
+    if (!stage) return;
+    stage.innerHTML = "";
     var frame = document.createElement("iframe");
     frame.setAttribute("sandbox", "allow-scripts");
-    frame.style.cssText = "width:100%;height:100%;border:0;background:#fff";
+    frame.title = "Preview";
     frame.srcdoc = html;
-    out.appendChild(frame);
+    stage.appendChild(frame);
+  }
+  function editorHtmlDoc(code) {
+    var hook = "<script>window.onerror=function(m){parent.postMessage({veilOut:1,type:'error',text:String(m)},'*');};['log','warn','error'].forEach(function(k){var old=console[k];console[k]=function(){try{parent.postMessage({veilOut:1,type:'log',text:[].join.call(arguments,' ')},'*');}catch(e){}if(old)old.apply(console,arguments);};});<\/script>";
+    var src = String(code || "");
+    if (!/<html[\s>]/i.test(src) && !/<!doctype/i.test(src)) {
+      return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" + hook + "</head><body>" + src + "</body></html>";
+    }
+    if (/<head[^>]*>/i.test(src)) return src.replace(/<head[^>]*>/i, function (tag) { return tag + hook; });
+    return hook + src;
+  }
+  function editorPreviewLive() {
+    if (!editorState) return;
+    editorSync();
+    var tab = editorState.tabs[editorState.active];
+    if (!tab || !editorSplit(tab.lang) || tab.lang === "processing") return;
+    var code = String(tab.text || "");
+    if (tab.lang === "html") {
+      editorFrame(editorHtmlDoc(code));
+      return;
+    }
+    editorFrame("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + code.replace(/<\/style/gi, "") + "</style></head><body style=\"margin:0;background:#fff;color:#222;font-family:sans-serif\"><div style=\"padding:28px\"><h1>Heading</h1><p>Sample paragraph for this stylesheet.</p><button>Button</button> <a href=\"#\">Link</a></div></body></html>");
+  }
+  function editorQueuePreview() {
+    if (!editorState) return;
+    clearTimeout(editorState.previewTimer);
+    editorState.previewTimer = setTimeout(editorPreviewLive, 220);
   }
   function editorRun() {
     editorSync();
@@ -2533,31 +2729,43 @@
         if (!live()) { clearTimeout(timer); worker.terminate(); return; }
         var data = ev.data || {};
         if (data.type === "log") con.textContent += data.text + "\n";
-        if (data.type === "done") { out.textContent = data.value || ""; editorNote("Finished"); clearTimeout(timer); worker.terminate(); }
-        if (data.type === "error") { con.textContent += data.text + "\n"; editorNote("Error"); clearTimeout(timer); worker.terminate(); }
+        if (data.type === "done") {
+          out.textContent = data.value || "";
+          editorNote("Finished");
+          editorShowPane((con.textContent || "").trim() ? "con" : "out");
+          clearTimeout(timer);
+          worker.terminate();
+        }
+        if (data.type === "error") { con.textContent += data.text + "\n"; editorNote("Error"); editorShowPane("con"); clearTimeout(timer); worker.terminate(); }
       };
       worker.onerror = function (ev) {
         if (!live()) return;
         con.textContent += String(ev.message || ev) + "\n";
         editorNote("Error");
+        editorShowPane("con");
         clearTimeout(timer);
       };
       worker.postMessage({ code: code, input: input });
       return;
     }
     if (tab.lang === "html") {
-      editorFrame("<script>window.onerror=function(m){parent.postMessage({veilOut:1,type:'error',text:String(m)},'*');};['log','warn','error'].forEach(function(k){var old=console[k];console[k]=function(){parent.postMessage({veilOut:1,type:'log',text:[].join.call(arguments,' ')},'*');if(old)old.apply(console,arguments);};});<\/script>" + code.replace(/<\/script/gi, "<\\/script"));
+      editorLayout();
+      editorPreviewLive();
       editorNote("Preview");
+      editorShowPane("out");
       return;
     }
     if (tab.lang === "css") {
-      editorFrame("<style>" + code.replace(/<\/style/gi, "") + "</style><body style='margin:0;background:#111;color:#eee;font-family:sans-serif'><div style='padding:16px'><h1>Heading</h1><p>Sample paragraph for this stylesheet.</p><button>Button</button><a href='#'>Link</a></div>");
+      editorLayout();
+      editorPreviewLive();
       editorNote("Preview");
+      editorShowPane("out");
       return;
     }
     if (tab.lang === "markdown") {
       out.innerHTML = renderMarkdown(code);
       editorNote("Rendered");
+      editorShowPane("out");
       return;
     }
     if (tab.lang === "brainfuck") {
@@ -2565,6 +2773,7 @@
       out.textContent = bf.out;
       if (bf.error) con.textContent = bf.error;
       editorNote(bf.error ? "Stopped" : "Finished");
+      editorShowPane(bf.error ? "con" : "out");
       return;
     }
     if (tab.lang === "python") {
@@ -2576,8 +2785,8 @@
       }).then(function (py) {
         if (!live()) return;
         var logs = [];
-        py.setStdout({ batched: function (text) { logs.push(text); } });
-        py.setStderr({ batched: function (text) { logs.push(text); } });
+        try { py.setStdout({ batched: function (text) { logs.push(text); } }); } catch (err) {}
+        try { py.setStderr({ batched: function (text) { logs.push(text); } }); } catch (err) {}
         return py.runPythonAsync("import sys\nfrom io import StringIO\nsys.stdin = StringIO(" + JSON.stringify(input) + ")\n").then(function () {
           return py.runPythonAsync(code);
         }).then(function (value) {
@@ -2585,11 +2794,13 @@
           out.textContent = value == null ? "" : String(value);
           con.textContent = logs.join("");
           editorNote("Finished");
+          editorShowPane(logs.length ? "con" : "out");
         });
       }).catch(function (err) {
         if (!live()) return;
         con.textContent = String(err && err.message || err);
         editorNote("Python could not run");
+        editorShowPane("con");
       });
       return;
     }
@@ -2603,36 +2814,70 @@
         var L = lauxlib.luaL_newstate();
         fengari.lualib.luaL_openlibs(L);
         var logs = [];
-        if (lua.lua_pushjsfunction) {
-          lua.lua_pushjsfunction(L, function (LL) {
-            var n = lua.lua_gettop(LL);
-            var parts = [];
-            var i;
-            for (i = 1; i <= n; i++) {
-              lauxlib.luaL_tolstring(LL, i, null);
-              var str = lua.lua_tostring(LL, -1);
-              parts.push(str ? fengari.to_jsstring(str) : "");
-              lua.lua_pop(LL, 1);
-            }
-            logs.push(parts.join("\t"));
-            return 0;
-          });
-          lua.lua_setglobal(L, fengari.to_luastring("print"));
+        var oldLog = console.log;
+        console.log = function () {
+          logs.push([].join.call(arguments, "\t"));
+          if (oldLog) oldLog.apply(console, arguments);
+        };
+        try {
+          var push = lua.lua_pushjsfunction || lua.lua_pushcfunction;
+          if (push) {
+            push(L, function (LL) {
+              var n = lua.lua_gettop(LL);
+              var parts = [];
+              var i;
+              for (i = 1; i <= n; i++) {
+                var text = "";
+                try {
+                  if (lauxlib.luaL_tolstring) {
+                    lauxlib.luaL_tolstring(LL, i);
+                    var str = lua.lua_tostring(LL, -1);
+                    text = str ? fengari.to_jsstring(str) : "";
+                    lua.lua_pop(LL, 1);
+                  } else {
+                    var raw = lua.lua_tostring(LL, i);
+                    text = raw ? fengari.to_jsstring(raw) : "";
+                  }
+                } catch (err) {}
+                parts.push(text);
+              }
+              logs.push(parts.join("\t"));
+              return 0;
+            });
+            lua.lua_setglobal(L, fengari.to_luastring("print"));
+          }
+          if (input) {
+            lua.lua_pushstring(L, fengari.to_luastring(String(input)));
+            lua.lua_setglobal(L, fengari.to_luastring("input"));
+          }
+        } catch (err) {}
+        var status = 1;
+        try {
+          status = lauxlib.luaL_dostring(L, fengari.to_luastring(code));
+        } catch (err) {
+          logs.push(String(err && err.message || err));
         }
-        lua.lua_pushstring(L, fengari.to_luastring(input));
-        lua.lua_setglobal(L, fengari.to_luastring("input"));
-        var prelude = "local __veil_src = input or ''\nlocal __veil_at = 1\nfunction io.read(...)\n  if __veil_at > #__veil_src then return nil end\n  local nl = string.find(__veil_src, '\\n', __veil_at, true)\n  local line\n  if nl then line = string.sub(__veil_src, __veil_at, nl - 1); __veil_at = nl + 1 else line = string.sub(__veil_src, __veil_at); __veil_at = #__veil_src + 1 end\n  return line\nend\n";
-        var status = lauxlib.luaL_dostring(L, fengari.to_luastring(prelude + code));
+        console.log = oldLog;
+        if (!live()) return;
         if (status !== 0) {
-          var msg = "Lua error";
-          try { msg = fengari.to_jsstring(lua.lua_tostring(L, -1)) || msg; } catch (err) {}
+          var msg = logs.join("\n") || "Lua error";
+          try {
+            var rawMsg = lua.lua_tostring(L, -1);
+            if (rawMsg) msg = fengari.to_jsstring(rawMsg);
+          } catch (err2) {}
           con.textContent = msg;
-        } else con.textContent = logs.join("\n");
-        editorNote(status === 0 ? "Finished" : "Error");
+          editorNote("Error");
+          editorShowPane("con");
+        } else {
+          con.textContent = logs.join("\n");
+          editorNote("Finished");
+          editorShowPane("con");
+        }
       }).catch(function (err) {
         if (!live()) return;
         con.textContent = String(err && err.message || err);
         editorNote("Lua could not run");
+        editorShowPane("con");
       });
       return;
     }
@@ -2651,16 +2896,20 @@
         out.textContent = text || "Done. No rows.";
         try { db.close(); } catch (err) {}
         editorNote("Finished");
+        editorShowPane("out");
       }).catch(function (err) {
         if (!live()) return;
         con.textContent = String(err && err.message || err);
         editorNote("SQL could not run");
+        editorShowPane("con");
       });
       return;
     }
     if (tab.lang === "processing") {
+      editorLayout();
       editorFrame("<script src='https://cdn.jsdelivr.net/npm/p5@1.11.2/lib/p5.min.js'><\/script><script>['log','warn','error'].forEach(function(k){var old=console[k];console[k]=function(){parent.postMessage({veilOut:1,type:'log',text:[].join.call(arguments,' ')},'*');if(old)old.apply(console,arguments);};});window.onerror=function(m){parent.postMessage({veilOut:1,type:'error',text:String(m)},'*');};<\/script><script>" + code.replace(/<\/script/gi, "<\\/script") + "<\/script>");
       editorNote("Sketch");
+      editorShowPane("out");
       return;
     }
     editorNote("That language cannot run here.");
@@ -2669,12 +2918,22 @@
     if (!body || (body.dataset.ready === "1" && editorState)) return;
     body.dataset.ready = "1";
     var options = LANGS.map(function (lang) { return '<option value="' + lang.id + '">' + lang.name + "</option>"; }).join("");
-    body.innerHTML = '<div class="vos-edit"><div class="vos-edit-tabs" data-tabs></div><div class="vos-edit-tools"><input data-name spellcheck="false" aria-label="File name"><select data-lang>' + options + '</select><button type="button" data-run>Run</button><button type="button" data-save>Save</button></div><div class="vos-codewrap"><pre data-hl></pre><textarea data-code spellcheck="false" aria-label="Code"></textarea></div><div class="vos-io"><label>Input<textarea data-in spellcheck="false"></textarea></label><label>Output<div class="vos-out" data-out></div></label><label>Console<pre data-console></pre></label></div><div class="vos-edit-note" data-note></div></div>';
-    editorState = { body: body, tabs: [{ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" }], active: 0, py: null, sql: null };
+    body.innerHTML = '<div class="vos-edit vos-rise"><div class="vos-edit-tabs" data-tabs></div><div class="vos-edit-bar"><input data-name spellcheck="false" aria-label="File name"><select data-lang>' + options + '</select><button type="button" data-run>Run</button><button type="button" data-save>Save</button></div><div class="vos-edit-main"><div class="vos-codewrap"><div class="vos-gutter" data-gutter></div><pre data-hl></pre><textarea data-code spellcheck="false" aria-label="Code"></textarea></div><section class="vos-preview" data-preview hidden><div class="vos-stage" data-stage></div></section></div><div class="vos-panel"><div class="vos-panel-tabs"><button type="button" data-pane="out" class="on">Output</button><button type="button" data-pane="con">Console</button></div><div class="vos-panel-body"><div class="vos-out" data-out></div><pre data-console hidden></pre></div></div><div class="vos-statusbar"><span data-status-lang>JavaScript</span><span data-status-pos>Ln 1, Col 1</span><span data-note></span></div></div>';
+    editorState = { body: body, tabs: [{ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" }], active: 0, py: null, sql: null, pane: "out" };
     var area = body.querySelector("[data-code]");
     var pre = body.querySelector("[data-hl]");
-    area.addEventListener("input", function () { editorSync(); pre.innerHTML = highlightCode(area.value, editorState.tabs[editorState.active].lang); });
-    area.addEventListener("scroll", function () { pre.scrollTop = area.scrollTop; pre.scrollLeft = area.scrollLeft; });
+    function refreshCode() {
+      editorSync();
+      var tab = editorState.tabs[editorState.active];
+      pre.innerHTML = highlightCode(area.value, tab.lang);
+      editorGutter();
+      if (editorSplit(tab.lang) && tab.lang !== "processing") editorQueuePreview();
+    }
+    area.addEventListener("input", refreshCode);
+    area.addEventListener("keyup", editorGutter);
+    area.addEventListener("click", editorGutter);
+    area.addEventListener("select", editorGutter);
+    area.addEventListener("scroll", editorGutter);
     area.addEventListener("keydown", function (e) {
       if (e.key === "Tab") {
         e.preventDefault();
@@ -2683,14 +2942,28 @@
         area.selectionStart = area.selectionEnd = start + 2;
         area.dispatchEvent(new Event("input"));
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); editorRun(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); editorSave(); }
+    });
+    body.querySelector("[data-name]").addEventListener("input", function () {
+      editorSync();
+      var label = body.querySelector(".vos-edit-tab.on [data-tab-name]");
+      var tab = editorState.tabs[editorState.active];
+      if (label && tab) label.textContent = tab.name;
     });
     body.querySelector("[data-lang]").addEventListener("change", function () {
       editorSync();
       var tab = editorState.tabs[editorState.active];
       var lang = LANGS.filter(function (item) { return item.id === tab.lang; })[0];
-      if (lang && /^untitled\./.test(tab.name)) tab.name = "untitled." + lang.ext;
+      if (lang && /^untitled\./.test(tab.name)) {
+        tab.name = "untitled." + lang.ext;
+        var name = body.querySelector("[data-name]");
+        if (name) name.value = tab.name;
+      }
       editorPaint();
+    });
+    body.querySelectorAll("[data-pane]").forEach(function (btn) {
+      btn.onclick = function () { editorShowPane(btn.getAttribute("data-pane")); };
     });
     body.querySelector("[data-save]").onclick = editorSave;
     body.querySelector("[data-run]").onclick = editorRun;
@@ -2701,6 +2974,7 @@
         if (!data || data.veilOut !== 1 || !editorState) return;
         var con = editorState.body.querySelector("[data-console]");
         if (con) con.textContent += (data.text || "") + "\n";
+        editorShowPane("con");
       });
     }
     editorPaint();
