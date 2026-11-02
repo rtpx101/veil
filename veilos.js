@@ -1392,6 +1392,7 @@
     saveInstalled();
     ensureInstalledWindow(installed[installed.length - 1]);
     renderDesktopIcons();
+    refreshStore();
     return true;
   }
   function uninstallApp(id) {
@@ -1603,6 +1604,39 @@
       var trash = open ? '<button type="button" class="vos-trash" data-trash="' + esc(id) + '" title="Uninstall" aria-label="Uninstall"><img src="' + IMG + 'trash.svg" alt=""></button>' : "";
       return '<span class="vos-as-actions"><button type="button" class="vos-get' + (open ? " is-open" : "") + '" data-get="' + esc(id) + '">' + (open ? "OPEN" : "GET") + "</button>" + trash + "</span>";
     }
+    function paintActions() {
+      var buttons = body.querySelectorAll("[data-get]");
+      Array.prototype.forEach.call(buttons, function (btn) {
+        var id = btn.getAttribute("data-get");
+        var open = isInstalled(id);
+        var was = btn.classList.contains("is-open");
+        btn.classList.toggle("is-open", open);
+        btn.textContent = open ? "OPEN" : "GET";
+        if (open !== was) {
+          btn.classList.remove("is-flip");
+          void btn.offsetWidth;
+          btn.classList.add("is-flip");
+        }
+        var wrap = btn.parentElement;
+        if (!wrap) return;
+        var trash = null;
+        Array.prototype.forEach.call(wrap.querySelectorAll("[data-trash]"), function (node) {
+          if (node.getAttribute("data-trash") === id) trash = node;
+        });
+        if (open && !trash) {
+          trash = document.createElement("button");
+          trash.type = "button";
+          trash.className = "vos-trash";
+          trash.setAttribute("data-trash", id);
+          trash.title = "Uninstall";
+          trash.setAttribute("aria-label", "Uninstall");
+          trash.innerHTML = '<img src="' + IMG + 'trash.svg" alt="">';
+          wrap.appendChild(trash);
+        } else if (!open && trash) {
+          trash.remove();
+        }
+      });
+    }
     function paintHome() {
       var q = query.trim().toLowerCase();
       var list = games.filter(function (game) {
@@ -1701,14 +1735,11 @@
       var icon = "";
       try { icon = smallThumb(game) || ""; } catch (err) {}
       installApp({ title: game.name, url: "veil-game:" + id, icon: icon });
-      if (!detail.hidden) paintDetail(id);
-      else paintHome();
     });
     home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1></div><p class="vos-as-empty">Loading…</p>';
     refreshStore = function () {
       if (!body.isConnected) return;
-      if (!detail.hidden && detailId) paintDetail(detailId);
-      else paintHome();
+      if (body.querySelector("[data-get]")) paintActions();
     };
     Promise.resolve(typeof loadGameCatalog === "function" ? loadGameCatalog() : null).then(function () {
       games = (typeof gamesCatalog !== "undefined" && gamesCatalog) ? gamesCatalog.slice() : [];
@@ -3138,7 +3169,7 @@
     if (!body || (body.dataset.ready === "1" && editorState)) return;
     body.dataset.ready = "1";
     var options = LANGS.map(function (lang) { return '<option value="' + lang.id + '">' + lang.name + "</option>"; }).join("");
-    body.innerHTML = '<div class="vos-edit vos-rise"><div class="vos-edit-tabs" data-tabs></div><div class="vos-edit-bar"><input data-name spellcheck="false" aria-label="File name"><select data-lang>' + options + '</select><button type="button" data-run>Run</button><button type="button" data-save>Save</button></div><div class="vos-edit-main"><div class="vos-codewrap"><div class="vos-gutter" data-gutter></div><pre data-hl></pre><textarea data-code spellcheck="false" aria-label="Code"></textarea></div><section class="vos-preview" data-preview hidden><div class="vos-stage" data-stage></div></section></div><div class="vos-panel"><div class="vos-panel-tabs"><button type="button" data-pane="out" class="on">Output</button><button type="button" data-pane="con">Console</button></div><div class="vos-panel-body"><div class="vos-out" data-out></div><pre data-console hidden></pre></div></div><div class="vos-statusbar"><span data-status-lang>JavaScript</span><span data-status-pos>Ln 1, Col 1</span><span data-note></span></div></div>';
+    body.innerHTML = '<div class="vos-edit vos-rise"><div class="vos-edit-top"><div class="vos-edit-tabs" data-tabs></div><div class="vos-edit-bar"><input data-name spellcheck="false" aria-label="File name" placeholder="File name"><select data-lang>' + options + '</select><button type="button" data-run>Run</button><button type="button" data-save>Save</button></div></div><div class="vos-edit-stage"><div class="vos-edit-main"><div class="vos-codewrap"><div class="vos-gutter" data-gutter></div><pre data-hl></pre><textarea data-code spellcheck="false" aria-label="Code"></textarea></div><section class="vos-preview" data-preview hidden><div class="vos-stage" data-stage></div></section></div><div class="vos-panel"><div class="vos-panel-tabs"><button type="button" data-pane="out" class="on">Output</button><button type="button" data-pane="con">Console</button></div><div class="vos-panel-body"><div class="vos-out" data-out></div><pre data-console hidden></pre></div></div></div><div class="vos-statusbar"><span data-status-lang>JavaScript</span><span data-status-pos>Ln 1, Col 1</span><span data-note></span></div></div>';
     editorState = { body: body, tabs: [{ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" }], active: 0, py: null, sql: null, pane: "out" };
     var area = body.querySelector("[data-code]");
     var pre = body.querySelector("[data-hl]");
@@ -3287,10 +3318,11 @@
     if (area) area.value = tab.text || "";
     var status = body.querySelector("[data-note]");
     if (status) status.textContent = "";
-    if (area) {
-      area.classList.remove("vos-pop");
-      void area.offsetWidth;
-      area.classList.add("vos-pop");
+    var sheet = body.querySelector(".vos-note-sheet");
+    if (sheet) {
+      sheet.classList.remove("vos-pop");
+      void sheet.offsetWidth;
+      sheet.classList.add("vos-pop");
     }
   }
   function noteSave() {
@@ -3316,7 +3348,7 @@
   function ensureNotepad(body) {
     if (!body || (body.dataset.ready === "1" && noteState)) return;
     body.dataset.ready = "1";
-    body.innerHTML = '<div class="vos-note vos-rise"><div class="vos-note-tabs" data-tabs></div><div class="vos-note-bar"><input data-name spellcheck="false" aria-label="File name"><button type="button" data-save>Save</button></div><textarea data-text spellcheck="true" aria-label="Note"></textarea><div class="vos-note-status"><span data-note></span></div></div>';
+    body.innerHTML = '<div class="vos-note vos-rise"><aside class="vos-note-side"><div class="vos-note-tabs" data-tabs></div></aside><div class="vos-note-sheet"><div class="vos-note-bar"><input data-name spellcheck="false" aria-label="File name" placeholder="Note name"><button type="button" data-save>Save</button></div><textarea data-text spellcheck="true" aria-label="Note" placeholder="Start writing…"></textarea><div class="vos-note-status"><span data-note></span></div></div></div>';
     noteState = { body: body, tabs: [{ fileId: "", name: "untitled.txt", text: "" }], active: 0 };
     var area = body.querySelector("[data-text]");
     area.addEventListener("input", noteSync);

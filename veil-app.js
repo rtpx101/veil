@@ -6187,29 +6187,111 @@ function directMediaKind(url) {
   if (/\.(mp4|webm|ogv|mov|m4v)$/.test(clean)) return "video";
   return "";
 }
-function mediaFromNode(node) {
-  const el = node && node.nodeType === 1 ? node : node && node.parentElement;
-  if (!el || !el.closest) return null;
-  const media = el.closest("video, audio, source");
-  if (!media) return null;
-  const host = media.tagName === "SOURCE" ? media.parentElement : media;
-  if (!host || (host.tagName !== "VIDEO" && host.tagName !== "AUDIO")) return null;
-  const src = host.currentSrc || host.src || (media.src || "");
-  return { el: host, src: src, kind: host.tagName === "VIDEO" ? "video" : "audio" };
-}
-function mediaAtPoint(doc, x, y, node) {
-  const direct = mediaFromNode(node);
-  if (direct) return direct;
-  if (!doc || !doc.querySelectorAll) return null;
-  const nodes = doc.querySelectorAll("video, audio");
-  for (let i = 0; i < nodes.length; i++) {
-    const el = nodes[i];
-    const box = el.getBoundingClientRect();
-    if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom && box.width > 8 && box.height > 8) {
-      return { el: el, src: el.currentSrc || el.src || "", kind: el.tagName === "VIDEO" ? "video" : "audio" };
+function climbMedia(node) {
+  let el = node && node.nodeType === 1 ? node : node && node.parentElement;
+  let guard = 0;
+  while (el && guard < 24) {
+    guard += 1;
+    const tag = el.tagName;
+    if (tag === "VIDEO" || tag === "AUDIO") return el;
+    if (tag === "SOURCE") {
+      const parent = el.parentElement;
+      if (parent && (parent.tagName === "VIDEO" || parent.tagName === "AUDIO")) return parent;
+    }
+    if (el.parentElement) el = el.parentElement;
+    else if (el.parentNode && el.parentNode.host) el = el.parentNode.host;
+    else {
+      const root = el.getRootNode && el.getRootNode();
+      if (root && root.host && root.host !== el) el = root.host;
+      else break;
     }
   }
   return null;
+}
+function packMedia(el) {
+  if (!el) return null;
+  let src = "";
+  try { src = el.currentSrc || el.src || ""; } catch (err) {}
+  if (!src && el.querySelectorAll) {
+    try {
+      const sources = el.querySelectorAll("source");
+      for (let i = 0; i < sources.length; i++) {
+        if (sources[i].src) { src = sources[i].src; break; }
+      }
+    } catch (err) {}
+  }
+  if (!src && el.getAttribute) src = el.getAttribute("src") || "";
+  const kind = el.tagName === "AUDIO" ? "audio" : "video";
+  return { el: el, src: src, kind: kind };
+}
+function collectMedia(root, out, depth) {
+  if (!root || !root.querySelectorAll || depth > 6 || out.length > 40) return;
+  let list;
+  try { list = root.querySelectorAll("video, audio"); } catch (err) { return; }
+  for (let i = 0; i < list.length; i++) out.push(list[i]);
+  let all;
+  try { all = root.querySelectorAll("*"); } catch (err) { return; }
+  for (let j = 0; j < all.length; j++) {
+    if (all[j].shadowRoot) collectMedia(all[j].shadowRoot, out, depth + 1);
+  }
+}
+function hitMedia(list, x, y) {
+  let best = null;
+  let bestArea = Infinity;
+  for (let i = 0; i < list.length; i++) {
+    const el = list[i];
+    let box;
+    try { box = el.getBoundingClientRect(); } catch (err) { continue; }
+    if (box.width < 8 || box.height < 8) continue;
+    if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+      const area = box.width * box.height;
+      if (area < bestArea) { best = el; bestArea = area; }
+    }
+  }
+  return packMedia(best);
+}
+function mediaFromHost(node) {
+  let el = node && node.nodeType === 1 ? node : node && node.parentElement;
+  let guard = 0;
+  while (el && guard < 8) {
+    guard += 1;
+    const tag = String(el.tagName || "").toLowerCase();
+    const src = el.getAttribute ? (el.getAttribute("src") || "") : "";
+    const packed = el.getAttribute ? (el.getAttribute("packaged-media-json") || "") : "";
+    const player = /player|video|audio/.test(tag);
+    const linked = /v\.redd\.it|googlevideo|videoplayback|\.mp4|\.webm|\.m3u8|\.mp3/i.test(src);
+    if ((player || packed || linked) && tag !== "img" && tag !== "source" && tag !== "video" && tag !== "audio") {
+      return { el: el, src: src, kind: /audio/.test(tag) && !/video/.test(tag) ? "audio" : "video" };
+    }
+    if (el.parentElement) el = el.parentElement;
+    else if (el.parentNode && el.parentNode.host) el = el.parentNode.host;
+    else break;
+  }
+  return null;
+}
+function mediaFromNode(node) {
+  return packMedia(climbMedia(node));
+}
+function mediaAtPoint(doc, x, y, node, event) {
+  let path = [];
+  try { path = event && event.composedPath ? event.composedPath() : []; } catch (err) { path = []; }
+  for (let i = 0; i < path.length; i++) {
+    const fromPath = mediaFromNode(path[i]);
+    if (fromPath) return fromPath;
+  }
+  const direct = mediaFromNode(node);
+  if (direct) return direct;
+  if (doc && doc.querySelectorAll) {
+    const found = [];
+    collectMedia(doc, found, 0);
+    const hit = hitMedia(found, x, y);
+    if (hit) return hit;
+  }
+  for (let i = 0; i < path.length; i++) {
+    const host = mediaFromHost(path[i]);
+    if (host) return host;
+  }
+  return mediaFromHost(node);
 }
 function mediaOnPage() {
   const tab = getActiveTab();
@@ -6219,12 +6301,14 @@ function mediaOnPage() {
     doc = el && el.contentDocument;
   } catch (err) {}
   if (!doc) return null;
-  const nodes = doc.querySelectorAll("video, audio");
+  const nodes = [];
+  collectMedia(doc, nodes, 0);
   let best = null;
   let bestArea = 0;
   for (let i = 0; i < nodes.length; i++) {
     const el = nodes[i];
-    const box = el.getBoundingClientRect();
+    let box;
+    try { box = el.getBoundingClientRect(); } catch (err) { continue; }
     const area = Math.max(0, box.width) * Math.max(0, box.height);
     if (!best || area > bestArea) {
       best = el;
@@ -6232,7 +6316,7 @@ function mediaOnPage() {
     }
   }
   if (!best) return null;
-  return { el: best, src: best.currentSrc || best.src || "", kind: best.tagName === "VIDEO" ? "video" : "audio" };
+  return packMedia(best);
 }
 function mediaKindOf(url, mime, fallback) {
   const type = String(mime || "").toLowerCase();
@@ -6246,32 +6330,84 @@ function mediaKindOf(url, mime, fallback) {
   if (/[?&]mime=video(%2F|\/)/i.test(raw) || /googlevideo\.com\/videoplayback/i.test(raw)) return "video";
   return fallback || "";
 }
+function harvestMediaUrls(el, add) {
+  let node = el;
+  let hops = 0;
+  while (node && hops < 8) {
+    hops += 1;
+    if (node.getAttributeNames) {
+      const names = node.getAttributeNames();
+      for (let i = 0; i < names.length; i++) {
+        const val = node.getAttribute(names[i]) || "";
+        if (!val) continue;
+        if (/^https?:/i.test(val)) add(val);
+        const found = val.match(/https?:\\?\/\\?\/[^"'\s\\<>]+/g);
+        if (found) {
+          for (let j = 0; j < found.length; j++) add(found[j].replace(/\\\//g, "/"));
+        }
+      }
+    }
+    if (node.parentElement) node = node.parentElement;
+    else if (node.parentNode && node.parentNode.host) node = node.parentNode.host;
+    else {
+      const root = node.getRootNode && node.getRootNode();
+      node = root && root.host && root.host !== node ? root.host : null;
+    }
+  }
+}
+function expandMediaUrls(urls) {
+  const out = urls.slice();
+  urls.forEach(url => {
+    const real = unwrapProxyUrl(url) || url;
+    const match = String(real).match(/https?:\/\/v\.redd\.it\/([A-Za-z0-9]+)/i);
+    if (!match) return;
+    ["DASH_720.mp4", "DASH_480.mp4", "DASH_360.mp4", "DASH_1080.mp4", "DASH_240.mp4", "CMAF_720.mp4", "CMAF_480.mp4"].forEach(file => {
+      const next = "https://v.redd.it/" + match[1] + "/" + file;
+      if (out.indexOf(next) === -1) out.push(next);
+      const alt = next + "?source=fallback";
+      if (out.indexOf(alt) === -1) out.push(alt);
+    });
+  });
+  return out;
+}
+function mediaUrlRank(url) {
+  const value = String(url || "");
+  if (/DASH_\d+\.mp4|CMAF_\d+\.mp4/i.test(value)) return 50;
+  if (/\.(mp4|webm|ogv|mov|m4v|mp3|m4a|aac|wav|ogg|flac)(\?|#|$)/i.test(value)) return 40;
+  if (/videoplayback/i.test(value) && /mime=video/i.test(value)) return 36;
+  if (/googlevideo\.com\/videoplayback/i.test(value)) return 30;
+  if (/\.m3u8(\?|#|$)/i.test(value)) return 4;
+  if (/^blob:/i.test(value)) return 1;
+  if (/^https?:/i.test(value)) return 16;
+  return 8;
+}
 function mediaUrlList(picked) {
   const urls = [];
   function add(url) {
-    const value = String(url || "");
-    if (!value || urls.indexOf(value) !== -1) return;
+    const value = String(url || "").trim();
+    if (!value || value === "about:blank" || urls.indexOf(value) !== -1) return;
     urls.push(value);
   }
   if (picked && picked.src) add(picked.src);
   const el = picked && picked.el;
   if (el) {
-    add(el.currentSrc);
-    add(el.src);
+    try { add(el.currentSrc); } catch (err) {}
+    try { add(el.src); } catch (err) {}
     try {
       const sources = el.querySelectorAll ? el.querySelectorAll("source") : [];
       for (let i = 0; i < sources.length; i++) add(sources[i].src);
     } catch (err) {}
+    harvestMediaUrls(el, add);
     try {
       const view = el.ownerDocument && el.ownerDocument.defaultView;
       const entries = view && view.performance && view.performance.getEntriesByType("resource") || [];
-      for (let i = entries.length - 1; i >= 0 && urls.length < 8; i--) {
+      for (let i = entries.length - 1; i >= 0 && urls.length < 24; i--) {
         const name = entries[i].name || "";
-        if (mediaKindOf(name, "", "")) add(name);
+        if (mediaKindOf(name, "", "") || /v\.redd\.it|googlevideo\.com\/videoplayback|\.m3u8/i.test(name)) add(name);
       }
     } catch (err) {}
   }
-  return urls;
+  return expandMediaUrls(urls);
 }
 async function fetchMediaBlob(url, frameEl) {
   const real = unwrapProxyUrl(url) || url || "";
@@ -6299,7 +6435,7 @@ async function fetchMediaBlob(url, frameEl) {
       const blob = await res.blob();
       const type = String(blob && blob.type || "").toLowerCase();
       if (!blob || blob.size < 1024 || blob.size > 100 * 1024 * 1024) continue;
-      if (type.indexOf("text/") === 0 || type.indexOf("application/json") === 0 || type.indexOf("application/xhtml") === 0) continue;
+      if (type.indexOf("text/") === 0 || type.indexOf("image/") === 0 || type.indexOf("application/json") === 0 || type.indexOf("application/xhtml") === 0 || /mpegurl|dash\+xml|application\/xml/.test(type)) continue;
       return blob;
     } catch (err) {}
   }
@@ -6328,11 +6464,13 @@ on("menuSaveMedia", async () => {
   closeMenu();
   if (!document.body.classList.contains("veil-os") || typeof window.veilOSAddMedia !== "function" || !picked) return;
   const tab = getActiveTab();
-  const urls = mediaUrlList(picked);
+  const urls = mediaUrlList(picked).filter(url => !/^blob:/i.test(url));
   if (tab && tab.url && directMediaKind(tab.url)) urls.push(tab.url);
+  urls.sort((a, b) => mediaUrlRank(b) - mediaUrlRank(a));
   let blob = null;
   let used = "";
   for (let i = 0; i < urls.length; i++) {
+    if (/\.m3u8(\?|#|$)/i.test(urls[i])) continue;
     blob = await fetchMediaBlob(urls[i], picked.el);
     if (blob) { used = urls[i]; break; }
   }
@@ -6422,7 +6560,7 @@ function hookFrameMenu(frameEl) {
     event.preventDefault();
     event.stopPropagation();
     const spot = pointFromFrame(frameEl, event.clientX, event.clientY);
-    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target), mediaAtPoint(doc, event.clientX, event.clientY, target));
+    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target), mediaAtPoint(doc, event.clientX, event.clientY, target, event));
   }, true);
   const scan = records => {
     try {
@@ -6581,7 +6719,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=27";
+  link.href = BASE + "/veilos.css?v=28";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6592,7 +6730,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=27";
+  script.src = BASE + "/veilos.js?v=28";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7174,7 +7312,7 @@ document.addEventListener("contextmenu", value => {
   if (target.closest("input, textarea, select, [contenteditable='true'], #mainMenu, .panel, .modal-overlay")) return;
   value.preventDefault();
   value.stopPropagation();
-  openBrowserMenuAt(value.clientX, value.clientY, null, mediaAtPoint(document, value.clientX, value.clientY, target) || mediaOnPage());
+  openBrowserMenuAt(value.clientX, value.clientY, null, mediaAtPoint(document, value.clientX, value.clientY, target, value) || mediaOnPage());
 }, true);
 document.addEventListener("keydown", value => {
   if (document.querySelector(".lock-overlay")) {
