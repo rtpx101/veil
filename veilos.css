@@ -126,6 +126,7 @@
   min-width:0;
   font-size:13px;
   font-weight:550;
+  line-height:18px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -157,13 +158,13 @@
 .vos-fold-item .vos-glyph{width:48px;height:48px}
 .vos-fold-item [data-label]{
   font-size:12px;
-  line-height:1.2;
+  line-height:16px;
   text-align:center;
   max-width:108px;
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
+  max-height:36px;
   overflow:hidden;
+  display:block;
+  word-break:break-word;
 }
 .vos-fold-empty{
   grid-column:1 / -1;
@@ -242,21 +243,22 @@
   box-shadow:none;
 }
 .vos-glyph img.vos-logo{width:100%;height:100%;padding:4px}
+.vos-glyph img.vos-chat{padding:9px;box-sizing:border-box}
 .vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
 .vos-logo{filter:none !important}
 .vos-glyph .vos-appicon{filter:none !important;width:100%;height:100%;object-fit:cover;border-radius:16px;padding:0}
 .vos-title .vos-appicon,.vos-taskbtn .vos-appicon{filter:none !important;width:16px;height:16px;object-fit:contain;border-radius:4px}
 .vos-icon > [data-label]{
   font-size:12px;
-  line-height:1.2;
+  line-height:16px;
   text-align:center;
   color:var(--text);
   text-shadow:0 1px 2px rgba(0,0,0,.85);
   max-width:86px;
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
+  max-height:36px;
   overflow:hidden;
+  display:block;
+  word-break:break-word;
 }
 .vos-ctx{
   position:fixed;
@@ -367,6 +369,7 @@ body.veil-os #menuInstall{display:flex}
   min-width:0;
   font-size:13px;
   font-weight:550;
+  line-height:18px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -424,6 +427,42 @@ body.veil-os #menuInstall{display:flex}
   color:var(--muted);
   font-size:13px;
 }
+.vos-photo{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  background:#111;
+}
+.vos-photo img{
+  flex:1;
+  min-height:0;
+  width:100%;
+  object-fit:contain;
+  background:#111;
+}
+.vos-photo-bar{
+  flex:0 0 48px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  padding:0 12px;
+  background:var(--bg2);
+  border-top:1px solid var(--border);
+}
+.vos-photo-bar button{
+  height:30px;
+  padding:0 12px;
+  border:0;
+  border-radius:8px;
+  background:var(--panel);
+  color:var(--text);
+  cursor:pointer;
+  font-size:13px;
+}
+.vos-photo-bar button:hover{background:var(--panel2)}
 .vos-taskbar{
   flex:0 0 48px;
   height:48px;
@@ -543,7 +582,9 @@ body.veil-os #browser .menu{
 }
 body.veil-os #browser .backdrop,
 body.veil-os #browser .panel{position:absolute}
-body.veil-os .quick-link[data-games]{display:none !important}
+body.veil-os .quick-link[data-games],
+body.veil-os .quick-link[data-chat]{display:none !important}
+body.veil-os #menuSaveImage{display:flex}
 
 body.veil-os #osApp-settings > .panel{
   position:absolute !important;

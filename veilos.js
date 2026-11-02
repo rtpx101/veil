@@ -40,6 +40,7 @@
     if (kind === "store") return '<img draggable="false" src="' + IMG + 'appstore.svg" alt="">';
     if (kind === "games") return '<img draggable="false" src="' + IMG + 'games.svg" alt="">';
     if (kind === "settings") return '<img draggable="false" src="' + IMG + 'settings.svg" alt="">';
+    if (kind === "chat") return '<img class="vos-chat" draggable="false" src="' + IMG + 'chat.svg" alt="">';
     return svgChat();
   }
   function sharpIcon(url) {
@@ -61,6 +62,8 @@
     paintPick();
   }
   var installed = [];
+  var files = [];
+  var fileUrls = {};
   var iconsEl = null;
   var ctxEl = null;
   var ctxApp = null;
@@ -73,6 +76,165 @@
   }
   function saveInstalled() {
     try { localStorage.setItem("veil_os_apps", JSON.stringify(installed)); } catch (err) {}
+  }
+  function fileDb() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open("veil_os_files", 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains("files")) db.createObjectStore("files", { keyPath: "id" });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function rememberFile(file) {
+    if (fileUrls[file.id] && String(fileUrls[file.id]).indexOf("blob:") === 0) URL.revokeObjectURL(fileUrls[file.id]);
+    if (file.blob) fileUrls[file.id] = URL.createObjectURL(file.blob);
+    else fileUrls[file.id] = file.remote || "";
+  }
+  function loadFiles() {
+    return fileDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction("files", "readonly").objectStore("files").getAll();
+        req.onsuccess = function () {
+          files = req.result || [];
+          files.forEach(rememberFile);
+          resolve(files);
+        };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () {
+      files = [];
+      return false;
+    });
+  }
+  function saveFileRecord(file) {
+    return fileDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction("files", "readwrite");
+        tx.objectStore("files").put(file);
+        tx.oncomplete = function () { resolve(file); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function deleteFileRecord(id) {
+    return fileDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction("files", "readwrite");
+        tx.objectStore("files").delete(id);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function () {});
+  }
+  function shrinkBlob(blob) {
+    return new Promise(function (resolve) {
+      if (!blob || blob.size < 1500000 || blob.type === "image/svg+xml") { resolve(blob); return; }
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth || img.width || 1;
+        var h = img.naturalHeight || img.height || 1;
+        var scale = Math.min(1, 1920 / Math.max(w, h));
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (out) { resolve(out || blob); }, "image/jpeg", 0.86);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(blob); };
+      img.src = url;
+    });
+  }
+  function addImageFile(blob, name, remote) {
+    var title = String(name || "Image").replace(/\.[a-z0-9]{2,5}$/i, "").trim().slice(0, 48) || "Image";
+    return shrinkBlob(blob).then(function (out) {
+      if (out && out.size > 8 * 1024 * 1024) throw new Error("too big");
+      var file = {
+        id: "img_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+        title: title,
+        mime: out && out.type || "image/*",
+        blob: out || null,
+        remote: out ? "" : String(remote || "")
+      };
+      if (!file.blob && !file.remote) throw new Error("empty");
+      rememberFile(file);
+      files.push(file);
+      return saveFileRecord(file).then(function () {
+        renderDesktopIcons();
+        onlyPick(file.id);
+        return file;
+      });
+    }).catch(function (err) {
+      try { alert(err && err.message === "too big" ? "That image is too large." : "Could not save that image."); } catch (e) {}
+      return null;
+    });
+  }
+  function deleteFile(id) {
+    var file = null;
+    files.forEach(function (item) { if (item.id === id) file = item; });
+    if (!file) return;
+    files = files.filter(function (item) { return item.id !== id; });
+    folders.forEach(function (folder) {
+      folder.items = folder.items.filter(function (item) { return item !== id; });
+    });
+    delete iconLayout[id];
+    delete picked[id];
+    if (fileUrls[id] && String(fileUrls[id]).indexOf("blob:") === 0) URL.revokeObjectURL(fileUrls[id]);
+    delete fileUrls[id];
+    saveFolders();
+    saveLayout();
+    deleteFileRecord(id);
+    var win = wins[id];
+    if (win) {
+      if (closeTimers[id]) {
+        clearTimeout(closeTimers[id]);
+        closeTimers[id] = 0;
+      }
+      if (win.el.parentNode) win.el.parentNode.removeChild(win.el);
+      delete wins[id];
+      if (focused === id) focused = null;
+    }
+    try {
+      if (settings && settings.backgroundUrl === "veil-file:" + id) {
+        settings.backgroundUrl = "";
+        if (settings.animStyle === "custom") settings.animEnabled = false;
+        if (typeof highlightTheme === "function") highlightTheme();
+        if (typeof save === "function") save();
+        if (typeof applyNewTabBackground === "function") applyNewTabBackground();
+      }
+    } catch (err) {}
+    renderDesktopIcons();
+    renderTasks();
+    syncFull();
+    if (openFolderId) paintFolder();
+    paintDesk();
+  }
+  function setWallpaper(id) {
+    if (!fileUrls[id]) return;
+    try {
+      settings.animEnabled = true;
+      settings.animStyle = "custom";
+      settings.backgroundUrl = "veil-file:" + id;
+      if (typeof highlightTheme === "function") highlightTheme();
+      if (typeof save === "function") save();
+      if (typeof applyNewTabBackground === "function") applyNewTabBackground();
+      else paintDesk();
+    } catch (err) {}
+  }
+  function pruneMissingFiles() {
+    var changed = false;
+    folders.forEach(function (folder) {
+      var next = folder.items.filter(function (id) { return !!appById(id); });
+      if (next.length !== folder.items.length) {
+        folder.items = next;
+        changed = true;
+      }
+    });
+    if (changed) saveFolders();
   }
   function esc(value) {
     return String(value || "").replace(/[&<>"']/g, function (ch) {
@@ -89,6 +251,9 @@
     });
     installed.forEach(function (app) {
       list.push({ id: app.id, title: app.title, builtin: false, url: app.url, iconUrl: app.icon });
+    });
+    files.forEach(function (file) {
+      list.push({ id: file.id, title: file.title, builtin: false, file: true, kind: "image", iconUrl: fileUrls[file.id] || "" });
     });
     return list;
   }
@@ -107,7 +272,9 @@
     folders.forEach(function (folder) {
       if (!Array.isArray(folder.items)) folder.items = [];
       folder.items = folder.items.map(function (id) { return id === "games" ? "store" : id; });
-      folder.items = folder.items.filter(function (id) { return !!appById(id); });
+      folder.items = folder.items.filter(function (id) {
+        return !!appById(id) || String(id).indexOf("img_") === 0;
+      });
     });
   }
   function saveFolders() {
@@ -375,7 +542,9 @@
         ? "<button type=\"button\" data-act=\"rename\" disabled class=\"is-off\"><span>Rename</span></button>"
         : "<button type=\"button\" data-act=\"rename\"><span>Rename</span></button>";
       html += "<button type=\"button\" data-act=\"out\"><span>Remove from folder</span></button>";
-      if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
+      if (app.file) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
+      if (app.file) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"deletefile\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Delete</span></button>";
+      else if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     } else if (app.folder) {
       html = "<button type=\"button\" data-act=\"open\"><span>Open</span></button><button type=\"button\" data-act=\"rename\"><span>Rename</span></button><div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"delete\"><span>Delete folder</span></button>";
     } else {
@@ -388,7 +557,9 @@
         html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\"><span>Move to " + esc(folder.title || "Folder") + "</span></button>";
       });
       html += "<button type=\"button\" data-act=\"new\"><span>New folder</span></button>";
-      if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
+      if (app.file) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
+      if (app.file) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"deletefile\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Delete</span></button>";
+      else if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     }
     ctxEl.innerHTML = html;
     ctxEl.hidden = false;
@@ -401,11 +572,17 @@
   function renameInstalled(app) {
     if (!app || app.builtin) return;
     var current = null;
-    installed.forEach(function (item) { if (item.id === app.id) current = item; });
+    var file = null;
+    if (app.file) {
+      files.forEach(function (item) { if (item.id === app.id) file = item; });
+      current = file;
+    } else {
+      installed.forEach(function (item) { if (item.id === app.id) current = item; });
+    }
     if (!current) return;
     var overlay = document.createElement("div");
     overlay.className = "modal-overlay rename-modal";
-    overlay.innerHTML = "<div class=\"modal-box\"><h2>Rename app</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
+    overlay.innerHTML = "<div class=\"modal-box\"><h2>" + (file ? "Rename image" : "Rename app") + "</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
     document.body.appendChild(overlay);
     var input = overlay.querySelector("#vosRenameInput");
     input.focus();
@@ -417,7 +594,8 @@
       var name = input.value.trim().slice(0, 48);
       if (name) {
         current.title = name;
-        saveInstalled();
+        if (file) saveFileRecord(file);
+        else saveInstalled();
         var el = iconEls[current.id];
         if (el) {
           el.title = name;
@@ -447,6 +625,11 @@
       return;
     }
     if (app.builtin) {
+      openApp(app.id);
+      return;
+    }
+    if (app.file) {
+      ensureFileWindow(app);
       openApp(app.id);
       return;
     }
@@ -667,6 +850,7 @@
           id: app.id,
           title: app.title,
           builtin: app.builtin,
+          file: !!app.file,
           url: app.url,
           iconUrl: app.iconUrl,
           kind: app.kind,
@@ -915,6 +1099,9 @@
     });
     installed.forEach(function (app) {
       list.push({ id: app.id, title: app.title, iconUrl: app.icon });
+    });
+    files.forEach(function (file) {
+      list.push({ id: file.id, title: file.title, iconUrl: fileUrls[file.id] || "" });
     });
     return list;
   }
@@ -1177,6 +1364,7 @@
       try { fillChatSettings(); } catch (err) {}
     }
     if (win.installed) ensureProxy(win);
+    if (win.file) paintFile(win);
     if (hidden && motionOn) {
       win.el.classList.add("is-opening");
       void win.el.offsetWidth;
@@ -1455,6 +1643,35 @@
     return win;
   }
 
+  function ensureFileWindow(app) {
+    if (!app) return null;
+    var win = wins[app.id];
+    if (win) {
+      win.title = app.title;
+      win.file = true;
+      var bar = win.el.querySelector(".vos-title b");
+      if (bar) bar.textContent = app.title;
+      return win;
+    }
+    win = makeWindow({ id: app.id, title: app.title, iconUrl: fileUrls[app.id] || "", installed: false });
+    win.file = true;
+    if (deskEl) {
+      deskEl.appendChild(win.el);
+      placeInstalled(win);
+    }
+    return win;
+  }
+  function paintFile(win) {
+    if (!win || !win.file) return;
+    var src = fileUrls[win.id] || "";
+    win.body.innerHTML = '<div class="vos-photo"><img alt="" draggable="false" src="' + esc(src) + '"><div class="vos-photo-bar"><button type="button" data-wall>Set as wallpaper</button></div></div>';
+    var btn = win.body.querySelector("[data-wall]");
+    if (btn) btn.onclick = function (e) {
+      e.stopPropagation();
+      setWallpaper(win.id);
+    };
+  }
+
   function ensureProxy(win) {
     if (!win || !win.installed || win.frameReady) return;
     var gameId = "";
@@ -1568,6 +1785,24 @@
       desk.addEventListener("pointermove", move);
       desk.addEventListener("pointerup", up);
     });
+    desk.addEventListener("dragover", function (e) {
+      if (!e.dataTransfer) return;
+      var types = e.dataTransfer.types ? Array.prototype.slice.call(e.dataTransfer.types) : [];
+      if (types.indexOf("Files") === -1) return;
+      e.preventDefault();
+    });
+    desk.addEventListener("drop", function (e) {
+      if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      var images = [];
+      var i;
+      for (i = 0; i < e.dataTransfer.files.length; i++) {
+        if (String(e.dataTransfer.files[i].type || "").indexOf("image/") === 0) images.push(e.dataTransfer.files[i]);
+      }
+      if (!images.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      images.forEach(function (file) { addImageFile(file, file.name, "").catch(function () {}); });
+    });
     desk.addEventListener("contextmenu", function (e) {
       if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon") || e.target.closest(".vos-fold"))) return;
       e.preventDefault();
@@ -1678,7 +1913,9 @@
         else renameInstalled(app);
       }
       if (act === "delete" && app && app.folder) deleteFolder(app.id);
-      if (act === "uninstall" && app && !app.builtin && !app.folder) uninstallApp(app.id);
+      if (act === "uninstall" && app && !app.builtin && !app.folder && !app.file) uninstallApp(app.id);
+      if (act === "deletefile" && app && app.file) deleteFile(app.id);
+      if (act === "wall" && app && app.file) setWallpaper(app.id);
       if (act === "out" && app && app.inFolder) removeFromFolder(app.inFolder, app.id);
       if (act === "move" && dest) {
         var ids = [];
@@ -1735,6 +1972,13 @@
     if (clockTimer) clearInterval(clockTimer);
     clockTimer = setInterval(paintClock, 1000);
     paintDesk();
+    loadFiles().then(function (loaded) {
+      if (loaded === false) return;
+      pruneMissingFiles();
+      renderDesktopIcons();
+      paintDesk();
+      try { if (typeof applyNewTabBackground === "function") applyNewTabBackground(); } catch (err) {}
+    });
   }
 
   function paintDesk() {
@@ -1754,6 +1998,7 @@
         url = String(settings.backgroundUrl || "").trim();
       }
     } catch (err) {}
+    if (url.indexOf("veil-file:") === 0) url = fileUrls[url.slice("veil-file:".length)] || "";
     if (!url) return;
     var wall;
     if (/\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) {
@@ -1828,6 +2073,11 @@
 
   window.veilOSPaintWall = paintDesk;
   window.veilOSInstall = installApp;
+  window.veilOSFileUrl = function (id) { return fileUrls[id] || ""; };
+  window.veilOSAddImage = function (info) {
+    if (!info) return Promise.resolve(null);
+    return addImageFile(info.blob || null, info.name || "Image", info.remote || "");
+  };
   window.veilOSOpenApp = function (id) {
     if (!wins[id]) return;
     openApp(id);

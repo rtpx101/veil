@@ -1301,7 +1301,10 @@ function playHomeAnimated(value2, extra) {
 }
 function applyNewTabBackground() {
   const admin = !!settings.animEnabled && settings.animStyle === "custom";
-  const session = admin ? (settings.backgroundUrl || "").trim() : "";
+  let session = admin ? (settings.backgroundUrl || "").trim() : "";
+  if (session.indexOf("veil-file:") === 0) {
+    session = (typeof window.veilOSFileUrl === "function" && window.veilOSFileUrl(session.slice("veil-file:".length))) || "";
+  }
   const workerUrl = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1));
   document.querySelectorAll(".newtab-page").forEach(value2 => {
     stopHomeFrames(value2);
@@ -4526,6 +4529,14 @@ function updateDevtoolsMenuState() {
     menuInstall.disabled = blocked;
     menuInstall.setAttribute("aria-disabled", blocked ? "true" : "false");
   }
+  const menuSaveImage = document.getElementById("menuSaveImage");
+  if (menuSaveImage) {
+    const desktop = document.body.classList.contains("veil-os");
+    const blocked = !desktop || !message || !!message.newTab || !!message.isGames || !!message.isAdmin || chat || !message.url || /^veil:/i.test(message.url);
+    menuSaveImage.classList.toggle("disabled", blocked);
+    menuSaveImage.disabled = blocked;
+    menuSaveImage.setAttribute("aria-disabled", blocked ? "true" : "false");
+  }
 }
 function syncAboutBlankChrome() {
   const veil = cloak && cloak.title || "Veil";
@@ -6059,6 +6070,79 @@ on("menuInstall", () => {
     icon: icon
   });
 });
+function imageNameFromUrl(url, title) {
+  let name = String(title || "").trim();
+  if (!name || name === "Loading" || name === "New Tab") {
+    try { name = decodeURIComponent(new URL(url).pathname.split("/").pop() || ""); }
+    catch (err) { name = ""; }
+  }
+  return name || "Image";
+}
+function isDirectImageUrl(url) {
+  return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?|#|$)/i.test(String(url || ""));
+}
+async function blobFromImageEl(img) {
+  try {
+    const width = img.naturalWidth || img.width;
+    const height = img.naturalHeight || img.height;
+    if (!width || !height) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(img, 0, 0);
+    return await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  } catch (err) {
+    return null;
+  }
+}
+on("menuSaveImage", async () => {
+  closeMenu();
+  if (!document.body.classList.contains("veil-os") || typeof window.veilOSAddImage !== "function") return;
+  const tab = getActiveTab();
+  if (!tab || tab.newTab || tabUrlLocked(tab) || !tab.url || /^veil:/i.test(tab.url)) return;
+  const name = imageNameFromUrl(tab.url, tab.title);
+  if (isDirectImageUrl(tab.url)) {
+    try {
+      const res = await fetch(tab.url);
+      const blob = await res.blob();
+      if (blob && (!blob.type || blob.type.indexOf("image/") === 0)) {
+        await window.veilOSAddImage({ blob, name });
+        return;
+      }
+    } catch (err) {}
+    await window.veilOSAddImage({ remote: tab.url, name });
+    return;
+  }
+  let doc = null;
+  try {
+    const el = tab.engineFrame && (tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame);
+    doc = el && el.contentDocument;
+  } catch (err) {}
+  const imgs = doc ? Array.prototype.slice.call(doc.images || []) : [];
+  imgs.sort((a, b) => (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight));
+  const img = imgs.find(item => (item.naturalWidth || item.width) >= 32 && (item.naturalHeight || item.height) >= 32);
+  if (img) {
+    const blob = await blobFromImageEl(img);
+    if (blob) {
+      await window.veilOSAddImage({ blob, name: img.alt || name });
+      return;
+    }
+    const src = img.currentSrc || img.src || "";
+    if (src) {
+      try {
+        const res = await fetch(src);
+        const blob = await res.blob();
+        if (blob && blob.type.indexOf("image/") === 0) {
+          await window.veilOSAddImage({ blob, name: img.alt || name });
+          return;
+        }
+      } catch (err) {}
+      await window.veilOSAddImage({ remote: src, name: img.alt || name });
+      return;
+    }
+  }
+  alert("No image to save on this page. Open an image, or drop one onto the desktop.");
+});
 function togglePageFullscreen() {
   try {
     const stamp = getActiveTab();
@@ -6131,7 +6215,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=21";
+  link.href = BASE + "/veilos.css?v=22";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6142,7 +6226,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=21";
+  script.src = BASE + "/veilos.js?v=22";
   script.onload = () => {
     jsReady = true;
     tryStart();
