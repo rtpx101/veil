@@ -64,6 +64,8 @@
   var iconsEl = null;
   var ctxEl = null;
   var ctxApp = null;
+  var ctxX = 0;
+  var ctxY = 0;
 
   function loadInstalled() {
     try { installed = JSON.parse(localStorage.getItem("veil_os_apps") || "[]"); } catch (err) { installed = []; }
