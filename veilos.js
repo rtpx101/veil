@@ -7,7 +7,9 @@
     { id: "settings", title: "Settings", icon: "settings" },
     { id: "calc", title: "Calculator", icon: "calc" },
     { id: "timer", title: "Timer", icon: "clock" },
-    { id: "editor", title: "Code Editor", icon: "editor" }
+    { id: "editor", title: "Code Editor", icon: "editor" },
+    { id: "notes", title: "Notepad", icon: "note" },
+    { id: "player", title: "Media Player", icon: "audio" }
   ];
   var wins = {};
   var focused = null;
@@ -48,6 +50,9 @@
     if (kind === "clock") return '<img class="vos-pad" draggable="false" src="' + IMG + 'clock.svg" alt="">';
     if (kind === "editor") return '<img class="vos-pad" draggable="false" src="' + IMG + 'editor.svg" alt="">';
     if (kind === "file") return '<img class="vos-pad" draggable="false" src="' + IMG + 'file.svg" alt="">';
+    if (kind === "note") return '<img class="vos-pad" draggable="false" src="' + IMG + 'notepad.svg" alt="">';
+    if (kind === "audio") return '<img class="vos-pad" draggable="false" src="' + IMG + 'audio.svg" alt="">';
+    if (kind === "video") return '<img class="vos-pad" draggable="false" src="' + IMG + 'video.svg" alt="">';
     return svgChat();
   }
   function sharpIcon(url) {
@@ -157,8 +162,67 @@
       img.src = url;
     });
   }
+  function fileExt(name) {
+    var match = String(name || "").toLowerCase().match(/\.([a-z0-9]{1,8})$/);
+    return match ? match[1] : "";
+  }
+  function withExt(name, ext) {
+    var clean = String(ext || "").replace(/^\./, "").toLowerCase();
+    var base = String(name || "").trim() || "untitled";
+    if (!clean) return base.slice(0, 80);
+    if (fileExt(base) === clean) return base.slice(0, 80);
+    return (base + "." + clean).slice(0, 80);
+  }
+  function extForMime(mime, fallback) {
+    var map = {
+      "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/gif": "gif",
+      "image/webp": "webp", "image/svg+xml": "svg", "image/bmp": "bmp", "image/avif": "avif",
+      "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/wave": "wav", "audio/x-wav": "wav",
+      "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/aac": "aac", "audio/flac": "flac", "audio/x-m4a": "m4a", "audio/webm": "weba",
+      "video/mp4": "mp4", "video/webm": "webm", "video/ogg": "ogv", "video/quicktime": "mov"
+    };
+    var key = String(mime || "").split(";")[0].trim().toLowerCase();
+    return map[key] || fallback || "";
+  }
+  var AUDIO_EXT = { mp3: 1, wav: 1, ogg: 1, oga: 1, m4a: 1, aac: 1, flac: 1, weba: 1 };
+  var VIDEO_EXT = { mp4: 1, webm: 1, ogv: 1, mov: 1, m4v: 1 };
+  function mediaKindFrom(name, mime) {
+    var type = String(mime || "").toLowerCase();
+    if (type.indexOf("audio/") === 0) return "audio";
+    if (type.indexOf("video/") === 0) return "video";
+    var ext = fileExt(name);
+    if (AUDIO_EXT[ext]) return "audio";
+    if (VIDEO_EXT[ext]) return "video";
+    return "";
+  }
+  function extForFile(file) {
+    if (!file) return "";
+    if (file.kind === "note") return "txt";
+    if (file.kind === "code") {
+      var ext = "txt";
+      var lang = file.lang || "javascript";
+      LANGS.forEach(function (item) { if (item.id === lang) ext = item.ext; });
+      return ext;
+    }
+    if (file.kind === "audio") {
+      var got = fileExt(file.title);
+      return AUDIO_EXT[got] ? got : extForMime(file.mime, "mp3");
+    }
+    if (file.kind === "video") {
+      var gotV = fileExt(file.title);
+      return VIDEO_EXT[gotV] ? gotV : extForMime(file.mime, "mp4");
+    }
+    return fileExt(file.title) || extForMime(file.mime, "png");
+  }
+  function nameWithKind(file, name) {
+    var stem = String(name || "").replace(/\.[a-z0-9]{1,8}$/i, "").trim();
+    return withExt(stem || "untitled", extForFile(file));
+  }
   function addImageFile(blob, name, remote) {
-    var title = String(name || "Image").replace(/\.[a-z0-9]{2,5}$/i, "").trim().slice(0, 48) || "Image";
+    var mime = blob && blob.type || "";
+    if (mediaKindFrom(name, mime)) return addMediaFile(blob, name, mime, remote, "");
+    var ext = fileExt(name) || extForMime(mime, "png");
+    var title = withExt(String(name || "Image").replace(/\.[a-z0-9]{1,8}$/i, ""), ext);
     return shrinkBlob(blob).then(function (out) {
       if (out && out.size > 8 * 1024 * 1024) throw new Error("too big");
       var file = {
@@ -183,7 +247,7 @@
   }
   function addCodeFile(info) {
     info = info || {};
-    var title = String(info.title || "untitled.txt").trim().slice(0, 64) || "untitled.txt";
+    var title = nameWithKind({ kind: "code", lang: info.lang || "javascript" }, info.title || "untitled");
     var existing = null;
     if (info.id) files.forEach(function (item) { if (item.id === info.id) existing = item; });
     var file = existing || {
@@ -205,6 +269,67 @@
       if (openFolderId) paintFolder();
       return file;
     }).catch(function () { return null; });
+  }
+  function addNoteFile(info) {
+    info = info || {};
+    var existing = null;
+    if (info.id) files.forEach(function (item) { if (item.id === info.id) existing = item; });
+    var file = existing || {
+      id: "note_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      kind: "note"
+    };
+    file.kind = "note";
+    file.title = nameWithKind(file, info.title || "untitled");
+    file.text = String(info.text || "");
+    if (!existing) {
+      files.push(file);
+      iconLayout[file.id] = freeSpot(24, 16, {});
+    }
+    return saveFileRecord(file).then(function () {
+      saveLayout();
+      renderDesktopIcons();
+      if (openFolderId) paintFolder();
+      return file;
+    }).catch(function () { return null; });
+  }
+  function addMediaFile(blob, name, mime, remote, kindHint) {
+    var kind = kindHint || mediaKindFrom(name, mime || (blob && blob.type) || "");
+    if (kind !== "audio" && kind !== "video") {
+      try { alert("Veil can save MP3, WAV, OGG, M4A, FLAC, MP4, WEBM, and MOV."); } catch (err) {}
+      return Promise.resolve(null);
+    }
+    if (blob && blob.size > 100 * 1024 * 1024) {
+      try { alert("That file is too large."); } catch (err2) {}
+      return Promise.resolve(null);
+    }
+    var ext = fileExt(name);
+    var known = kind === "audio" ? AUDIO_EXT[ext] : VIDEO_EXT[ext];
+    if (!known) ext = extForMime(mime || (blob && blob.type), kind === "audio" ? "mp3" : "mp4");
+    var stem = String(name || (kind === "audio" ? "Audio" : "Video")).replace(/\.[a-z0-9]{1,8}$/i, "");
+    var file = {
+      id: (kind === "audio" ? "aud_" : "vid_") + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      title: withExt(stem, ext),
+      kind: kind,
+      mime: mime || (blob && blob.type) || (kind === "audio" ? "audio/mpeg" : "video/mp4"),
+      blob: blob || null,
+      remote: blob ? "" : String(remote || "")
+    };
+    if (!file.blob && !file.remote) {
+      try { alert("Could not save that file."); } catch (err3) {}
+      return Promise.resolve(null);
+    }
+    rememberFile(file);
+    files.push(file);
+    iconLayout[file.id] = freeSpot(24, 16, {});
+    return saveFileRecord(file).then(function () {
+      saveLayout();
+      renderDesktopIcons();
+      onlyPick(file.id);
+      return file;
+    }).catch(function () {
+      try { alert("Could not save that file."); } catch (err4) {}
+      return null;
+    });
   }
   var deviceWallUrl = "";
   function readWallBlob() {
@@ -249,6 +374,29 @@
     else pins.splice(at, 1);
     savePins();
     renderTasks();
+  }
+  function noteRecent(id) {
+    if (!id) return;
+    var list = [];
+    try { list = JSON.parse(localStorage.getItem("veil_os_recent") || "[]"); } catch (err) { list = []; }
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(function (item) { return item !== id; });
+    list.unshift(id);
+    try { localStorage.setItem("veil_os_recent", JSON.stringify(list.slice(0, 10))); } catch (err2) {}
+  }
+  function profileBits() {
+    var name = "Guest";
+    var avatar = IMG + "profileplaceholder.png";
+    var placeholder = true;
+    try {
+      var raw = localStorage.getItem("veil_profile");
+      if (raw) {
+        var data = JSON.parse(raw);
+        if (data && data.name) name = String(data.name).slice(0, 32);
+        if (data && data.avatar) { avatar = data.avatar; placeholder = false; }
+      }
+    } catch (err) {}
+    return { name: name, avatar: avatar, placeholder: placeholder };
   }
   function gridSnap(x, y) {
     var h = deskEl ? deskEl.clientHeight : 0;
@@ -424,6 +572,14 @@
     files.forEach(function (file) {
       if (file.kind === "code") {
         list.push({ id: file.id, title: file.title, builtin: false, file: true, code: true, kind: "file", lang: file.lang || "javascript", text: file.text || "", input: file.input || "" });
+        return;
+      }
+      if (file.kind === "note") {
+        list.push({ id: file.id, title: file.title, builtin: false, file: true, note: true, kind: "note", text: file.text || "" });
+        return;
+      }
+      if (file.kind === "audio" || file.kind === "video") {
+        list.push({ id: file.id, title: file.title, builtin: false, file: true, audio: file.kind === "audio", video: file.kind === "video", kind: file.kind });
         return;
       }
       list.push({ id: file.id, title: file.title, builtin: false, file: true, kind: "image", iconUrl: fileUrls[file.id] || "" });
@@ -716,7 +872,7 @@
         : "<button type=\"button\" data-act=\"rename\"><span>Rename</span></button>";
       if (!app.file && !app.folder) html += "<button type=\"button\" data-act=\"pin\"><span>" + (pins.indexOf(app.id) === -1 ? "Pin to taskbar" : "Unpin from taskbar") + "</span></button>";
       html += "<button type=\"button\" data-act=\"out\"><span>Remove from folder</span></button>";
-      if (app.file && !app.code) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
+      if (app.file && app.kind === "image") html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
       if (app.file) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"deletefile\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Delete</span></button>";
       else if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     } else if (app.folder) {
@@ -732,10 +888,30 @@
         html += "<button type=\"button\" data-act=\"move\" data-folder=\"" + esc(folder.id) + "\"><span>Move to " + esc(folder.title || "Folder") + "</span></button>";
       });
       html += "<button type=\"button\" data-act=\"new\"><span>New folder</span></button>";
-      if (app.file && !app.code) html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
+      if (app.file && app.kind === "image") html += "<button type=\"button\" data-act=\"wall\"><span>Set as wallpaper</span></button>";
       if (app.file) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"deletefile\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Delete</span></button>";
       else if (!app.builtin) html += "<div class=\"vos-ctx-gap\"></div><button type=\"button\" data-act=\"uninstall\"><img src=\"" + IMG + "trash.svg\" alt=\"\"><span>Uninstall</span></button>";
     }
+    ctxEl.innerHTML = html;
+    ctxEl.hidden = false;
+    ctxEl.style.left = x + "px";
+    ctxEl.style.top = y + "px";
+    var box = ctxEl.getBoundingClientRect();
+    ctxEl.style.left = Math.max(8, Math.min(x, window.innerWidth - box.width - 8)) + "px";
+    ctxEl.style.top = Math.max(8, Math.min(y, window.innerHeight - box.height - 8)) + "px";
+  }
+  function showTaskCtx(app, x, y) {
+    if (!ctxEl || !app) return;
+    ctxAt = Date.now();
+    ctxApp = app;
+    ctxX = x;
+    ctxY = y;
+    var win = wins[app.id];
+    var running = !!(win && win.running && !win.el.classList.contains("is-closed") && !win.el.classList.contains("is-closing"));
+    var pinned = pins.indexOf(app.id) !== -1;
+    var html = "<button type=\"button\" data-act=\"open\"><span>Open</span></button>";
+    if (!app.file && !app.folder) html += "<button type=\"button\" data-act=\"pin\"><span>" + (pinned ? "Unpin from taskbar" : "Pin to taskbar") + "</span></button>";
+    if (running) html += "<button type=\"button\" data-act=\"close\"><span>Close</span></button>";
     ctxEl.innerHTML = html;
     ctxEl.hidden = false;
     ctxEl.style.left = x + "px";
@@ -757,7 +933,7 @@
     if (!current) return;
     var overlay = document.createElement("div");
     overlay.className = "modal-overlay rename-modal";
-    overlay.innerHTML = "<div class=\"modal-box\"><h2>" + (file ? (file.kind === "code" ? "Rename file" : "Rename image") : "Rename app") + "</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"48\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
+    overlay.innerHTML = "<div class=\"modal-box\"><h2>" + (file ? "Rename file" : "Rename app") + "</h2><input class=\"text-input\" id=\"vosRenameInput\" maxlength=\"64\" value=\"" + esc(current.title || "") + "\"><div class=\"modal-actions\"><button class=\"modal-cancel\" type=\"button\">Cancel</button><button class=\"modal-go\" type=\"button\">Save</button></div></div>";
     document.body.appendChild(overlay);
     var input = overlay.querySelector("#vosRenameInput");
     input.focus();
@@ -766,21 +942,21 @@
     overlay.querySelector(".modal-cancel").onclick = done;
     overlay.addEventListener("click", function (e) { if (e.target === overlay) done(); });
     function save() {
-      var name = input.value.trim().slice(0, 48);
+      var name = input.value.trim().slice(0, 64);
       if (name) {
-        current.title = name;
+        current.title = file ? nameWithKind(file, name) : name;
         if (file) saveFileRecord(file);
         else saveInstalled();
         var el = iconEls[current.id];
         if (el) {
-          el.title = name;
+          el.title = current.title;
           var label = el.querySelector("[data-label]");
-          if (label) label.textContent = name;
+          if (label) label.textContent = current.title;
         }
         if (wins[current.id]) {
-          wins[current.id].title = name;
+          wins[current.id].title = current.title;
           var bar = wins[current.id].el.querySelector(".vos-title b");
-          if (bar) bar.textContent = name;
+          if (bar) bar.textContent = current.title;
           renderTasks();
         }
         if (openFolderId) paintFolder();
@@ -796,6 +972,7 @@
   function openShortcut(app) {
     if (!app) return;
     if (app.folder) {
+      noteRecent(app.id);
       openFolder(app.id);
       return;
     }
@@ -807,11 +984,27 @@
       openApp("editor");
       ensureEditor(wins.editor && wins.editor.body);
       editorOpenSaved(app);
+      noteRecent(app.id);
+      return;
+    }
+    if (app.note) {
+      openApp("notes");
+      ensureNotepad(wins.notes && wins.notes.body);
+      noteOpenSaved(app);
+      noteRecent(app.id);
+      return;
+    }
+    if (app.audio || app.video) {
+      openApp("player");
+      ensurePlayer(wins.player && wins.player.body);
+      playerLoad(app);
+      noteRecent(app.id);
       return;
     }
     if (app.file) {
       ensureFileWindow(app);
       openApp(app.id);
+      noteRecent(app.id);
       return;
     }
     var stored = null;
@@ -1294,6 +1487,9 @@
     });
     files.forEach(function (file) {
       if (file.kind === "code") list.push({ id: file.id, title: file.title, icon: "file" });
+      else if (file.kind === "note") list.push({ id: file.id, title: file.title, icon: "note" });
+      else if (file.kind === "audio") list.push({ id: file.id, title: file.title, icon: "audio" });
+      else if (file.kind === "video") list.push({ id: file.id, title: file.title, icon: "video" });
       else list.push({ id: file.id, title: file.title, iconUrl: fileUrls[file.id] || "" });
     });
     return list;
@@ -1331,6 +1527,13 @@
           }
           focusWin(app.id);
         };
+        btn.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeStart();
+          var target = appById(btn.dataset.app);
+          if (target) showTaskCtx(target, e.clientX, e.clientY);
+        });
         tasksEl.appendChild(btn);
       }
       var label = btn.querySelector("span");
@@ -1560,6 +1763,8 @@
     if (id === "calc") return { w: 372, h: 680 };
     if (id === "timer") return { w: 420, h: 560 };
     if (id === "editor") return { w: 1100, h: 720 };
+    if (id === "notes") return { w: 760, h: 560 };
+    if (id === "player") return { w: 860, h: 540 };
     return null;
   }
   function ensurePlaced(win) {
@@ -1603,6 +1808,9 @@
     if (id === "calc") ensureCalc(win.body);
     if (id === "timer") ensureTimer(win.body);
     if (id === "editor") ensureEditor(win.body);
+    if (id === "notes") ensureNotepad(win.body);
+    if (id === "player") ensurePlayer(win.body);
+    noteRecent(id);
     if (win.installed) ensureProxy(win);
     if (win.file) paintFile(win);
     win.running = true;
@@ -2044,6 +2252,8 @@
   var timerJob = 0;
   var battMgr = null;
   var editorState = null;
+  var noteState = null;
+  var playerState = null;
 
   var shellListeners = [];
   function shellListen(target, type, fn) {
@@ -2100,6 +2310,10 @@
     folderWin = null;
     openFolderId = null;
     editorState = null;
+    noteState = null;
+    if (playerState && playerState.raf) cancelAnimationFrame(playerState.raf);
+    if (playerState && playerState.actx) { try { playerState.actx.close(); } catch (err2) {} }
+    playerState = null;
     window.__veilOsStarted = false;
     window.__veilOsBooting = false;
   }
@@ -2268,7 +2482,7 @@
   function ensureTimer(body) {
     if (!body || body.dataset.ready === "1") return;
     body.dataset.ready = "1";
-    body.innerHTML = '<div class="vos-timeapp vos-rise"><div class="vos-time-modes"><button type="button" data-mode="timer" class="on">Timer</button><button type="button" data-mode="watch">Stopwatch</button></div><div class="vos-time-read" data-read>00:00.00</div><div class="vos-time-set"><input data-h value="0" inputmode="numeric" aria-label="Hours"><input data-m value="1" inputmode="numeric" aria-label="Minutes"><input data-s value="0" inputmode="numeric" aria-label="Seconds"></div><div class="vos-time-actions"><button type="button" data-go>Start</button><button type="button" data-reset>Reset</button><button type="button" data-lap>Lap</button></div><div class="vos-laps" data-laps></div></div>';
+    body.innerHTML = '<div class="vos-timeapp vos-rise"><div class="vos-time-modes"><button type="button" data-mode="timer" class="on">Timer</button><button type="button" data-mode="watch">Stopwatch</button></div><div class="vos-time-read" data-read>01:00.00</div><div class="vos-time-set"><label>Hours<input data-h value="0" inputmode="numeric" aria-label="Hours"></label><label>Minutes<input data-m value="1" inputmode="numeric" aria-label="Minutes"></label><label>Seconds<input data-s value="0" inputmode="numeric" aria-label="Seconds"></label></div><div class="vos-time-actions"><button type="button" data-go>Start</button><button type="button" data-reset>Reset</button><button type="button" data-lap>Lap</button></div><div class="vos-laps" data-laps></div></div>';
     var mode = "timer";
     var running = false;
     var remain = 60000;
@@ -2980,6 +3194,252 @@
     editorPaint();
   }
 
+  function noteOpenSaved(app) {
+    if (!noteState || !app) return;
+    var tabs = noteState.tabs;
+    var i;
+    for (i = 0; i < tabs.length; i++) {
+      if (tabs[i].fileId && tabs[i].fileId === app.id) { noteState.active = i; notePaint(); return; }
+    }
+    var blank = tabs.length === 1 && !tabs[0].fileId && !tabs[0].text;
+    var tab = blank ? tabs[0] : { fileId: "", name: "untitled.txt", text: "" };
+    tab.fileId = app.id;
+    tab.name = app.title || "untitled.txt";
+    tab.text = app.text || "";
+    if (!blank) tabs.push(tab);
+    noteState.active = blank ? 0 : tabs.length - 1;
+    notePaint();
+  }
+  function noteSync() {
+    if (!noteState) return;
+    var tab = noteState.tabs[noteState.active];
+    var area = noteState.body.querySelector("[data-text]");
+    var name = noteState.body.querySelector("[data-name]");
+    if (!tab) return;
+    if (area) tab.text = area.value;
+    if (name) tab.name = name.value.trim().slice(0, 64) || tab.name;
+  }
+  function noteClose(index) {
+    if (!noteState) return;
+    noteSync();
+    if (noteState.tabs.length <= 1) {
+      noteState.tabs[0] = { fileId: "", name: "untitled.txt", text: "" };
+      noteState.active = 0;
+    } else {
+      noteState.tabs.splice(index, 1);
+      if (noteState.active > index) noteState.active -= 1;
+      if (noteState.active >= noteState.tabs.length) noteState.active = noteState.tabs.length - 1;
+    }
+    notePaint();
+  }
+  function notePaint() {
+    if (!noteState) return;
+    var body = noteState.body;
+    var tab = noteState.tabs[noteState.active];
+    var tabs = body.querySelector("[data-tabs]");
+    if (!tabs || !tab) return;
+    tabs.innerHTML = "";
+    noteState.tabs.forEach(function (item, index) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "vos-note-tab" + (index === noteState.active ? " on" : "");
+      btn.innerHTML = "<span data-tab-name></span><span class=\"vos-tab-x\" title=\"Close\">×</span>";
+      btn.querySelector("[data-tab-name]").textContent = item.name || "untitled.txt";
+      btn.onclick = function () {
+        if (noteState.active === index) return;
+        noteSync();
+        noteState.active = index;
+        notePaint();
+      };
+      btn.querySelector(".vos-tab-x").addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        noteClose(index);
+      });
+      btn.addEventListener("auxclick", function (e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        noteClose(index);
+      });
+      tabs.appendChild(btn);
+    });
+    var add = document.createElement("button");
+    add.type = "button";
+    add.className = "vos-note-add";
+    add.textContent = "+";
+    add.title = "New note";
+    add.onclick = function () {
+      noteSync();
+      noteState.tabs.push({ fileId: "", name: "untitled.txt", text: "" });
+      noteState.active = noteState.tabs.length - 1;
+      notePaint();
+    };
+    tabs.appendChild(add);
+    var name = body.querySelector("[data-name]");
+    var area = body.querySelector("[data-text]");
+    if (name) name.value = tab.name;
+    if (area) area.value = tab.text || "";
+    var status = body.querySelector("[data-note]");
+    if (status) status.textContent = "";
+  }
+  function noteSave() {
+    noteSync();
+    var tab = noteState && noteState.tabs[noteState.active];
+    if (!tab) return;
+    addNoteFile({ id: tab.fileId, title: tab.name, text: tab.text }).then(function (file) {
+      if (!noteState || !file) {
+        var status = noteState && noteState.body.querySelector("[data-note]");
+        if (status) status.textContent = "Could not save.";
+        return;
+      }
+      tab.fileId = file.id;
+      tab.name = file.title;
+      var name = noteState.body.querySelector("[data-name]");
+      if (name) name.value = file.title;
+      var label = noteState.body.querySelector(".vos-note-tab.on [data-tab-name]");
+      if (label) label.textContent = file.title;
+      var status = noteState.body.querySelector("[data-note]");
+      if (status) status.textContent = "Saved to the desktop.";
+    });
+  }
+  function ensureNotepad(body) {
+    if (!body || (body.dataset.ready === "1" && noteState)) return;
+    body.dataset.ready = "1";
+    body.innerHTML = '<div class="vos-note vos-rise"><div class="vos-note-tabs" data-tabs></div><div class="vos-note-bar"><input data-name spellcheck="false" aria-label="File name"><button type="button" data-save>Save</button></div><textarea data-text spellcheck="true" aria-label="Note"></textarea><div class="vos-note-status"><span data-note></span></div></div>';
+    noteState = { body: body, tabs: [{ fileId: "", name: "untitled.txt", text: "" }], active: 0 };
+    var area = body.querySelector("[data-text]");
+    area.addEventListener("input", noteSync);
+    body.querySelector("[data-name]").addEventListener("input", function () {
+      noteSync();
+      var label = body.querySelector(".vos-note-tab.on [data-tab-name]");
+      var tab = noteState.tabs[noteState.active];
+      if (label && tab) label.textContent = tab.name;
+    });
+    area.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); noteSave(); }
+    });
+    body.querySelector("[data-save]").onclick = noteSave;
+    notePaint();
+  }
+  function stopVis() {
+    if (!playerState || !playerState.raf) return;
+    cancelAnimationFrame(playerState.raf);
+    playerState.raf = 0;
+  }
+  function detachVis() {
+    stopVis();
+    if (!playerState || !playerState.hooked) return;
+    var old = playerState.body.querySelector("[data-audio]");
+    if (old) {
+      try { old.pause(); } catch (err) {}
+      var next = document.createElement("audio");
+      next.setAttribute("data-audio", "");
+      next.controls = true;
+      if (old.hidden) next.hidden = true;
+      old.replaceWith(next);
+    }
+    if (playerState.actx) {
+      try { playerState.actx.close(); } catch (err2) {}
+    }
+    playerState.actx = null;
+    playerState.analyser = null;
+    playerState.bins = null;
+    playerState.hooked = false;
+  }
+  function localMedia(src) {
+    return /^(blob:|data:)/i.test(String(src || ""));
+  }
+  function armVis(audio) {
+    if (!playerState || !audio || !localMedia(audio.currentSrc || audio.src)) return;
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    try {
+      if (!playerState.actx) {
+        playerState.actx = new AudioCtx();
+        var node = playerState.actx.createMediaElementSource(audio);
+        var analyser = playerState.actx.createAnalyser();
+        analyser.fftSize = 64;
+        node.connect(analyser);
+        analyser.connect(playerState.actx.destination);
+        playerState.analyser = analyser;
+        playerState.bins = new Uint8Array(analyser.frequencyBinCount);
+        playerState.hooked = true;
+      }
+      if (playerState.actx.state === "suspended") playerState.actx.resume();
+    } catch (err) {
+      if (playerState && !playerState.hooked && playerState.actx) {
+        try { playerState.actx.close(); } catch (e) {}
+        playerState.actx = null;
+      }
+      return;
+    }
+    var canvas = playerState.body.querySelector("[data-vis]");
+    if (!canvas || !playerState.analyser) return;
+    function draw() {
+      if (!playerState || !playerState.analyser) return;
+      var box = canvas.getBoundingClientRect();
+      var w = Math.max(1, Math.round(box.width));
+      var h = Math.max(1, Math.round(box.height));
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      playerState.analyser.getByteFrequencyData(playerState.bins);
+      ctx.clearRect(0, 0, w, h);
+      var n = playerState.bins.length;
+      var gap = 4;
+      var bw = Math.max(3, (w - gap * n) / n);
+      var color = "#fff";
+      try { color = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#fff"; } catch (err) {}
+      ctx.fillStyle = color;
+      var i;
+      for (i = 0; i < n; i++) {
+        var bh = Math.max(3, (playerState.bins[i] / 255) * (h - 10));
+        ctx.fillRect(i * (bw + gap), h - bh - 4, bw, bh);
+      }
+      playerState.raf = requestAnimationFrame(draw);
+    }
+    stopVis();
+    playerState.raf = requestAnimationFrame(draw);
+  }
+  function playerLoad(app) {
+    if (!playerState || !app) return;
+    var body = playerState.body;
+    var src = fileUrls[app.id] || "";
+    var empty = body.querySelector("[data-empty]");
+    var view = body.querySelector("[data-view]");
+    if (!localMedia(src) && playerState.hooked) detachVis();
+    var video = body.querySelector("[data-video]");
+    var audio = body.querySelector("[data-audio]");
+    var canvas = body.querySelector("[data-vis]");
+    var audioMode = !!(app.audio || app.kind === "audio");
+    if (!src) {
+      if (empty) empty.hidden = false;
+      if (view) view.hidden = true;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (view) view.hidden = false;
+    if (video) video.hidden = audioMode;
+    if (audio) audio.hidden = !audioMode;
+    if (canvas) canvas.hidden = !audioMode;
+    var el = audioMode ? audio : video;
+    var other = audioMode ? video : audio;
+    if (other) { try { other.pause(); } catch (err) {} }
+    if (!audioMode) stopVis();
+    if (el && el.getAttribute("src") !== src) el.src = src;
+    var title = wins.player && wins.player.el.querySelector(".vos-title b");
+    if (title) title.textContent = app.title || "Media Player";
+    if (audioMode && audio) audio.onplay = function () {
+      if (localMedia(audio.currentSrc || audio.src)) armVis(audio);
+      else stopVis();
+    };
+  }
+  function ensurePlayer(body) {
+    if (!body || (body.dataset.ready === "1" && playerState)) return;
+    body.dataset.ready = "1";
+    body.innerHTML = '<div class="vos-player vos-rise"><div class="vos-player-empty" data-empty>Open a song or video from the desktop.</div><div class="vos-player-view" data-view hidden><canvas data-vis hidden></canvas><video data-video controls playsinline hidden></video><audio data-audio controls hidden></audio></div></div>';
+    playerState = { body: body, actx: null, analyser: null, bins: null, raf: 0, hooked: false };
+  }
   function paintClock() {
     var el = document.getElementById("vosClock");
     if (!el) return;
@@ -3065,14 +3525,19 @@
     desk.addEventListener("drop", function (e) {
       if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
       var images = [];
+      var media = [];
       var i;
       for (i = 0; i < e.dataTransfer.files.length; i++) {
-        if (String(e.dataTransfer.files[i].type || "").indexOf("image/") === 0) images.push(e.dataTransfer.files[i]);
+        var dropped = e.dataTransfer.files[i];
+        var kind = mediaKindFrom(dropped.name, dropped.type);
+        if (kind) media.push(dropped);
+        else if (String(dropped.type || "").indexOf("image/") === 0) images.push(dropped);
       }
-      if (!images.length) return;
+      if (!images.length && !media.length) return;
       e.preventDefault();
       e.stopPropagation();
       images.forEach(function (file) { addImageFile(file, file.name, "").catch(function () {}); });
+      media.forEach(function (file) { addMediaFile(file, file.name, file.type, "", "").catch(function () {}); });
     });
     desk.addEventListener("contextmenu", function (e) {
       if (e.target.closest && (e.target.closest(".vos-win") || e.target.closest(".vos-icon") || e.target.closest(".vos-fold"))) return;
@@ -3098,35 +3563,100 @@
     var menu = document.createElement("div");
     menu.className = "vos-startmenu";
     menu.setAttribute("role", "menu");
-    APPS.forEach(function (app) {
-      var item = document.createElement("button");
-      item.type = "button";
-      item.className = "vos-startitem";
-      item.setAttribute("role", "menuitem");
-      item.innerHTML = iconMarkup(app.icon) + "<span>" + app.title + "</span>";
-      item.onclick = function () {
-        closeStart();
-        openApp(app.id);
-      };
-      menu.appendChild(item);
-    });
-    var gap = document.createElement("div");
-    gap.className = "vos-start-gap";
-    menu.appendChild(gap);
-    var power = document.createElement("button");
-    power.type = "button";
-    power.className = "vos-startitem vos-power";
-    power.setAttribute("role", "menuitem");
-    power.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.2v7.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.1 6.4a7 7 0 1 0 9.8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Shut down</span>';
-    power.onclick = function () {
+    menu.innerHTML = '<div class="vos-start-head"><img data-pfp class="vos-start-pfp" alt=""><b data-user>Guest</b></div><div class="vos-start-search"><input data-find type="text" placeholder="Search programs" spellcheck="false" aria-label="Search programs"></div><div class="vos-start-cols"><div class="vos-start-col" data-left></div><div class="vos-start-col" data-right></div></div><div class="vos-start-foot"><button type="button" class="vos-startitem" data-lock><img src="' + IMG + 'lock.svg" alt=""><span>Lock</span></button><button type="button" class="vos-startitem vos-power" data-power><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.2v7.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.1 6.4a7 7 0 1 0 9.8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Shut down</span></button></div>';
+    function paintStart() {
+      var bits = profileBits();
+      var face = menu.querySelector("[data-pfp]");
+      var who = menu.querySelector("[data-user]");
+      if (face) {
+        face.src = bits.avatar;
+        face.classList.toggle("is-ph", bits.placeholder);
+      }
+      if (who) who.textContent = bits.name;
+      var query = "";
+      var find = menu.querySelector("[data-find]");
+      if (find) query = String(find.value || "").trim().toLowerCase();
+      var left = menu.querySelector("[data-left]");
+      var right = menu.querySelector("[data-right]");
+      if (!left || !right) return;
+      left.innerHTML = "";
+      right.innerHTML = "";
+      var items = [];
+      if (query) {
+        shortcutList().forEach(function (app) {
+          if (app.folder) return;
+          if (String(app.title || "").toLowerCase().indexOf(query) === -1) return;
+          items.push(app);
+        });
+      } else {
+        var recent = [];
+        try { recent = JSON.parse(localStorage.getItem("veil_os_recent") || "[]"); } catch (err) { recent = []; }
+        if (!Array.isArray(recent)) recent = [];
+        recent.forEach(function (id) {
+          var app = appById(id);
+          if (app && !app.folder) items.push(app);
+        });
+        if (!items.length) {
+          APPS.forEach(function (app) { items.push(appById(app.id) || { id: app.id, title: app.title, builtin: true, kind: app.icon }); });
+        }
+      }
+      if (!items.length) {
+        var empty = document.createElement("div");
+        empty.className = "vos-start-empty";
+        empty.textContent = query ? "No matches" : "Nothing opened yet";
+        left.appendChild(empty);
+      }
+      items.slice(0, 12).forEach(function (app) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "vos-startitem";
+        btn.setAttribute("role", "menuitem");
+        btn.innerHTML = iconHtml(app) + "<span></span>";
+        btn.querySelector("span").textContent = app.title || "App";
+        btn.onclick = function () {
+          closeStart();
+          openShortcut(app.folder ? app : (appById(app.id) || app));
+        };
+        left.appendChild(btn);
+      });
+      if (!folders.length) {
+        var none = document.createElement("div");
+        none.className = "vos-start-empty";
+        none.textContent = "No folders";
+        right.appendChild(none);
+      }
+      folders.forEach(function (folder) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "vos-startitem";
+        btn.setAttribute("role", "menuitem");
+        btn.innerHTML = '<img src="' + IMG + 'folder.svg" alt=""><span></span>';
+        btn.querySelector("span").textContent = folder.title || "Folder";
+        btn.onclick = function () {
+          closeStart();
+          openFolder(folder.id);
+        };
+        right.appendChild(btn);
+      });
+    }
+    menu.querySelector("[data-lock]").onclick = function () {
+      closeStart();
+      if (typeof lockVeil === "function") lockVeil();
+    };
+    menu.querySelector("[data-power]").onclick = function () {
       closeStart();
       shutdownDesktop();
     };
-    menu.appendChild(power);
+    menu.querySelector("[data-find]").addEventListener("input", paintStart);
     function setStart(open) {
+      if (open) paintStart();
       menu.classList.toggle("is-open", open);
       startBtn.classList.toggle("on", open);
       startBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (!open) {
+        var find = menu.querySelector("[data-find]");
+        if (find) find.value = "";
+      }
     }
     closeStart = function () { setStart(false); };
     startBtn.onclick = function (e) {
@@ -3207,6 +3737,7 @@
       if (act === "deletefile" && app && app.file) deleteFile(app.id);
       if (act === "wall" && app && app.file && !app.code) setWallpaper(app.id);
       if (act === "pin" && app && !app.folder && !app.file) togglePin(app.id);
+      if (act === "close" && app) closeApp(app.id);
       if (act === "out" && app && app.inFolder) removeFromFolder(app.inFolder, app.id);
       if (act === "move" && dest) {
         var ids = [];
@@ -3378,6 +3909,10 @@
   window.veilOSAddImage = function (info) {
     if (!info) return Promise.resolve(null);
     return addImageFile(info.blob || null, info.name || "Image", info.remote || "");
+  };
+  window.veilOSAddMedia = function (info) {
+    if (!info) return Promise.resolve(null);
+    return addMediaFile(info.blob || null, info.name || "", info.mime || "", info.remote || "", info.kind || "");
   };
   window.veilOSSetWall = function (file) {
     if (!file) return Promise.resolve();

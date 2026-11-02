@@ -2889,7 +2889,10 @@ function closeMenu() {
   menu.style.top = "";
   menu.style.right = "";
   window.__veilMenuImage = null;
+  window.__veilMenuMedia = null;
   window.__veilMenuAt = 0;
+  const saveMedia = document.getElementById("menuSaveMedia");
+  if (saveMedia) saveMedia.classList.remove("is-on");
 }
 function safeColorValue(value, extra) {
   const extra2 = String(value || "").trim();
@@ -3970,13 +3973,14 @@ function paintProfilePreview() {
   profilePreview.src = profileAvatarSrc();
   profilePreview.classList.toggle("is-ph", !profile || !profile.avatar);
 }
-function lockVeil() {
+function lockVeil(resume) {
   closeMenu();
   if (!profile.password) {
-    alert("Set a password on first-run sign up before locking.");
+    try { localStorage.removeItem("veil_page_locked"); } catch (err) {}
+    if (!resume) alert("Set a password on first-run sign up before locking.");
     return;
   }
-  if (settings.lockUnload) {
+  if (!resume && settings.lockUnload) {
     const box = confirm("Lock and unload open pages? Unsaved page state may be lost.");
     if (!box) {
       return;
@@ -3993,6 +3997,7 @@ function lockVeil() {
       }
     });
   }
+  try { localStorage.setItem("veil_page_locked", "1"); } catch (err) {}
   const lockOverlay = document.querySelector(".lock-overlay");
   if (lockOverlay) {
     lockOverlay.remove();
@@ -4003,7 +4008,7 @@ function lockVeil() {
     time: copy,
     date: base
   } = formatWelcomeClock(new Date());
-  old.innerHTML = "<div class=\"lock-screen\"><div class=\"lock-avatar-frame\"><img class=\"lock-avatar" + (profile && profile.avatar ? "" : " is-ph") + "\" alt=\"\" src=\"" + escapeHTML(profileAvatarSrc()) + "\"></div><div class=\"lock-name\">" + escapeHTML(profile.name || "guest") + "</div><div class=\"lock-clock\" id=\"lockClock\">" + escapeHTML(copy) + "" + escapeHTML(base) + "";
+  old.innerHTML = "<div class=\"lock-screen\"><div class=\"lock-avatar-frame\"><img class=\"lock-avatar" + (profile && profile.avatar ? "" : " is-ph") + "\" alt=\"\" src=\"" + escapeHTML(profileAvatarSrc()) + "\"></div><div class=\"lock-name\">" + escapeHTML(profile.name || "guest") + "</div><div class=\"lock-clock\" id=\"lockClock\">" + escapeHTML(copy) + "</div><div class=\"lock-date\" id=\"lockDate\">" + escapeHTML(base) + "</div><div class=\"lock-err\" id=\"lockErr\"></div><input id=\"lockPass\" type=\"password\" placeholder=\"Password\" autocomplete=\"current-password\"><button type=\"button\" class=\"lock-go\" id=\"lockGo\">Unlock</button></div>";
   document.body.appendChild(old);
   const full = () => {
     const flag = formatWelcomeClock(new Date());
@@ -4034,6 +4039,7 @@ function lockVeil() {
   lockPass.focus();
   const code = () => {
     if (lockPass.value === profile.password) {
+      try { localStorage.removeItem("veil_page_locked"); } catch (err) {}
       short2();
       old.remove();
       if (settings.lockUnload) {
@@ -6037,7 +6043,9 @@ on("menuBtn", value => {
     return;
   }
   window.__veilMenuImage = null;
+  window.__veilMenuMedia = null;
   updateDevtoolsMenuState();
+  syncSaveMedia(null);
   if (menu) {
     menu.classList.remove("is-placed");
     menu.style.left = "";
@@ -6115,6 +6123,61 @@ async function blobFromImageEl(img) {
     return null;
   }
 }
+function directMediaKind(url) {
+  const clean = String(url || "").split("?")[0].split("#")[0].toLowerCase();
+  if (/\.(mp3|wav|ogg|oga|m4a|aac|flac|weba)$/.test(clean)) return "audio";
+  if (/\.(mp4|webm|ogv|mov|m4v)$/.test(clean)) return "video";
+  return "";
+}
+function mediaFromNode(node) {
+  const el = node && node.nodeType === 1 ? node : node && node.parentElement;
+  if (!el || !el.closest) return null;
+  const media = el.closest("video, audio, source");
+  if (!media) return null;
+  const host = media.tagName === "SOURCE" ? media.parentElement : media;
+  if (!host || (host.tagName !== "VIDEO" && host.tagName !== "AUDIO")) return null;
+  const src = host.currentSrc || host.src || (media.src || "");
+  return { el: host, src: src, kind: host.tagName === "VIDEO" ? "video" : "audio" };
+}
+function syncSaveMedia(media) {
+  const btn = document.getElementById("menuSaveMedia");
+  if (!btn) return;
+  const desktop = document.body.classList.contains("veil-os");
+  const tab = getActiveTab();
+  let picked = media || null;
+  if (!picked) {
+    const kind = directMediaKind(tab && tab.url);
+    if (kind) picked = { src: tab.url, kind: kind };
+  }
+  const show = !!(desktop && picked && picked.kind);
+  btn.classList.toggle("is-on", show);
+  const label = btn.querySelector("[data-label]");
+  if (label && picked) label.textContent = picked.kind === "audio" ? "Save audio" : "Save video";
+  window.__veilMenuMedia = show ? picked : null;
+}
+on("menuSaveMedia", async () => {
+  const picked = window.__veilMenuMedia || null;
+  closeMenu();
+  if (!document.body.classList.contains("veil-os") || typeof window.veilOSAddMedia !== "function" || !picked) return;
+  const tab = getActiveTab();
+  const name = imageNameFromUrl(picked.src || (tab && tab.url), (picked.el && picked.el.title) || (tab && tab.title) || (picked.kind === "audio" ? "Audio" : "Video"));
+  const src = picked.src || "";
+  if (src) {
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      if (blob && blob.size) {
+        await window.veilOSAddMedia({ blob, name, mime: blob.type || "", kind: picked.kind });
+        return;
+      }
+    } catch (err) {}
+    if (/^https?:/i.test(src) || /^blob:/i.test(src)) {
+      await window.veilOSAddMedia({ remote: src, name, mime: "", kind: picked.kind });
+      return;
+    }
+  }
+  alert("Could not save that file.");
+});
 on("menuSaveImage", async () => {
   const picked = window.__veilMenuImage || null;
   closeMenu();
@@ -6187,7 +6250,7 @@ function hookFrameMenu(frameEl) {
     event.preventDefault();
     event.stopPropagation();
     const spot = pointFromFrame(frameEl, event.clientX, event.clientY);
-    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target));
+    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target), mediaFromNode(target));
   }, true);
   const scan = records => {
     try {
@@ -6218,12 +6281,13 @@ function hookFrameMenu(frameEl) {
     new MutationObserver(scan).observe(doc.documentElement || doc, { childList: true, subtree: true });
   } catch (err) {}
 }
-function openBrowserMenuAt(x, y, image) {
+function openBrowserMenuAt(x, y, image, media) {
   const menu = document.getElementById("mainMenu");
   if (!menu) return;
   window.__veilMenuImage = image || null;
   window.__veilMenuAt = Date.now();
   updateDevtoolsMenuState();
+  syncSaveMedia(media || null);
   const saveBtn = document.getElementById("menuSaveImage");
   if (saveBtn && image && document.body.classList.contains("veil-os")) {
     saveBtn.classList.remove("disabled");
@@ -6345,7 +6409,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=25";
+  link.href = BASE + "/veilos.css?v=26";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6356,7 +6420,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=25";
+  script.src = BASE + "/veilos.js?v=26";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -6938,9 +7002,13 @@ document.addEventListener("contextmenu", value => {
   if (target.closest("input, textarea, select, [contenteditable='true'], #mainMenu, .panel, .modal-overlay")) return;
   value.preventDefault();
   value.stopPropagation();
-  openBrowserMenuAt(value.clientX, value.clientY, null);
+  openBrowserMenuAt(value.clientX, value.clientY, null, mediaFromNode(target));
 }, true);
 document.addEventListener("keydown", value => {
+  if (document.querySelector(".lock-overlay")) {
+    if (value.ctrlKey || value.metaKey || value.altKey || value.key === "F5") value.preventDefault();
+    return;
+  }
   const size = value.ctrlKey || value.metaKey;
   if (size && value.key.toLowerCase() === "l") {
     value.preventDefault();
@@ -7409,6 +7477,9 @@ async function bootVeilAppInner() {
     }
   } catch (err) {}
   loadProfile();
+  try {
+    if (localStorage.getItem("veil_page_locked") === "1") lockVeil(true);
+  } catch (err) {}
   let item = null;
   try {
     item = localStorage.getItem("veil_cookie_consent");

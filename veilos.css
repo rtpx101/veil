@@ -502,8 +502,8 @@ body.veil-os #menuInstall{display:flex}
   position:absolute;
   left:0;
   bottom:calc(100% + 10px);
-  width:228px;
-  padding:6px;
+  width:min(520px, calc(100vw - 16px));
+  padding:0;
   border-radius:14px;
   background:var(--bg2);
   border:1px solid var(--border);
@@ -514,6 +514,9 @@ body.veil-os #menuInstall{display:flex}
   transform:translateY(8px) scale(.98);
   transform-origin:24px 100%;
   transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
 }
 .vos-startmenu.is-open{opacity:1;pointer-events:auto;transform:none}
 .vos-startitem{
@@ -533,6 +536,7 @@ body.veil-os #menuInstall{display:flex}
 }
 .vos-startitem img,.vos-startitem svg{width:18px;height:18px;flex:0 0 18px;display:block}
 .vos-startitem img{filter:invert(var(--page-icon-invert,1))}
+.vos-startitem img.vos-appicon{filter:none;object-fit:cover;border-radius:4px}
 .vos-startitem:hover{background:var(--panel)}
 .vos-startitem:active{transform:scale(.98)}
 #veilOS.vos-ready .vos-taskbar{animation:vosBar .4s cubic-bezier(.2,.8,.2,1) both}
@@ -562,14 +566,15 @@ body.veil-os #menuInstall{display:flex}
   margin-left:auto;
   flex:0 0 auto;
   text-align:right;
-  line-height:1.25;
+  line-height:1.2;
   font-size:12px;
   color:var(--text);
   font-variant-numeric:tabular-nums;
   padding:0 6px;
+  align-self:center;
 }
-.vos-clock small{display:block;color:var(--muted);font-size:11px}
-.vos-clock{transform:translateY(5px)}
+.vos-clock > div{transform:translateY(-3px)}
+.vos-clock small{display:block;color:var(--muted);font-size:11px;transform:translateY(5px)}
 .settings-tab[data-settings-tab="desktop"]{display:none}
 body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 .vos-markwall{
@@ -601,7 +606,7 @@ html[data-mode="light"] .vos-markwall{filter:invert(1)}
   margin-left:auto;
   color:var(--text);
   font-size:12px;
-  transform:translateY(5px);
+  align-self:center;
 }
 .vos-batt:not([hidden]) + .vos-clock{margin-left:8px}
 .vos-batt[hidden]{display:none !important}
@@ -609,9 +614,19 @@ html[data-mode="light"] .vos-markwall{filter:invert(1)}
 .vos-batt-state{color:var(--muted);white-space:nowrap}
 .vos-batt-pct{font-variant-numeric:tabular-nums;white-space:nowrap}
 .vos-batt-pct[hidden]{display:none !important}
-.vos-startmenu{max-height:min(440px, calc(100vh - 80px));overflow:auto}
-.vos-start-gap{height:1px;background:var(--border);margin:6px 4px}
-.vos-power{color:var(--muted) !important}
+.vos-startmenu.is-open{opacity:1;pointer-events:auto;transform:none}
+.vos-start-head{display:flex;align-items:center;gap:12px;padding:14px 14px 8px}
+.vos-start-pfp{width:46px;height:46px;border-radius:10px;object-fit:cover;background:#111;flex:0 0 46px}
+.vos-start-pfp.is-ph{object-fit:contain;padding:6px}
+.vos-start-head b{font-size:16px;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vos-start-search{padding:0 12px 8px}
+.vos-start-search input{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:0 10px;font-size:13px;user-select:text}
+.vos-start-cols{display:grid;grid-template-columns:1.25fr .85fr;min-height:200px;max-height:min(300px, calc(100vh - 240px))}
+.vos-start-col{overflow:auto;padding:4px;min-width:0}
+.vos-start-col + .vos-start-col{border-left:1px solid var(--border)}
+.vos-start-empty{padding:18px 10px;color:var(--muted);font-size:12px}
+.vos-start-foot{border-top:1px solid var(--border);padding:6px;display:flex;flex-direction:column;gap:2px}
+.vos-power{color:var(--text) !important}
 .vos-calc,.vos-timeapp,.vos-edit{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:var(--bg);color:var(--text)}
 .vos-rise{animation:vosIn .32s cubic-bezier(.2,.8,.2,1) both}
 .vos-calc{padding:16px;gap:12px;background:#161616;overflow:auto}
@@ -625,14 +640,16 @@ html[data-mode="light"] .vos-markwall{filter:invert(1)}
 .vos-calc-keys button.eq{background:var(--accent);color:var(--accentText)}
 .vos-calc-keys button.zero{grid-column:span 2}
 .vos-timeapp{padding:22px 18px;gap:16px;overflow:auto}
-.vos-time-modes,.vos-time-actions,.vos-time-set{display:flex;gap:8px;justify-content:center}
+.vos-time-set{display:flex;gap:14px;justify-content:center}
+.vos-time-set label{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.vos-time-set input{width:74px;height:40px;text-align:center;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:18px;transition:border-color .15s ease}
+.vos-time-modes,.vos-time-actions{display:flex;gap:8px;justify-content:center}
 .vos-time-modes button,.vos-time-actions button{height:34px;padding:0 16px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;transition:transform .1s ease,background .15s ease}
 .vos-time-modes button.on,.vos-time-actions button.on{background:var(--panel)}
 .vos-time-modes button:active,.vos-time-actions button:active{transform:scale(.96)}
 .vos-time-read{font-size:56px;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.04em;transition:opacity .2s ease}
 .vos-timeapp.is-run .vos-time-read{animation:vosPulse 1.4s ease-in-out infinite}
 @keyframes vosPulse{0%,100%{opacity:1}50%{opacity:.55}}
-.vos-time-set input{width:74px;height:40px;text-align:center;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:18px;transition:border-color .15s ease}
 .vos-time-set input:focus{border-color:color-mix(in srgb, var(--text) 40%, var(--border))}
 .vos-laps{flex:1;overflow:auto;font-size:13px;color:var(--muted);min-height:0}
 .vos-laps div{padding:6px 2px;border-bottom:1px solid var(--border);animation:vosIn .2s ease}
@@ -679,6 +696,27 @@ html[data-mode="light"] .vos-markwall{filter:invert(1)}
 .vos-out,.vos-panel-body pre{position:absolute;inset:0;margin:0;padding:8px 12px;overflow:auto;background:#1e1e1e;color:#ccc;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap}
 .vos-statusbar{flex:0 0 22px;height:22px;background:#007acc;color:#fff;display:flex;align-items:center;gap:14px;padding:0 10px;font-size:12px}
 .vos-statusbar [data-note]{margin-left:auto;opacity:.9}
+.vos-note{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:#1a1a1a;color:#f2f2f2}
+.vos-note-tabs{display:flex;align-items:stretch;height:34px;background:#141414;overflow:auto;flex:0 0 34px}
+.vos-note-tab,.vos-note-add{height:34px;border:0;border-right:1px solid #101010;background:#222;color:#aaa;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;white-space:nowrap}
+.vos-note-tab.on{background:#1a1a1a;color:#fff}
+.vos-note-add{padding:0 12px;font-size:16px}
+.vos-note-tab:not(.on) .vos-tab-x{opacity:0}
+.vos-note-tab:hover .vos-tab-x,.vos-note-tab.on .vos-tab-x{opacity:1}
+.vos-note-bar{height:36px;display:flex;align-items:center;gap:8px;padding:0 8px;border-bottom:1px solid #2a2a2a}
+.vos-note-bar input{flex:1;min-width:0;height:26px;border:0;background:transparent;color:#ddd;font-size:13px;user-select:text}
+.vos-note-bar button{height:26px;padding:0 12px;border:0;border-radius:6px;background:#2a2a2a;color:#fff;cursor:pointer;font-size:12px}
+.vos-note-bar button:active{transform:scale(.96)}
+.vos-note textarea{flex:1;min-height:0;border:0;resize:none;background:#1a1a1a;color:#f3f3f3;padding:16px 18px;font:15px/1.5 "Segoe UI",Inter,ui-sans-serif,system-ui,sans-serif;user-select:text}
+.vos-note-status{flex:0 0 24px;display:flex;align-items:center;padding:0 12px;font-size:12px;color:#9a9a9a;background:#141414}
+.vos-player{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:#101010;color:#fff}
+.vos-player-empty{margin:auto;color:#9a9a9a;font-size:14px;text-align:center;padding:24px}
+.vos-player-empty[hidden],.vos-player-view[hidden]{display:none !important}
+.vos-player-view{flex:1;min-height:0;display:flex;flex-direction:column}
+.vos-player-view canvas{flex:1;min-height:120px;width:100%;display:block;background:#0c0c0c}
+.vos-player-view canvas[hidden],.vos-player-view video[hidden],.vos-player-view audio[hidden]{display:none !important}
+.vos-player-view video{flex:1;min-height:0;width:100%;background:#000}
+.vos-player-view audio{width:100%;flex:0 0 auto}
 .settings-tab[data-settings-tab="desktop"]{display:none}
 body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 
@@ -698,6 +736,7 @@ body.veil-os #browser .panel{position:absolute}
 body.veil-os .quick-link[data-games],
 body.veil-os .quick-link[data-chat]{display:none !important}
 body.veil-os #menuSaveImage{display:flex}
+body.veil-os #menuSaveMedia.is-on{display:flex}
 
 body.veil-os #osApp-settings > .panel{
   position:absolute !important;
