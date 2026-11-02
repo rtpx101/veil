@@ -2332,7 +2332,7 @@
     var img = el.querySelector("img");
     if (img && img.getAttribute("src") !== src) img.src = src;
     var state = el.querySelector(".vos-batt-state");
-    if (state) state.textContent = charging ? "Charging" : "Not charging";
+    if (state) state.hidden = true;
     var num = el.querySelector(".vos-batt-pct");
     var showPct = true;
     try { showPct = !settings || settings.osBatteryPct !== false; } catch (err) {}
@@ -2340,7 +2340,7 @@
       num.hidden = !showPct;
       num.textContent = pct + "%";
     }
-    el.title = (charging ? "Charging" : "Not charging") + (showPct ? ", " + pct + "%" : "");
+    el.title = showPct ? pct + "%" : "";
   }
   function bootBattery() {
     paintBatteryDesk();
@@ -2835,6 +2835,12 @@
     editorLayout();
     editorGutter();
     editorTouchLog();
+    var wrap = body.querySelector(".vos-codewrap");
+    if (wrap) {
+      wrap.classList.remove("vos-pop");
+      void wrap.offsetWidth;
+      wrap.classList.add("vos-pop");
+    }
     if (editorSplit(tab.lang) && tab.lang !== "processing") editorPreviewLive();
     else {
       var stage = body.querySelector("[data-stage]");
@@ -3281,6 +3287,11 @@
     if (area) area.value = tab.text || "";
     var status = body.querySelector("[data-note]");
     if (status) status.textContent = "";
+    if (area) {
+      area.classList.remove("vos-pop");
+      void area.offsetWidth;
+      area.classList.add("vos-pop");
+    }
   }
   function noteSave() {
     noteSync();
@@ -3706,7 +3717,7 @@
     batt.className = "vos-batt";
     batt.id = "vosBatt";
     batt.hidden = true;
-    batt.innerHTML = '<img alt=""><span class="vos-batt-state">Not charging</span><span class="vos-batt-pct"></span>';
+    batt.innerHTML = '<img alt=""><span class="vos-batt-pct"></span>';
     var clock = document.createElement("div");
     clock.className = "vos-clock";
     clock.id = "vosClock";

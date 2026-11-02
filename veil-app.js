@@ -1699,6 +1699,11 @@ function bindFrameEvents(value2, extra) {
       finishPageLoader(value2);
       applyRealPageTitle(value2, raw);
       hookFrameMenu(raw);
+      armFrameErrorWatch(raw, value2);
+      try {
+        const text = raw.contentDocument && raw.contentDocument.body ? raw.contentDocument.body.innerText : "";
+        if (/Hyper client|http2 error|PROTOCOL_ERROR/i.test(text)) recoverFrameTransport(value2, text);
+      } catch (err) {}
     });
   }
 }
@@ -1805,6 +1810,44 @@ async function flipTransport() {
   await reconnectTransport();
   return settings.transport;
 }
+function armFrameErrorWatch(raw, tab) {
+  if (!raw || !tab) return;
+  const attach = () => {
+    let win = null;
+    try { win = raw.contentWindow; } catch (err) { return; }
+    if (!win || win.__veilErrWatch) return;
+    win.__veilErrWatch = true;
+    const take = msg => {
+      if (/Hyper client|http2 error|PROTOCOL_ERROR/i.test(String(msg || ""))) recoverFrameTransport(tab, msg);
+    };
+    try {
+      win.addEventListener("error", ev => take(ev && (ev.message || ev.error)));
+      win.addEventListener("unhandledrejection", ev => take(ev && ev.reason));
+    } catch (err) {}
+  };
+  attach();
+  let n = 0;
+  const timer = setInterval(() => {
+    n += 1;
+    attach();
+    if (n > 12) clearInterval(timer);
+  }, 200);
+}
+async function recoverFrameTransport(tab, message) {
+  if (!tab || !tab.url) return;
+  if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(String(message || ""))) return;
+  if (tab.__veilHyperRetryUrl === tab.url) return;
+  tab.__veilHyperRetryUrl = tab.url;
+  settings.transport = "libcurl";
+  try { save(); } catch (err) {}
+  try {
+    await applyMuxTransport();
+    const frame = tab.engineFrame;
+    if (!frame) return;
+    if (typeof frame.go === "function") await frame.go(tab.url);
+    else if (typeof frame.navigate === "function") await frame.navigate(tab.url);
+  } catch (err) {}
+}
 async function goFrame(value2, extra) {
   const btn = value2.engineFrame;
   if (!btn || !extra) {
@@ -1830,7 +1873,7 @@ async function goFrame(value2, extra) {
       }
     }
   };
-  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|client error \(IO|SSL connect error|curl error 35/i.test(value);
+  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|http2 error|PROTOCOL_ERROR|client error \(IO|SSL connect error|curl error 35/i.test(value);
   const style = () => {
     try {
       const ratio = btn.element || btn.frame || btn;
@@ -1841,11 +1884,20 @@ async function goFrame(value2, extra) {
     }
   };
   try {
+    const frameEl = btn.element || btn.frame || btn;
+    armFrameErrorWatch(frameEl, value2);
     await html(extra);
-    await new Promise(value => setTimeout(value, 350));
-    if (style()) {
-      throw new Error("Wisp WebSocket failed to connect");
+    let broke = "";
+    for (let pass = 0; pass < 8; pass++) {
+      await new Promise(value => setTimeout(value, 250));
+      try {
+        const ratio = btn.element || btn.frame || btn;
+        const speed = ratio && ratio.contentDocument && ratio.contentDocument.body ? ratio.contentDocument.body.innerText : "";
+        if (cls(speed)) broke = String(speed).slice(0, 280);
+      } catch (err) {}
+      if (broke) break;
     }
+    if (broke) throw new Error(broke);
   } catch (err2) {
     const tab = String(err2 && err2.message || err2);
     if (!cls(tab) && !style()) {
@@ -1853,9 +1905,15 @@ async function goFrame(value2, extra) {
       return;
     }
     console.warn("[veil] navigation transport error, switching server...", tab);
+    if (value2.__veilHyperRetryUrl === extra) {
+      finishPageLoader(value2);
+      return;
+    }
+    value2.__veilHyperRetryUrl = extra;
     try {
-      if (/websocket|wisp|hyper client|did not open/i.test(tab)) {
+      if (/websocket|wisp|hyper client|http2 error|PROTOCOL_ERROR|did not open/i.test(tab)) {
         settings.transport = "libcurl";
+        try { save(); } catch (err) {}
       }
       await useWorkingWisp();
       await applyMuxTransport();
@@ -6139,12 +6197,120 @@ function mediaFromNode(node) {
   const src = host.currentSrc || host.src || (media.src || "");
   return { el: host, src: src, kind: host.tagName === "VIDEO" ? "video" : "audio" };
 }
+function mediaAtPoint(doc, x, y, node) {
+  const direct = mediaFromNode(node);
+  if (direct) return direct;
+  if (!doc || !doc.querySelectorAll) return null;
+  const nodes = doc.querySelectorAll("video, audio");
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    const box = el.getBoundingClientRect();
+    if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom && box.width > 8 && box.height > 8) {
+      return { el: el, src: el.currentSrc || el.src || "", kind: el.tagName === "VIDEO" ? "video" : "audio" };
+    }
+  }
+  return null;
+}
+function mediaOnPage() {
+  const tab = getActiveTab();
+  let doc = null;
+  try {
+    const el = tab && tab.engineFrame && (tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame);
+    doc = el && el.contentDocument;
+  } catch (err) {}
+  if (!doc) return null;
+  const nodes = doc.querySelectorAll("video, audio");
+  let best = null;
+  let bestArea = 0;
+  for (let i = 0; i < nodes.length; i++) {
+    const el = nodes[i];
+    const box = el.getBoundingClientRect();
+    const area = Math.max(0, box.width) * Math.max(0, box.height);
+    if (!best || area > bestArea) {
+      best = el;
+      bestArea = area;
+    }
+  }
+  if (!best) return null;
+  return { el: best, src: best.currentSrc || best.src || "", kind: best.tagName === "VIDEO" ? "video" : "audio" };
+}
+function mediaKindOf(url, mime, fallback) {
+  const type = String(mime || "").toLowerCase();
+  if (type.indexOf("audio/") === 0) return "audio";
+  if (type.indexOf("video/") === 0) return "video";
+  const real = unwrapProxyUrl(url) || url || "";
+  const kind = directMediaKind(real);
+  if (kind) return kind;
+  const raw = String(url || "") + " " + String(real || "");
+  if (/[?&]mime=audio(%2F|\/)/i.test(raw)) return "audio";
+  if (/[?&]mime=video(%2F|\/)/i.test(raw) || /googlevideo\.com\/videoplayback/i.test(raw)) return "video";
+  return fallback || "";
+}
+function mediaUrlList(picked) {
+  const urls = [];
+  function add(url) {
+    const value = String(url || "");
+    if (!value || urls.indexOf(value) !== -1) return;
+    urls.push(value);
+  }
+  if (picked && picked.src) add(picked.src);
+  const el = picked && picked.el;
+  if (el) {
+    add(el.currentSrc);
+    add(el.src);
+    try {
+      const sources = el.querySelectorAll ? el.querySelectorAll("source") : [];
+      for (let i = 0; i < sources.length; i++) add(sources[i].src);
+    } catch (err) {}
+    try {
+      const view = el.ownerDocument && el.ownerDocument.defaultView;
+      const entries = view && view.performance && view.performance.getEntriesByType("resource") || [];
+      for (let i = entries.length - 1; i >= 0 && urls.length < 8; i--) {
+        const name = entries[i].name || "";
+        if (mediaKindOf(name, "", "")) add(name);
+      }
+    } catch (err) {}
+  }
+  return urls;
+}
+async function fetchMediaBlob(url, frameEl) {
+  const real = unwrapProxyUrl(url) || url || "";
+  const tries = [];
+  if (frameEl && /^blob:/i.test(url)) {
+    try {
+      const view = frameEl.ownerDocument && frameEl.ownerDocument.defaultView;
+      if (view && view.fetch) {
+        const res = await view.fetch(url);
+        const blob = await res.blob();
+        const type = String(blob && blob.type || "").toLowerCase();
+        if (blob && blob.size > 1024 && blob.size < 100 * 1024 * 1024 && type.indexOf("text/") !== 0) return blob;
+      }
+    } catch (err) {}
+  }
+  if (url && url !== real) tries.push(url);
+  if (/^https?:/i.test(real)) tries.push(SCRAMJET_PREFIX + encodeURIComponent(real));
+  if (/^https?:/i.test(url)) tries.push(url);
+  for (let i = 0; i < tries.length; i++) {
+    try {
+      const res = await fetch(tries[i]);
+      if (!res.ok) continue;
+      const len = Number(res.headers.get("content-length") || 0);
+      if (len > 100 * 1024 * 1024) continue;
+      const blob = await res.blob();
+      const type = String(blob && blob.type || "").toLowerCase();
+      if (!blob || blob.size < 1024 || blob.size > 100 * 1024 * 1024) continue;
+      if (type.indexOf("text/") === 0 || type.indexOf("application/json") === 0 || type.indexOf("application/xhtml") === 0) continue;
+      return blob;
+    } catch (err) {}
+  }
+  return null;
+}
 function syncSaveMedia(media) {
   const btn = document.getElementById("menuSaveMedia");
   if (!btn) return;
   const desktop = document.body.classList.contains("veil-os");
   const tab = getActiveTab();
-  let picked = media || null;
+  let picked = media || mediaOnPage() || null;
   if (!picked) {
     const kind = directMediaKind(tab && tab.url);
     if (kind) picked = { src: tab.url, kind: kind };
@@ -6153,6 +6319,8 @@ function syncSaveMedia(media) {
   btn.classList.toggle("is-on", show);
   const label = btn.querySelector("[data-label]");
   if (label && picked) label.textContent = picked.kind === "audio" ? "Save audio" : "Save video";
+  const icon = btn.querySelector("img");
+  if (icon && picked) icon.src = IMG + (picked.kind === "audio" ? "audio.svg" : "video.svg");
   window.__veilMenuMedia = show ? picked : null;
 }
 on("menuSaveMedia", async () => {
@@ -6160,23 +6328,27 @@ on("menuSaveMedia", async () => {
   closeMenu();
   if (!document.body.classList.contains("veil-os") || typeof window.veilOSAddMedia !== "function" || !picked) return;
   const tab = getActiveTab();
-  const name = imageNameFromUrl(picked.src || (tab && tab.url), (picked.el && picked.el.title) || (tab && tab.title) || (picked.kind === "audio" ? "Audio" : "Video"));
-  const src = picked.src || "";
-  if (src) {
-    try {
-      const res = await fetch(src);
-      const blob = await res.blob();
-      if (blob && blob.size) {
-        await window.veilOSAddMedia({ blob, name, mime: blob.type || "", kind: picked.kind });
-        return;
-      }
-    } catch (err) {}
-    if (/^https?:/i.test(src) || /^blob:/i.test(src)) {
-      await window.veilOSAddMedia({ remote: src, name, mime: "", kind: picked.kind });
-      return;
-    }
+  const urls = mediaUrlList(picked);
+  if (tab && tab.url && directMediaKind(tab.url)) urls.push(tab.url);
+  let blob = null;
+  let used = "";
+  for (let i = 0; i < urls.length; i++) {
+    blob = await fetchMediaBlob(urls[i], picked.el);
+    if (blob) { used = urls[i]; break; }
   }
-  alert("Could not save that file.");
+  if (!blob) {
+    alert("Couldn't save that file. Open a direct audio or video link, or drop the file on the desktop.");
+    return;
+  }
+  const kind = mediaKindOf(used, blob.type, picked.kind);
+  if (kind !== "audio" && kind !== "video") {
+    alert("That file isn't a supported audio or video format.");
+    return;
+  }
+  const real = unwrapProxyUrl(used) || used;
+  let name = imageNameFromUrl(real, (picked.el && picked.el.title) || (tab && tab.title) || (kind === "audio" ? "Audio" : "Video"));
+  if (/^videoplayback$/i.test(String(name).replace(/\.[a-z0-9]{1,8}$/i, ""))) name = (tab && tab.title) || (kind === "audio" ? "Audio" : "Video");
+  await window.veilOSAddMedia({ blob: blob, name: name, mime: blob.type || "", kind: kind });
 });
 on("menuSaveImage", async () => {
   const picked = window.__veilMenuImage || null;
@@ -6250,7 +6422,7 @@ function hookFrameMenu(frameEl) {
     event.preventDefault();
     event.stopPropagation();
     const spot = pointFromFrame(frameEl, event.clientX, event.clientY);
-    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target), mediaFromNode(target));
+    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target), mediaAtPoint(doc, event.clientX, event.clientY, target));
   }, true);
   const scan = records => {
     try {
@@ -6409,7 +6581,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=26";
+  link.href = BASE + "/veilos.css?v=27";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6420,7 +6592,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=26";
+  script.src = BASE + "/veilos.js?v=27";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7002,7 +7174,7 @@ document.addEventListener("contextmenu", value => {
   if (target.closest("input, textarea, select, [contenteditable='true'], #mainMenu, .panel, .modal-overlay")) return;
   value.preventDefault();
   value.stopPropagation();
-  openBrowserMenuAt(value.clientX, value.clientY, null, mediaFromNode(target));
+  openBrowserMenuAt(value.clientX, value.clientY, null, mediaAtPoint(document, value.clientX, value.clientY, target) || mediaOnPage());
 }, true);
 document.addEventListener("keydown", value => {
   if (document.querySelector(".lock-overlay")) {

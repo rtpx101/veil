@@ -11,6 +11,7 @@
 }
 .vos-desk{
   position:relative;
+  z-index:1;
   flex:1;
   min-height:0;
   overflow:hidden;
@@ -465,6 +466,8 @@ body.veil-os #menuInstall{display:flex}
 }
 .vos-photo-bar button:hover{background:var(--panel2)}
 .vos-taskbar{
+  position:relative;
+  z-index:8;
   flex:0 0 48px;
   height:48px;
   display:flex;
@@ -533,10 +536,13 @@ body.veil-os #menuInstall{display:flex}
   padding:0 10px;
   font-size:13px;
   text-align:left;
+  overflow:hidden;
+  min-width:0;
 }
 .vos-startitem img,.vos-startitem svg{width:18px;height:18px;flex:0 0 18px;display:block}
 .vos-startitem img{filter:invert(var(--page-icon-invert,1))}
 .vos-startitem img.vos-appicon{filter:none;object-fit:cover;border-radius:4px}
+.vos-startitem span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vos-startitem:hover{background:var(--panel)}
 .vos-startitem:active{transform:scale(.98)}
 #veilOS.vos-ready .vos-taskbar{animation:vosBar .4s cubic-bezier(.2,.8,.2,1) both}
@@ -736,7 +742,36 @@ body.veil-os #browser .panel{position:absolute}
 body.veil-os .quick-link[data-games],
 body.veil-os .quick-link[data-chat]{display:none !important}
 body.veil-os #menuSaveImage{display:flex}
-body.veil-os #menuSaveMedia.is-on{display:flex}
+body.veil-os .time-bar{display:none !important}
+body.veil-os .newtab-page{--timebar-h:0px}
+.vos-note{background:linear-gradient(180deg,#161616,#121212)}
+.vos-note-tabs{background:#101010;border-bottom:1px solid #2a2a2a}
+.vos-note-tab{transition:background .18s ease,color .18s ease}
+.vos-note-tab.on{box-shadow:inset 0 2px 0 #fff}
+.vos-note-add{transition:background .16s ease,color .16s ease}
+.vos-note-add:hover{background:#2a2a2a;color:#fff}
+.vos-note-bar button{background:#2e2e2e;transition:transform .12s ease,background .16s ease}
+.vos-note-bar button:hover{background:#3a3a3a}
+.vos-note textarea.vos-pop{animation:vosPop .28s cubic-bezier(.2,.8,.2,1)}
+.vos-codewrap.vos-pop{animation:vosPop .26s ease}
+.vos-edit-tab{transition:background .16s ease,color .16s ease}
+.vos-edit-bar button[data-run]{background:#0e639c}
+.vos-edit-bar button[data-run]:hover{background:#1177bb}
+.vos-as-card{transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease}
+.vos-as-card:hover{transform:translateY(-4px);box-shadow:0 16px 32px rgba(0,0,0,.4)}
+.vos-as-card:active{transform:translateY(-1px) scale(.99)}
+.vos-as-row{animation:vosIn .36s cubic-bezier(.2,.8,.2,1) both}
+.vos-as-rail .vos-as-card{animation:vosIn .4s cubic-bezier(.2,.8,.2,1) both}
+.vos-as-row:nth-child(2){animation-delay:.03s}
+.vos-as-row:nth-child(3){animation-delay:.06s}
+.vos-as-row:nth-child(4){animation-delay:.09s}
+.vos-as-row:nth-child(5){animation-delay:.12s}
+.vos-as-row:nth-child(6){animation-delay:.15s}
+.vos-store-detail:not([hidden]){animation:vosIn .24s ease}
+.vos-get{transition:transform .12s ease,filter .12s ease}
+.vos-get:hover{transform:scale(1.05)}
+.vos-get:active{transform:scale(.94)}
+@keyframes vosPop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 body.veil-os #osApp-settings > .panel{
   position:absolute !important;
@@ -870,7 +905,8 @@ html[data-mode="light"] .vos-startitem img{filter:none}
 
 @media (prefers-reduced-motion:reduce){
   .vos-icon,.vos-taskbar,.vos-taskbtn,.vos-win,.vos-glyph,.vos-ctl,.vos-startmenu,
-  .vos-rise,.vos-preview,.vos-calc-out,.vos-time-read,.vos-laps div,
+  .vos-rise,.vos-preview,.vos-calc-out,.vos-time-read,.vos-laps div,.vos-pop,
+  .vos-as-row,.vos-as-card,.vos-store-detail,.vos-note textarea,
   body.veil-os #osApp-settings .settings-page.active{
     animation:none !important;
     transition:none !important;
