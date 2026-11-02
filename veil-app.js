@@ -1698,6 +1698,7 @@ function bindFrameEvents(value2, extra) {
       } catch {}
       finishPageLoader(value2);
       applyRealPageTitle(value2, raw);
+      hookFrameMenu(raw);
     });
   }
 }
@@ -2881,7 +2882,14 @@ function closePanelsInner() {
   document.querySelectorAll(".panel").forEach(value => value.classList.remove("open"));
 }
 function closeMenu() {
-  document.getElementById("mainMenu").classList.remove("open");
+  const menu = document.getElementById("mainMenu");
+  if (!menu) return;
+  menu.classList.remove("open", "is-placed");
+  menu.style.left = "";
+  menu.style.top = "";
+  menu.style.right = "";
+  window.__veilMenuImage = null;
+  window.__veilMenuAt = 0;
 }
 function safeColorValue(value, extra) {
   const extra2 = String(value || "").trim();
@@ -6023,8 +6031,20 @@ function fillChatSettings() {
 }
 on("menuBtn", value => {
   value.stopPropagation();
+  const menu = document.getElementById("mainMenu");
+  if (menu && menu.classList.contains("open")) {
+    closeMenu();
+    return;
+  }
+  window.__veilMenuImage = null;
   updateDevtoolsMenuState();
-  document.getElementById("mainMenu")?.classList.toggle("open");
+  if (menu) {
+    menu.classList.remove("is-placed");
+    menu.style.left = "";
+    menu.style.top = "";
+    menu.style.right = "";
+    menu.classList.add("open");
+  }
 });
 on("menuRename", () => {
   closeMenu();
@@ -6096,11 +6116,20 @@ async function blobFromImageEl(img) {
   }
 }
 on("menuSaveImage", async () => {
+  const picked = window.__veilMenuImage || null;
   closeMenu();
   if (!document.body.classList.contains("veil-os") || typeof window.veilOSAddImage !== "function") return;
   const tab = getActiveTab();
-  if (!tab || tab.newTab || tabUrlLocked(tab) || !tab.url || /^veil:/i.test(tab.url)) return;
-  const name = imageNameFromUrl(tab.url, tab.title);
+  if (!picked && (!tab || tab.newTab || tabUrlLocked(tab) || !tab.url || /^veil:/i.test(tab.url))) return;
+  const name = imageNameFromUrl(tab && tab.url, tab && tab.title);
+  if (picked) {
+    const saved = await savePickedImage(picked, picked.alt || name);
+    if (saved) return;
+  }
+  if (!tab || !tab.url) {
+    alert("No image to save on this page. Open an image, or drop one onto the desktop.");
+    return;
+  }
   if (isDirectImageUrl(tab.url)) {
     try {
       const res = await fetch(tab.url);
@@ -6121,28 +6150,129 @@ on("menuSaveImage", async () => {
   const imgs = doc ? Array.prototype.slice.call(doc.images || []) : [];
   imgs.sort((a, b) => (b.naturalWidth * b.naturalHeight) - (a.naturalWidth * a.naturalHeight));
   const img = imgs.find(item => (item.naturalWidth || item.width) >= 32 && (item.naturalHeight || item.height) >= 32);
-  if (img) {
-    const blob = await blobFromImageEl(img);
-    if (blob) {
-      await window.veilOSAddImage({ blob, name: img.alt || name });
-      return;
-    }
-    const src = img.currentSrc || img.src || "";
-    if (src) {
-      try {
-        const res = await fetch(src);
-        const blob = await res.blob();
-        if (blob && blob.type.indexOf("image/") === 0) {
-          await window.veilOSAddImage({ blob, name: img.alt || name });
-          return;
-        }
-      } catch (err) {}
-      await window.veilOSAddImage({ remote: src, name: img.alt || name });
-      return;
-    }
-  }
+  if (img && await savePickedImage({ el: img, src: img.currentSrc || img.src || "", alt: img.alt || "" }, img.alt || name)) return;
   alert("No image to save on this page. Open an image, or drop one onto the desktop.");
 });
+function imageFromNode(node) {
+  const el = node && node.nodeType === 1 ? node : node && node.parentElement;
+  if (!el || !el.closest) return null;
+  const img = el.closest("img");
+  if (!img) return null;
+  const src = img.currentSrc || img.src || "";
+  if (!src) return null;
+  return { el: img, src: src, alt: img.alt || "" };
+}
+function pointFromFrame(frameEl, x, y) {
+  let el = frameEl;
+  while (el) {
+    const box = el.getBoundingClientRect();
+    x += box.left;
+    y += box.top;
+    const view = el.ownerDocument && el.ownerDocument.defaultView;
+    const parent = view && view.parent;
+    if (!parent || parent === view) break;
+    el = view.frameElement;
+  }
+  return { x: x, y: y };
+}
+function hookFrameMenu(frameEl) {
+  if (!frameEl) return;
+  let doc = null;
+  try { doc = frameEl.contentDocument; } catch (err) { return; }
+  if (!doc || doc.__veilCtx) return;
+  doc.__veilCtx = true;
+  doc.addEventListener("contextmenu", event => {
+    const target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
+    if (target && target.closest && target.closest("input, textarea, select, [contenteditable='true']")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const spot = pointFromFrame(frameEl, event.clientX, event.clientY);
+    openBrowserMenuAt(spot.x, spot.y, imageFromNode(target));
+  }, true);
+  const scan = records => {
+    try {
+      const nodes = [];
+      if (!records) {
+        Array.prototype.forEach.call(doc.querySelectorAll("iframe"), node => nodes.push(node));
+      } else {
+        Array.prototype.forEach.call(records, record => {
+          Array.prototype.forEach.call(record.addedNodes || [], node => {
+            if (!node || node.nodeType !== 1) return;
+            if (node.tagName === "IFRAME") nodes.push(node);
+            if (node.querySelectorAll) Array.prototype.forEach.call(node.querySelectorAll("iframe"), child => nodes.push(child));
+          });
+        });
+      }
+      nodes.forEach(child => {
+        const bind = () => hookFrameMenu(child);
+        if (!child.__veilCtxLoad) {
+          child.__veilCtxLoad = true;
+          child.addEventListener("load", bind);
+        }
+        bind();
+      });
+    } catch (err) {}
+  };
+  scan();
+  try {
+    new MutationObserver(scan).observe(doc.documentElement || doc, { childList: true, subtree: true });
+  } catch (err) {}
+}
+function openBrowserMenuAt(x, y, image) {
+  const menu = document.getElementById("mainMenu");
+  if (!menu) return;
+  window.__veilMenuImage = image || null;
+  window.__veilMenuAt = Date.now();
+  updateDevtoolsMenuState();
+  const saveBtn = document.getElementById("menuSaveImage");
+  if (saveBtn && image && document.body.classList.contains("veil-os")) {
+    saveBtn.classList.remove("disabled");
+    saveBtn.disabled = false;
+    saveBtn.setAttribute("aria-disabled", "false");
+  }
+  menu.classList.add("open", "is-placed");
+  menu.style.right = "auto";
+  const desktop = document.body.classList.contains("veil-os");
+  const host = document.getElementById("browser");
+  const box = desktop && host ? host.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+  let left = x - (desktop ? box.left : 0);
+  let top = y - (desktop ? box.top : 0);
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+  const rect = menu.getBoundingClientRect();
+  const limitRight = desktop ? box.right : window.innerWidth;
+  const limitBottom = desktop ? box.bottom : window.innerHeight;
+  if (rect.right > limitRight - 8) left -= rect.right - limitRight + 8;
+  if (rect.bottom > limitBottom - 8) top -= rect.bottom - limitBottom + 8;
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+}
+async function savePickedImage(img, name) {
+  if (!img || typeof window.veilOSAddImage !== "function") return false;
+  const label = String(name || img.alt || "Image").trim() || "Image";
+  if (img.el) {
+    const blob = await blobFromImageEl(img.el);
+    if (blob) {
+      await window.veilOSAddImage({ blob: blob, name: label });
+      return true;
+    }
+  }
+  const src = img.src || "";
+  if (!src) return false;
+  try {
+    const res = await fetch(src);
+    const blob = await res.blob();
+    if (blob && (!blob.type || blob.type.indexOf("image/") === 0)) {
+      await window.veilOSAddImage({ blob: blob, name: label });
+      return true;
+    }
+  } catch (err) {}
+  if (/^https?:/i.test(src)) {
+    await window.veilOSAddImage({ remote: src, name: label });
+    return true;
+  }
+  return false;
+}
 function togglePageFullscreen() {
   try {
     const stamp = getActiveTab();
@@ -6215,7 +6345,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=22";
+  link.href = BASE + "/veilos.css?v=23";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6226,7 +6356,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=22";
+  script.src = BASE + "/veilos.js?v=23";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -6761,10 +6891,20 @@ document.querySelectorAll("[data-cloak]").forEach(value => {
   value.onclick = () => applyCloakPreset(value.dataset.cloak);
 });
 document.addEventListener("click", value => {
+  if (window.__veilMenuAt && Date.now() - window.__veilMenuAt < 400) return;
   if (!value.target.closest("#mainMenu") && !value.target.closest("#menuBtn")) {
     closeMenu();
   }
 });
+document.addEventListener("contextmenu", value => {
+  const browser = document.getElementById("browser");
+  const target = value.target && value.target.nodeType === 1 ? value.target : value.target && value.target.parentElement;
+  if (!browser || !target || !target.closest || !browser.contains(target)) return;
+  if (target.closest("input, textarea, select, [contenteditable='true'], #mainMenu, .panel, .modal-overlay")) return;
+  value.preventDefault();
+  value.stopPropagation();
+  openBrowserMenuAt(value.clientX, value.clientY, null);
+}, true);
 document.addEventListener("keydown", value => {
   const size = value.ctrlKey || value.metaKey;
   if (size && value.key.toLowerCase() === "l") {
