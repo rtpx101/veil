@@ -441,13 +441,14 @@ function libcurlFactoryBody(moduleUrl) {
     "          } else {\n            returned_data = full_data;\n          }",
     "          } else if (full_data.length) {\n            returned_data = full_data;\n          }"
   ]];
-  return "const res = await fetch(" + JSON.stringify(moduleUrl) + ");\nif (!res.ok) throw new Error(\"Could not load libcurl\");\nlet src = await res.text();\nconst patches = " + JSON.stringify(patches) + ";\nfor (const pair of patches) {\n  if (src.indexOf(pair[0]) === -1) throw new Error(\"libcurl websocket patch missed\");\n  src = src.replace(pair[0], pair[1]);\n}\nconst blobUrl = URL.createObjectURL(new Blob([src], { type: \"text/javascript\" }));\nconst mod = await import(blobUrl);\nreturn [mod.default, \"libcurl-ws\"];\n";
+  return "const res = await fetch(" + JSON.stringify(moduleUrl) + ");\nif (!res.ok) throw new Error(\"Could not load libcurl\");\nlet src = await res.text();\nconst patches = " + JSON.stringify(patches) + ";\nfor (const pair of patches) {\n  if (src.indexOf(pair[0]) === -1) continue;\n  src = src.replace(pair[0], pair[1]);\n}\nconst blobUrl = URL.createObjectURL(new Blob([src], { type: \"text/javascript\" }));\nconst mod = await import(blobUrl);\nreturn [mod.default, \"libcurl-ws\"];\n";
 }
 async function applyMuxTransport() {
   await useWorkingWisp();
   const index = currentWisp();
   const entry = transportModule();
   const meta = entry === LIBCURL_MODULE ? EPOXY_MODULE : LIBCURL_MODULE;
+  const wanted = settings.transport;
   muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
   try {
     if (entry === LIBCURL_MODULE) {
@@ -466,7 +467,7 @@ async function applyMuxTransport() {
     await muxConnection.setTransport(meta, [{
       wisp: index
     }]);
-    settings.transport = meta === LIBCURL_MODULE ? "libcurl" : "epoxy";
+    if (wanted !== "libcurl") settings.transport = meta === LIBCURL_MODULE ? "libcurl" : "epoxy";
     return meta;
   }
 }
@@ -692,7 +693,7 @@ const DEFAULT_SETTINGS = {
   closeOriginOnBlank: false,
   backgroundUrl: "",
   adBlocker: true,
-  maxLoadedTabs: 4,
+  maxLoadedTabs: 2,
   searchEngine: "google",
   wispId: "va1",
   customServers: [],
@@ -708,6 +709,7 @@ const DEFAULT_SETTINGS = {
   animColorB: "#b88cff",
   timeFormat: "12",
   transportMigratedV2: true,
+  transportMigratedV3: false,
   saverMinutes: 0,
   saverDelay: "",
   saverEnabled: false,
@@ -972,6 +974,10 @@ function migrateSettings() {
   if (!settings.transportMigratedV2) {
     settings.transport = "libcurl";
     settings.transportMigratedV2 = true;
+  }
+  if (!settings.transportMigratedV3) {
+    settings.transport = "libcurl";
+    settings.transportMigratedV3 = true;
   }
   if (!settings.theme || !THEMES[settings.theme]) {
     settings.theme = "matte";
@@ -1825,14 +1831,30 @@ function armFrameErrorWatch(raw, tab) {
       win.addEventListener("unhandledrejection", ev => take(ev && ev.reason));
     } catch (err) {}
   };
+  if (!raw.__veilErrHook) {
+    raw.__veilErrHook = true;
+    raw.addEventListener("load", attach);
+  }
   attach();
   let n = 0;
   const timer = setInterval(() => {
     n += 1;
     attach();
-    if (n > 12) clearInterval(timer);
-  }, 200);
+    if (n > 40) clearInterval(timer);
+  }, 500);
 }
+window.addEventListener("error", ev => {
+  const msg = String(ev && (ev.message || ev.error) || "");
+  if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(msg)) return;
+  const tab = typeof getActiveTab === "function" ? getActiveTab() : null;
+  if (tab) recoverFrameTransport(tab, msg);
+});
+window.addEventListener("unhandledrejection", ev => {
+  const msg = String(ev && ev.reason || "");
+  if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(msg)) return;
+  const tab = typeof getActiveTab === "function" ? getActiveTab() : null;
+  if (tab) recoverFrameTransport(tab, msg);
+});
 async function recoverFrameTransport(tab, message) {
   if (!tab || !tab.url) return;
   if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(String(message || ""))) return;
@@ -1855,6 +1877,12 @@ async function goFrame(value2, extra) {
   }
   extra = unwrapProxyUrl(extra) || extra;
   value2.url = extra;
+  if (/youtube\.com|youtu\.be|googlevideo\.com/i.test(extra) && settings.transport !== "libcurl") {
+    settings.transport = "libcurl";
+    settings.transportMigratedV3 = true;
+    try { save(); } catch (err) {}
+    try { await applyMuxTransport(); } catch (err) {}
+  }
   value2.title = "Loading";
   showPageLoader(value2);
   try {
@@ -4129,7 +4157,7 @@ function lockVeil(resume) {
 function highlightTheme() {
   try {
     if (!settings.transport || settings.transport !== "epoxy" && settings.transport !== "libcurl") {
-      settings.transport = "epoxy";
+      settings.transport = "libcurl";
     }
     document.querySelectorAll("[data-theme]").forEach(value => value.classList.toggle("active", value.dataset.theme === settings.theme));
     const customThemeCard = document.getElementById("customThemeCard");
@@ -4597,9 +4625,11 @@ function updateDevtoolsMenuState() {
   if (menuInstall) {
     const desktop = document.body.classList.contains("veil-os");
     const blocked = !desktop || !message || !!message.newTab || !!message.isGames || !!message.isAdmin || chat || !message.url || /^veil:/i.test(message.url);
-    menuInstall.classList.toggle("disabled", blocked);
-    menuInstall.disabled = blocked;
-    menuInstall.setAttribute("aria-disabled", blocked ? "true" : "false");
+    const builtin = !!(message && message.url && isBundledSite(message.url));
+    menuInstall.classList.toggle("disabled", blocked || builtin);
+    menuInstall.classList.toggle("is-builtin", builtin);
+    menuInstall.disabled = blocked || builtin;
+    menuInstall.setAttribute("aria-disabled", blocked || builtin ? "true" : "false");
   }
   const menuSaveImage = document.getElementById("menuSaveImage");
   if (menuSaveImage) {
@@ -4791,6 +4821,7 @@ function on(value, extra) {
     response.onclick = extra;
   }
 }
+on("veilRefreshBtn", refreshVeil);
 on("backBtn", goBack);
 on("forwardBtn", goForward);
 on("refreshBtn", reload);
@@ -4830,8 +4861,19 @@ function accountToken() {
     return "";
   }
 }
+function isBundledSite(url) {
+  let host = "";
+  try {
+    host = new URL(unwrapProxyUrl(url) || url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch (err) {
+    return false;
+  }
+  const roots = ["youtube.com", "youtu.be", "music.youtube.com", "geforcenow.com", "discord.com", "discordapp.com", "tiktok.com", "x.com", "twitter.com"];
+  return roots.some(root => host === root || host.endsWith("." + root));
+}
 function workerBase() {
-  return (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+  const auth = localStorage.getItem("veil_auth_worker_url");
+  return (auth || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
 }
 function chatOwnerMatches() {
   const email = accountEmail();
@@ -6562,6 +6604,18 @@ function hookFrameMenu(frameEl) {
     const spot = pointFromFrame(frameEl, event.clientX, event.clientY);
     openBrowserMenuAt(spot.x, spot.y, imageFromNode(target), mediaAtPoint(doc, event.clientX, event.clientY, target, event));
   }, true);
+  const dismiss = () => {
+    try { closeMenu(); } catch (err) {}
+    try { window.dispatchEvent(new CustomEvent("veil-dismiss-popups")); } catch (err) {}
+  };
+  doc.addEventListener("pointerdown", event => {
+    if (event.button === 2) return;
+    dismiss();
+  }, true);
+  doc.addEventListener("scroll", dismiss, true);
+  doc.addEventListener("keydown", event => {
+    if (event.key === "Escape") dismiss();
+  }, true);
   const scan = records => {
     try {
       const nodes = [];
@@ -6719,7 +6773,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=28";
+  link.href = BASE + "/veilos.css?v=29";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6730,7 +6784,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=28";
+  script.src = BASE + "/veilos.js?v=29";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7299,6 +7353,35 @@ if (cloakPresetSelect) {
 document.querySelectorAll("[data-cloak]").forEach(value => {
   value.onclick = () => applyCloakPreset(value.dataset.cloak);
 });
+window.addEventListener("blur", () => {
+  const menu = document.getElementById("mainMenu");
+  if (menu && menu.classList.contains("open")) closeMenu();
+  try { window.dispatchEvent(new CustomEvent("veil-dismiss-popups")); } catch (err) {}
+});
+function refreshVeil() {
+  try { skipLeaveWarning = true; } catch (err) {}
+  try { window.onbeforeunload = null; } catch (err) {}
+  try {
+    if (window.parent && window.parent !== window) {
+      let parentHref = "";
+      try { parentHref = String(window.parent.location.href || ""); } catch (err) { parentHref = "about:"; }
+      if (parentHref.indexOf("about:") === 0) {
+        location.reload();
+        return;
+      }
+    }
+  } catch (err) {}
+  try {
+    if (String(location.protocol) === "about:" || String(location.href).indexOf("about:") === 0) {
+      const frame = document.querySelector("iframe");
+      if (frame) {
+        frame.src = frame.src;
+        return;
+      }
+    }
+  } catch (err) {}
+  location.reload();
+}
 document.addEventListener("click", value => {
   if (window.__veilMenuAt && Date.now() - window.__veilMenuAt < 400) return;
   if (!value.target.closest("#mainMenu") && !value.target.closest("#menuBtn")) {
@@ -7315,6 +7398,13 @@ document.addEventListener("contextmenu", value => {
   openBrowserMenuAt(value.clientX, value.clientY, null, mediaAtPoint(document, value.clientX, value.clientY, target, value) || mediaOnPage());
 }, true);
 document.addEventListener("keydown", value => {
+  if (value.key === "Escape") {
+    const menu = document.getElementById("mainMenu");
+    if (menu && menu.classList.contains("open")) {
+      closeMenu();
+      value.preventDefault();
+    }
+  }
   if (document.querySelector(".lock-overlay")) {
     if (value.ctrlKey || value.metaKey || value.altKey || value.key === "F5") value.preventDefault();
     return;

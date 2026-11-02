@@ -9,7 +9,9 @@
     { id: "timer", title: "Timer", icon: "clock" },
     { id: "editor", title: "Code Editor", icon: "editor" },
     { id: "notes", title: "Notepad", icon: "note" },
-    { id: "player", title: "Media Player", icon: "audio" }
+    { id: "player", title: "Media Player", icon: "audio" },
+    { id: "music", title: "Music", icon: "audio" },
+    { id: "movies", title: "Movies", icon: "video" }
   ];
   var wins = {};
   var focused = null;
@@ -401,18 +403,18 @@
   function gridSnap(x, y) {
     var h = deskEl ? deskEl.clientHeight : 0;
     if (!h) h = Math.max(240, window.innerHeight - 48);
-    var rows = Math.max(1, Math.floor((h - 20) / 96));
-    var col = Math.max(0, Math.round((x - 14) / 96));
-    var row = Math.max(0, Math.min(rows - 1, Math.round((y - 16) / 96)));
-    return clampIcon(14 + col * 96, 16 + row * 96);
+    var rows = Math.max(1, Math.floor((h - 16) / ICON_Y));
+    var col = Math.max(0, Math.round((x - 14) / ICON_X));
+    var row = Math.max(0, Math.min(rows - 1, Math.round((y - 12) / ICON_Y)));
+    return clampIcon(14 + col * ICON_X, 12 + row * ICON_Y);
   }
   function itemSpot(item, index) {
     var saved = iconLayout[item.id];
     if (saved && isFinite(saved.x) && isFinite(saved.y)) return clampIcon(saved.x, saved.y);
     var h = deskEl ? deskEl.clientHeight : 0;
     if (!h) h = Math.max(240, window.innerHeight - 48);
-    var rows = Math.max(1, Math.floor((h - 20) / 96));
-    return clampIcon(14 + Math.floor(index / rows) * 96, 16 + (index % rows) * 96);
+    var rows = Math.max(1, Math.floor((h - 16) / ICON_Y));
+    return clampIcon(14 + Math.floor(index / rows) * ICON_X, 12 + (index % rows) * ICON_Y);
   }
   function nearestOpen(x, y, ignore, extra) {
     var spots = occupiedSpots(ignore).concat(extra || []);
@@ -425,17 +427,17 @@
     var w = deskEl ? deskEl.clientWidth : 0;
     if (!h) h = Math.max(240, window.innerHeight - 48);
     if (!w) w = Math.max(320, window.innerWidth);
-    var rows = Math.max(1, Math.floor((h - 20) / 96));
-    var cols = Math.max(1, Math.floor((w - 28) / 96));
-    var startC = Math.max(0, Math.round((x - 14) / 96));
-    var startR = Math.max(0, Math.round((y - 16) / 96));
+    var rows = Math.max(1, Math.floor((h - 16) / ICON_Y));
+    var cols = Math.max(1, Math.floor((w - 28) / ICON_X));
+    var startC = Math.max(0, Math.round((x - 14) / ICON_X));
+    var startR = Math.max(0, Math.round((y - 12) / ICON_Y));
     var best = null;
     var bestD = 1e9;
     var c;
     var r;
     for (c = 0; c < cols + 4; c++) {
       for (r = 0; r < rows; r++) {
-        var p = clampIcon(14 + c * 96, 16 + r * 96);
+        var p = clampIcon(14 + c * ICON_X, 12 + r * ICON_Y);
         if (taken(p)) continue;
         var down = r - startR;
         if (down < 0) down += rows;
@@ -729,7 +731,7 @@
     items.forEach(function (itemId, n) {
       var skip = {};
       skip[itemId] = true;
-      iconLayout[itemId] = freeSpot(anchor.x + (n % 4) * 96, anchor.y + Math.floor(n / 4) * 96, skip);
+      iconLayout[itemId] = freeSpot(anchor.x + (n % 4) * ICON_X, anchor.y + Math.floor(n / 4) * ICON_Y, skip);
     });
     if (openFolderId === id) closeFolder();
     saveFolders();
@@ -776,16 +778,18 @@
   function saveLayout() {
     try { localStorage.setItem(POS_KEY, JSON.stringify(iconLayout)); } catch (err) {}
   }
+  var ICON_X = 104;
+  var ICON_Y = 118;
   function clampIcon(x, y) {
     var dw = deskEl ? deskEl.clientWidth : window.innerWidth;
     var dh = deskEl ? deskEl.clientHeight : window.innerHeight;
     return {
-      x: Math.max(6, Math.min(x, Math.max(6, dw - 92))),
-      y: Math.max(6, Math.min(y, Math.max(6, dh - 100)))
+      x: Math.max(8, Math.min(x, Math.max(8, dw - 104))),
+      y: Math.max(8, Math.min(y, Math.max(8, dh - 120)))
     };
   }
   function spotsClose(a, b) {
-    return Math.abs(a.x - b.x) < 78 && Math.abs(a.y - b.y) < 78;
+    return Math.abs(a.x - b.x) < 96 && Math.abs(a.y - b.y) < 110;
   }
   function occupiedSpots(ignore) {
     var spots = [];
@@ -798,8 +802,8 @@
       }
       var h = deskEl ? deskEl.clientHeight : 0;
       if (!h) h = Math.max(240, window.innerHeight - 48);
-      var rows = Math.max(1, Math.floor((h - 20) / 96));
-      spots.push(clampIcon(14 + Math.floor(index / rows) * 96, 16 + (index % rows) * 96));
+      var rows = Math.max(1, Math.floor((h - 16) / ICON_Y));
+      spots.push(clampIcon(14 + Math.floor(index / rows) * ICON_X, 12 + (index % rows) * ICON_Y));
     });
     return spots;
   }
@@ -816,13 +820,13 @@
     var w = deskEl ? deskEl.clientWidth : 0;
     if (!h) h = Math.max(240, window.innerHeight - 48);
     if (!w) w = Math.max(320, window.innerWidth);
-    var rows = Math.max(1, Math.floor((h - 20) / 96));
-    var cols = Math.max(1, Math.floor((w - 28) / 96));
+    var rows = Math.max(1, Math.floor((h - 16) / ICON_Y));
+    var cols = Math.max(1, Math.floor((w - 28) / ICON_X));
     var c;
     var r;
     for (c = 0; c < cols + 6; c++) {
       for (r = 0; r < rows; r++) {
-        var p = clampIcon(14 + c * 96, 16 + r * 96);
+        var p = clampIcon(14 + c * ICON_X, 12 + r * ICON_Y);
         if (!taken(p)) return p;
       }
     }
@@ -834,12 +838,12 @@
     var h = 0;
     try { h = deskEl.getBoundingClientRect().height; } catch (err) {}
     if (!h) h = Math.max(240, window.innerHeight - 48);
-    var rows = Math.max(1, Math.floor((h - 20) / 96));
+    var rows = Math.max(1, Math.floor((h - 16) / ICON_Y));
     var n = index;
     var guard = 0;
     var list = used || [];
     while (guard < 100) {
-      var spot = clampIcon(14 + Math.floor(n / rows) * 96, 16 + (n % rows) * 96);
+      var spot = clampIcon(14 + Math.floor(n / rows) * ICON_X, 12 + (n % rows) * ICON_Y);
       var clash = false;
       var i;
       for (i = 0; i < list.length; i++) {
@@ -1429,26 +1433,28 @@
 
   function place(el, x, y, w, h) {
     var desk = deskEl.getBoundingClientRect();
-    var width = Math.max(320, Math.min(w, desk.width - 16));
-    var height = Math.max(220, Math.min(h, desk.height - 16));
-    var left = Math.max(0, Math.min(x, Math.max(0, desk.width - 80)));
-    var top = Math.max(0, Math.min(y, Math.max(0, desk.height - 40)));
-    if (left + width > desk.width) left = Math.max(0, desk.width - width);
-    if (top + height > desk.height) top = Math.max(0, desk.height - height);
-    el.style.left = left + "px";
-    el.style.top = top + "px";
-    el.style.width = width + "px";
-    el.style.height = height + "px";
+    var maxW = Math.max(120, desk.width - 12);
+    var maxH = Math.max(100, desk.height - 12);
+    var width = Math.min(w, maxW);
+    var height = Math.min(h, maxH);
+    var left = Math.max(0, Math.min(x, Math.max(0, desk.width - width)));
+    var top = Math.max(0, Math.min(y, Math.max(0, desk.height - height)));
+    el.style.left = Math.round(left) + "px";
+    el.style.top = Math.round(top) + "px";
+    el.style.width = Math.round(width) + "px";
+    el.style.height = Math.round(height) + "px";
   }
 
   function placeCentered(el, w, h) {
     var desk = deskEl.getBoundingClientRect();
-    var width = Math.max(320, Math.min(w, desk.width - 32));
-    var height = Math.max(240, Math.min(h, desk.height - 32));
-    el.style.width = width + "px";
-    el.style.height = height + "px";
-    el.style.left = Math.max(8, Math.round((desk.width - width) / 2)) + "px";
-    el.style.top = Math.max(8, Math.round((desk.height - height) / 2)) + "px";
+    var maxW = Math.max(120, desk.width - 16);
+    var maxH = Math.max(100, desk.height - 16);
+    var width = Math.min(w, maxW);
+    var height = Math.min(h, maxH);
+    el.style.width = Math.round(width) + "px";
+    el.style.height = Math.round(height) + "px";
+    el.style.left = Math.max(0, Math.round((desk.width - width) / 2)) + "px";
+    el.style.top = Math.max(0, Math.round((desk.height - height) / 2)) + "px";
   }
 
   function layoutDefaults() {
@@ -1460,7 +1466,7 @@
     ["browser", "store", "chat", "settings"].forEach(function (id) {
       if (wins[id]) placeCentered(wins[id].el, w, h);
     });
-    ["calc", "timer", "editor"].forEach(function (id) {
+    ["calc", "timer", "editor", "notes", "player", "music", "movies"].forEach(function (id) {
       var size = appSize(id);
       if (wins[id] && size) placeCentered(wins[id].el, size.w, size.h);
     });
@@ -1579,10 +1585,32 @@
     body.innerHTML = '<div class="vos-store"><div class="vos-store-scroll" data-home></div><div class="vos-store-detail" data-detail hidden></div></div>';
     var home = body.querySelector("[data-home]");
     var detail = body.querySelector("[data-detail]");
+    var SITES = [
+      { id: "site_youtube", name: "YouTube", url: "https://www.youtube.com/", mark: "Y" },
+      { id: "site_geforce", name: "GeForce Now", url: "https://play.geforcenow.com/", mark: "G" },
+      { id: "site_discord", name: "Discord", url: "https://discord.com/app", mark: "D" },
+      { id: "site_tiktok", name: "TikTok", url: "https://www.tiktok.com/", mark: "T" },
+      { id: "site_x", name: "X", url: "https://x.com/", mark: "X" }
+    ];
+    function siteById(id) {
+      var found = null;
+      SITES.forEach(function (site) { if (site.id === id) found = site; });
+      return found;
+    }
+    function siteVisual(site) {
+      if (site.icon) return '<img src="' + IMG + site.icon + '" alt="">';
+      return '<span class="vos-as-mark">' + esc(site.mark || "?") + "</span>";
+    }
+    function siteIconUrl(site) {
+      if (site.icon) return IMG + site.icon;
+      var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='16' fill='#161616'/><text x='32' y='42' text-anchor='middle' font-size='32' font-family='sans-serif' fill='#fff'>" + (site.mark || "?") + "</text></svg>";
+      return "data:image/svg+xml," + encodeURIComponent(svg);
+    }
     var games = [];
     var query = "";
     function isInstalled(id) {
-      var url = "veil-game:" + id;
+      var site = siteById(id);
+      var url = site ? site.url : ("veil-game:" + id);
       var hit = false;
       installed.forEach(function (item) { if (item.url === url) hit = true; });
       return hit;
@@ -1643,6 +1671,10 @@
         if (!q) return true;
         return String(game.name || "").toLowerCase().indexOf(q) !== -1 || String(game.category || "").toLowerCase().indexOf(q) !== -1;
       });
+      var sites = SITES.filter(function (site) {
+        if (!q) return true;
+        return site.name.toLowerCase().indexOf(q) !== -1;
+      });
       var featured = "";
       if (!q) {
         featured = '<section class="vos-as-block"><h2>Featured</h2><div class="vos-as-rail">' + games.slice(0, 6).map(function (game) {
@@ -1650,12 +1682,15 @@
           return '<button type="button" class="vos-as-card" data-open="' + esc(gameId(game)) + '"><img src="' + esc(photo) + '" alt=""><span><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(game.maturity || "NR") + "</small></span></button>";
         }).join("") + "</div></section>";
       }
+      var siteRows = sites.map(function (site) {
+        return '<div class="vos-as-row"><div class="vos-as-hit">' + siteVisual(site) + '<span class="vos-as-copy"><b>' + esc(site.name) + "</b><small>Website</small></span></div>" + actions({ id: site.id, name: site.name }) + "</div>";
+      }).join("");
       var rows = list.map(function (game) {
         var icon = "";
         try { icon = smallThumb(game) || ""; } catch (err) {}
         return '<div class="vos-as-row"><button type="button" class="vos-as-hit" data-open="' + esc(gameId(game)) + '"><img src="' + esc(icon) + '" alt=""><span class="vos-as-copy"><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(ageLabel(game.maturity)) + " · " + esc(easeLabel(game.difficulty)[0]) + "</small></span></button>" + actions(game) + "</div>";
       }).join("");
-      home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1><input class="vos-as-search" type="search" placeholder="Search" value="' + esc(query) + '"></div>' + featured + '<section class="vos-as-block"><h2>Games</h2>' + (rows || '<p class="vos-as-empty">No games match.</p>') + "</section>";
+      home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1><input class="vos-as-search" type="search" placeholder="Search" value="' + esc(query) + '"></div>' + featured + (siteRows ? '<section class="vos-as-block"><h2>Apps</h2>' + siteRows + "</section>" : "") + '<section class="vos-as-block"><h2>Games</h2>' + (rows || '<p class="vos-as-empty">No games match.</p>') + "</section>";
       var input = home.querySelector(".vos-as-search");
       if (input) {
         input.addEventListener("input", function () {
@@ -1706,8 +1741,10 @@
         e.preventDefault();
         e.stopPropagation();
         var gid = trash.getAttribute("data-trash");
+        var site = siteById(gid);
         var doomed = null;
-        installed.forEach(function (item) { if (item.url === "veil-game:" + gid) doomed = item; });
+        var url = site ? site.url : ("veil-game:" + gid);
+        installed.forEach(function (item) { if (item.url === url) doomed = item; });
         if (doomed) uninstallApp(doomed.id);
         return;
       }
@@ -1721,6 +1758,20 @@
       e.preventDefault();
       e.stopPropagation();
       var id = get.getAttribute("data-get");
+      var pickedSite = siteById(id);
+      if (pickedSite) {
+        if (isInstalled(id)) {
+          var openSite = null;
+          installed.forEach(function (item) { if (item.url === pickedSite.url) openSite = item; });
+          if (openSite) {
+            ensureInstalledWindow(openSite);
+            openApp(openSite.id);
+          }
+          return;
+        }
+        installApp({ title: pickedSite.name, url: pickedSite.url, icon: siteIconUrl(pickedSite) });
+        return;
+      }
       var game = findGame(id);
       if (!game) return;
       if (isInstalled(id)) {
@@ -1796,6 +1847,8 @@
     if (id === "editor") return { w: 1100, h: 720 };
     if (id === "notes") return { w: 760, h: 560 };
     if (id === "player") return { w: 860, h: 540 };
+    if (id === "music") return { w: 980, h: 640 };
+    if (id === "movies") return { w: 1000, h: 660 };
     return null;
   }
   function ensurePlaced(win) {
@@ -1841,6 +1894,8 @@
     if (id === "editor") ensureEditor(win.body);
     if (id === "notes") ensureNotepad(win.body);
     if (id === "player") ensurePlayer(win.body);
+    if (id === "music") ensureMusic(win.body);
+    if (id === "movies") ensureMovies(win.body);
     noteRecent(id);
     if (win.installed) ensureProxy(win);
     if (win.file) paintFile(win);
@@ -1864,6 +1919,13 @@
     win.el.classList.add("is-closed");
     win.el.classList.remove("is-min", "is-focus");
     win.running = false;
+    if (win.installed) {
+      var host = win.body && win.body.querySelector(".vos-proxy");
+      if (host) host.innerHTML = "";
+      win.frameReady = false;
+    }
+    if (id === "music") stopMusic();
+    if (id === "movies") stopMovies();
     if (focused === id) focused = null;
     var next = null;
     Object.keys(wins).forEach(function (key) {
@@ -2285,6 +2347,8 @@
   var editorState = null;
   var noteState = null;
   var playerState = null;
+  var musicState = null;
+  var movieState = null;
 
   var shellListeners = [];
   function shellListen(target, type, fn) {
@@ -2611,6 +2675,53 @@
     { id: "brainfuck", name: "Brainfuck", ext: "bf" },
     { id: "processing", name: "Processing (p5.js)", ext: "js" }
   ];
+  var EXAMPLES = {
+    javascript: "function hello(name) {\n  console.log(\"Hello, \" + name);\n}\n\nhello(\"Veil\");\n",
+    html: "<h1>Hello</h1>\n<p>Edit this page, then press Run.</p>\n<button>Click</button>\n",
+    css: "body {\n  margin: 0;\n  font-family: sans-serif;\n  background: #111;\n  color: #f4f4f4;\n}\n\nh1 {\n  color: #9cf;\n}\n",
+    markdown: "# Notes\n\nA short **example**.\n\n- one\n- two\n",
+    python: "name = \"Veil\"\nprint(\"Hello, \" + name)\n",
+    lua: "local name = \"Veil\"\nprint(\"Hello, \" .. name)\n",
+    sql: "CREATE TABLE notes (id INTEGER, title TEXT);\nINSERT INTO notes VALUES (1, 'Hello');\nSELECT * FROM notes;\n",
+    brainfuck: "++++++++[>+++++++++<-]>.<+++[>++++++<-]>+.\n",
+    processing: "function setup() {\n  createCanvas(400, 240);\n}\n\nfunction draw() {\n  background(18);\n  fill(220);\n  ellipse(mouseX, mouseY, 40, 40);\n}\n"
+  };
+  var COMPLETIONS = {
+    javascript: ["console", "console.log", "function", "const", "let", "return", "if", "else", "for", "while", "document", "querySelector", "addEventListener", "class", "async", "await", "true", "false"],
+    html: ["html", "head", "body", "div", "span", "h1", "h2", "p", "a", "img", "button", "input", "ul", "li", "section", "style", "script"],
+    css: ["color", "background", "background-color", "margin", "padding", "display", "flex", "grid", "width", "height", "font-size", "font-family", "position", "border", "border-radius", "justify-content", "align-items", "gap"],
+    markdown: ["bold", "italic", "code", "heading"],
+    python: ["print", "def", "class", "return", "if", "elif", "else", "for", "while", "import", "from", "True", "False", "None", "len", "range", "input"],
+    lua: ["print", "function", "local", "end", "if", "then", "else", "elseif", "for", "while", "do", "return", "true", "false", "nil"],
+    sql: ["SELECT", "FROM", "WHERE", "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", "CREATE", "TABLE", "DROP", "JOIN", "ORDER", "GROUP", "LIMIT"],
+    brainfuck: ["[-]", "[->+<]"],
+    processing: ["function", "setup", "draw", "createCanvas", "background", "fill", "ellipse", "rect", "line", "mouseX", "mouseY", "stroke"]
+  };
+  function exampleFor(lang) {
+    return Object.prototype.hasOwnProperty.call(EXAMPLES, lang) ? EXAMPLES[lang] : "";
+  }
+  function editorComplete(area, lang) {
+    var end = area.selectionEnd || 0;
+    if ((area.selectionStart || 0) !== end) return false;
+    var before = area.value.slice(0, end);
+    var match = before.match(/[A-Za-z_][A-Za-z0-9_]*$/);
+    if (!match) return false;
+    var word = match[0];
+    var list = COMPLETIONS[lang] || [];
+    var hits = [];
+    var i;
+    var lower = word.toLowerCase();
+    for (i = 0; i < list.length; i++) {
+      if (list[i].toLowerCase().indexOf(lower) === 0 && list[i].length > word.length) hits.push(list[i]);
+    }
+    if (!hits.length) return false;
+    hits.sort(function (a, b) { return a.length - b.length; });
+    var rest = hits[0].slice(word.length);
+    area.value = before + rest + area.value.slice(end);
+    area.selectionStart = area.selectionEnd = end + rest.length;
+    area.dispatchEvent(new Event("input"));
+    return true;
+  }
   var LANG_KEYS = {
     javascript: "const let var function return if else for while do switch case break continue new this class extends super try catch finally throw typeof instanceof import export from default async await of in",
     processing: "const let var function return if else for while setup draw new this class",
@@ -2797,7 +2908,7 @@
     if (!editorState) return;
     editorSync();
     if (editorState.tabs.length <= 1) {
-      editorState.tabs[0] = { fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" };
+      editorState.tabs[0] = { fileId: "", name: "untitled.js", lang: "javascript", text: exampleFor("javascript"), input: "" };
       editorState.active = 0;
     } else {
       editorState.tabs.splice(index, 1);
@@ -2845,7 +2956,7 @@
     add.textContent = "+";
     add.onclick = function () {
       editorSync();
-      editorState.tabs.push({ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" });
+      editorState.tabs.push({ fileId: "", name: "untitled.js", lang: "javascript", text: exampleFor("javascript"), input: "" });
       editorState.active = editorState.tabs.length - 1;
       editorPaint();
     };
@@ -2886,7 +2997,7 @@
       if (tabs[i].fileId && tabs[i].fileId === app.id) { editorState.active = i; editorPaint(); return; }
     }
     var blank = tabs.length === 1 && !tabs[0].fileId && !tabs[0].text;
-    var tab = blank ? tabs[0] : { fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" };
+    var tab = blank ? tabs[0] : { fileId: "", name: "untitled.js", lang: "javascript", text: exampleFor("javascript"), input: "" };
     tab.fileId = app.id;
     tab.name = app.title || tab.name;
     tab.lang = app.lang || "javascript";
@@ -3170,7 +3281,7 @@
     body.dataset.ready = "1";
     var options = LANGS.map(function (lang) { return '<option value="' + lang.id + '">' + lang.name + "</option>"; }).join("");
     body.innerHTML = '<div class="vos-edit vos-rise"><div class="vos-edit-top"><div class="vos-edit-tabs" data-tabs></div><div class="vos-edit-bar"><input data-name spellcheck="false" aria-label="File name" placeholder="File name"><select data-lang>' + options + '</select><button type="button" data-run>Run</button><button type="button" data-save>Save</button></div></div><div class="vos-edit-stage"><div class="vos-edit-main"><div class="vos-codewrap"><div class="vos-gutter" data-gutter></div><pre data-hl></pre><textarea data-code spellcheck="false" aria-label="Code"></textarea></div><section class="vos-preview" data-preview hidden><div class="vos-stage" data-stage></div></section></div><div class="vos-panel"><div class="vos-panel-tabs"><button type="button" data-pane="out" class="on">Output</button><button type="button" data-pane="con">Console</button></div><div class="vos-panel-body"><div class="vos-out" data-out></div><pre data-console hidden></pre></div></div></div><div class="vos-statusbar"><span data-status-lang>JavaScript</span><span data-status-pos>Ln 1, Col 1</span><span data-note></span></div></div>';
-    editorState = { body: body, tabs: [{ fileId: "", name: "untitled.js", lang: "javascript", text: "", input: "" }], active: 0, py: null, sql: null, pane: "out" };
+    editorState = { body: body, tabs: [{ fileId: "", name: "untitled.js", lang: "javascript", text: exampleFor("javascript"), input: "" }], active: 0, py: null, sql: null, pane: "out" };
     var area = body.querySelector("[data-code]");
     var pre = body.querySelector("[data-hl]");
     function refreshCode() {
@@ -3188,6 +3299,9 @@
     area.addEventListener("keydown", function (e) {
       if (e.key === "Tab") {
         e.preventDefault();
+        editorSync();
+        var tabNow = editorState.tabs[editorState.active];
+        if (editorComplete(area, tabNow && tabNow.lang)) return;
         var start = area.selectionStart;
         area.value = area.value.slice(0, start) + "  " + area.value.slice(area.selectionEnd);
         area.selectionStart = area.selectionEnd = start + 2;
@@ -3203,14 +3317,19 @@
       if (label && tab) label.textContent = tab.name;
     });
     body.querySelector("[data-lang]").addEventListener("change", function () {
-      editorSync();
       var tab = editorState.tabs[editorState.active];
+      var prev = tab ? tab.text : "";
+      var wasExample = false;
+      Object.keys(EXAMPLES).forEach(function (key) { if (EXAMPLES[key] === prev) wasExample = true; });
+      editorSync();
+      tab = editorState.tabs[editorState.active];
       var lang = LANGS.filter(function (item) { return item.id === tab.lang; })[0];
       if (lang && /^untitled\./.test(tab.name)) {
         tab.name = "untitled." + lang.ext;
         var name = body.querySelector("[data-name]");
         if (name) name.value = tab.name;
       }
+      if (tab && (!tab.text || wasExample)) tab.text = exampleFor(tab.lang);
       editorPaint();
     });
     body.querySelectorAll("[data-pane]").forEach(function (btn) {
@@ -3318,12 +3437,6 @@
     if (area) area.value = tab.text || "";
     var status = body.querySelector("[data-note]");
     if (status) status.textContent = "";
-    var sheet = body.querySelector(".vos-note-sheet");
-    if (sheet) {
-      sheet.classList.remove("vos-pop");
-      void sheet.offsetWidth;
-      sheet.classList.add("vos-pop");
-    }
   }
   function noteSave() {
     noteSync();
@@ -3363,6 +3476,127 @@
     });
     body.querySelector("[data-save]").onclick = noteSave;
     notePaint();
+  }
+  function stopMusic() {
+    if (!musicState) return;
+    var audio = musicState.body && musicState.body.querySelector("[data-audio]");
+    if (audio) { try { audio.pause(); } catch (err) {} }
+  }
+  function musicClock(sec) {
+    sec = Math.max(0, Math.floor(sec || 0));
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function musicPaint() {
+    if (!musicState) return;
+    var list = musicState.body.querySelector("[data-list]");
+    var hero = musicState.body.querySelector("[data-hero]");
+    if (!list) return;
+    var tracks = files.filter(function (file) { return file.kind === "audio"; });
+    list.innerHTML = "";
+    if (!tracks.length) {
+      list.innerHTML = '<p class="vos-as-empty" style="padding:12px">Save a song from the browser to build a library.</p>';
+    }
+    tracks.forEach(function (file, index) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = musicState.index === index ? "on" : "";
+      btn.innerHTML = "<b></b><small>Audio</small>";
+      btn.querySelector("b").textContent = file.title || "Audio";
+      btn.onclick = function () { musicPlay(index); };
+      list.appendChild(btn);
+    });
+    if (hero) hero.textContent = tracks[musicState.index] ? (tracks[musicState.index].title || "Audio") : "Nothing playing";
+  }
+  function musicPlay(index) {
+    if (!musicState) return;
+    var tracks = files.filter(function (file) { return file.kind === "audio"; });
+    if (!tracks.length) return;
+    if (index < 0) index = tracks.length - 1;
+    if (index >= tracks.length) index = 0;
+    musicState.index = index;
+    var audio = musicState.body.querySelector("[data-audio]");
+    var src = fileUrls[tracks[index].id] || "";
+    if (audio && src) {
+      if (audio.getAttribute("src") !== src) audio.src = src;
+      audio.play().catch(function () {});
+    }
+    var play = musicState.body.querySelector("[data-play]");
+    if (play) play.textContent = "Pause";
+    musicPaint();
+  }
+  function ensureMusic(body) {
+    if (!body) return;
+    if (body.dataset.ready === "1" && musicState) { musicPaint(); return; }
+    body.dataset.ready = "1";
+    body.innerHTML = '<div class="vos-music vos-rise"><aside class="vos-music-side"><b>Library</b><div class="vos-music-list" data-list></div></aside><div class="vos-music-main"><div class="vos-music-hero" data-hero>Nothing playing</div><div class="vos-music-now"><button type="button" data-prev>Prev</button><button type="button" data-play>Play</button><button type="button" data-next>Next</button><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-time>0:00</span></div></div><audio data-audio></audio></div>';
+    musicState = { body: body, index: 0 };
+    var audio = body.querySelector("[data-audio]");
+    body.querySelector("[data-play]").onclick = function () {
+      if (!audio.src) { musicPlay(musicState.index || 0); return; }
+      if (audio.paused) { audio.play().catch(function () {}); this.textContent = "Pause"; }
+      else { audio.pause(); this.textContent = "Play"; }
+    };
+    body.querySelector("[data-prev]").onclick = function () { musicPlay((musicState.index || 0) - 1); };
+    body.querySelector("[data-next]").onclick = function () { musicPlay((musicState.index || 0) + 1); };
+    body.querySelector("[data-seek]").addEventListener("input", function () {
+      if (!audio.duration) return;
+      audio.currentTime = (Number(this.value) / 1000) * audio.duration;
+    });
+    audio.addEventListener("timeupdate", function () {
+      var seek = body.querySelector("[data-seek]");
+      var time = body.querySelector("[data-time]");
+      if (seek && audio.duration) seek.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
+      if (time) time.textContent = musicClock(audio.currentTime);
+    });
+    audio.addEventListener("ended", function () { musicPlay((musicState.index || 0) + 1); });
+    musicPaint();
+  }
+  function stopMovies() {
+    if (!movieState) return;
+    var video = movieState.body && movieState.body.querySelector("[data-video]");
+    if (video) { try { video.pause(); } catch (err) {} }
+  }
+  function moviePaint() {
+    if (!movieState) return;
+    var grid = movieState.body.querySelector("[data-grid]");
+    if (!grid) return;
+    var clips = files.filter(function (file) { return file.kind === "video"; });
+    grid.innerHTML = "";
+    if (!clips.length) {
+      grid.innerHTML = '<p class="vos-as-empty">Save a video from the browser and it will show up here.</p>';
+      return;
+    }
+    clips.forEach(function (file) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.innerHTML = '<div><img alt="" src="' + IMG + 'video.svg"></div><span></span>';
+      btn.querySelector("span").textContent = file.title || "Video";
+      btn.onclick = function () {
+        var stage = movieState.body.querySelector("[data-stage]");
+        var video = movieState.body.querySelector("[data-video]");
+        var src = fileUrls[file.id] || "";
+        if (!video || !src) return;
+        video.src = src;
+        if (stage) stage.hidden = false;
+        video.play().catch(function () {});
+      };
+      grid.appendChild(btn);
+    });
+  }
+  function ensureMovies(body) {
+    if (!body) return;
+    if (body.dataset.ready === "1" && movieState) { moviePaint(); return; }
+    body.dataset.ready = "1";
+    body.innerHTML = '<div class="vos-movies vos-rise"><div class="vos-movies-bar">Movies</div><div class="vos-movies-grid" data-grid></div><div class="vos-movies-stage" data-stage hidden><button type="button" data-back>Library</button><video data-video controls></video></div></div>';
+    movieState = { body: body };
+    body.querySelector("[data-back]").onclick = function () {
+      var video = body.querySelector("[data-video]");
+      if (video) { try { video.pause(); } catch (err) {} }
+      body.querySelector("[data-stage]").hidden = true;
+    };
+    moviePaint();
   }
   function stopVis() {
     if (!playerState || !playerState.raf) return;
@@ -3714,6 +3948,10 @@
       if (startWrap.contains(e.target)) return;
       closeStart();
     });
+    shellListen(window, "veil-dismiss-popups", function () {
+      closeCtx();
+      closeStart();
+    });
     shellListen(document, "keydown", function (e) {
       if (e.key === "Escape") {
         closeStart();
@@ -3821,6 +4059,27 @@
         el.style.left = spot.x + "px";
         el.style.top = spot.y + "px";
       });
+      if (deskEl) {
+        var deskBox = deskEl.getBoundingClientRect();
+        Object.keys(wins).forEach(function (id) {
+          var win = wins[id];
+          if (!win || !win.el || win.el.classList.contains("is-max")) return;
+          var w = parseFloat(win.el.style.width) || win.el.offsetWidth;
+          var h = parseFloat(win.el.style.height) || win.el.offsetHeight;
+          var x = parseFloat(win.el.style.left) || 0;
+          var y = parseFloat(win.el.style.top) || 0;
+          if (w > deskBox.width - 12) w = Math.max(280, deskBox.width - 12);
+          if (h > deskBox.height - 12) h = Math.max(160, deskBox.height - 12);
+          if (x < 0) x = 0;
+          if (y < 0) y = 0;
+          if (x + w > deskBox.width) x = Math.max(0, deskBox.width - w);
+          if (y + h > deskBox.height) y = Math.max(0, deskBox.height - h);
+          win.el.style.left = Math.round(x) + "px";
+          win.el.style.top = Math.round(y) + "px";
+          win.el.style.width = Math.round(w) + "px";
+          win.el.style.height = Math.round(h) + "px";
+        });
+      }
       if (openFolderId && folderWin && !folderWin.hidden && deskEl) {
         var rect = folderWin.getBoundingClientRect();
         var desk = deskEl.getBoundingClientRect();

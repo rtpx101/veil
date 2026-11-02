@@ -4,8 +4,12 @@
     if (params.get("worker")) {
       localStorage.setItem("veil_worker_url", params.get("worker").replace(/\/$/, ""));
     }
+    if (params.get("authworker")) {
+      localStorage.setItem("veil_auth_worker_url", params.get("authworker").replace(/\/$/, ""));
+    }
   } catch (err) {}
   var workerUrl = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+  var authWorkerUrl = (localStorage.getItem("veil_auth_worker_url") || workerUrl).replace(/\/$/, "");
   var accessToken = "veil_access_token";
   var accessMeta = "veil_access_meta";
   var pendingEmailKey = "veil_pending_email";
@@ -156,6 +160,7 @@
   function startLivePoll() {
     stopLivePoll();
     liveTimer = setInterval(function () {
+      if (document.hidden) return;
       var item = getToken();
       if (!item) {
         stopLivePoll();
@@ -184,7 +189,7 @@
           }));
         } catch (err) {}
       });
-    }, 12000);
+    }, 60000);
   }
   function doSignOut() {
     var link = getToken();
@@ -699,7 +704,7 @@
       return loadScript("scramjet/scramjet.all.js");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=28");
+      return loadScript("veil-app.js?v=29");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);
@@ -748,7 +753,8 @@
     });
   }
   function api(value3, extra) {
-    return fetch(workerUrl + value3, {
+    var host = /^\/api\/admin\b/.test(value3) ? workerUrl : authWorkerUrl;
+    return fetch(host + value3, {
       method: "POST",
       headers: {
         "content-type": "application/json"
