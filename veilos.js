@@ -273,8 +273,10 @@
     ctxApp = null;
     if (ctxEl) ctxEl.hidden = true;
   }
+  var ctxAt = 0;
   function showCtx(app, x, y) {
     if (!ctxEl) return;
+    ctxAt = Date.now();
     ctxApp = app || null;
     ctxX = x;
     ctxY = y;
@@ -731,9 +733,13 @@
     var map = { E: "Everyone", "E10+": "Everyone 10+", T: "Teen", M: "Mature 17+", AO: "Adults Only", NR: "Not Rated" };
     return map[code] || code || "Not Rated";
   }
-  function starLine(n) {
-    var score = Math.round((Math.max(0, Math.min(10, Number(n) || 0)) / 10) * 5);
-    return "★★★★★".slice(0, score) + "☆☆☆☆☆".slice(0, 5 - score);
+  function easeLabel(n) {
+    var d = Number(n);
+    if (!isFinite(d) || d <= 2) return ["Casual", "Relaxed pace"];
+    if (d <= 4) return ["Easy", "Light challenge"];
+    if (d <= 6) return ["Medium", "Some challenge"];
+    if (d <= 8) return ["Hard", "Takes practice"];
+    return ["Expert", "Very demanding"];
   }
   function ensureStore(body) {
     if (!body || body.dataset.ready === "1") return;
@@ -782,7 +788,7 @@
       var rows = list.map(function (game) {
         var icon = "";
         try { icon = smallThumb(game) || ""; } catch (err) {}
-        return '<div class="vos-as-row"><button type="button" class="vos-as-hit" data-open="' + esc(gameId(game)) + '"><img src="' + esc(icon) + '" alt=""><span class="vos-as-copy"><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(ageLabel(game.maturity)) + '</small><em class="vos-as-stars" title="Difficulty">' + starLine(game.difficulty) + "</em></span></button>" + actions(game) + "</div>";
+        return '<div class="vos-as-row"><button type="button" class="vos-as-hit" data-open="' + esc(gameId(game)) + '"><img src="' + esc(icon) + '" alt=""><span class="vos-as-copy"><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Game") + " · " + esc(ageLabel(game.maturity)) + " · " + esc(easeLabel(game.difficulty)[0]) + "</small></span></button>" + actions(game) + "</div>";
       }).join("");
       home.innerHTML = '<div class="vos-as-top"><h1>App Store</h1><input class="vos-as-search" type="search" placeholder="Search" value="' + esc(query) + '"></div>' + featured + '<section class="vos-as-block"><h2>Games</h2>' + (rows || '<p class="vos-as-empty">No games match.</p>') + "</section>";
       var input = home.querySelector(".vos-as-search");
@@ -812,14 +818,15 @@
       try { icon = smallThumb(game) || ""; } catch (err) {}
       detail.hidden = false;
       detailId = id;
+      var ease = easeLabel(game.difficulty);
       detail.innerHTML = '<div class="vos-as-back"><button type="button" data-back>‹ Apps</button></div>' +
         '<div class="vos-as-head"><img src="' + esc(icon) + '" alt=""><div><b>' + esc(game.name) + "</b><small>" + esc(game.category || "Games") + "</small></div>" + actions(game) + "</div>" +
         '<div class="vos-as-shots">' + photosOf(game).map(function (src) { return '<img src="' + esc(src) + '" alt="">'; }).join("") + "</div>" +
-        '<section class="vos-as-block"><h2>Ratings</h2><div class="vos-as-rates"><div><em class="vos-as-stars">' + starLine(game.difficulty) + '</em><strong>' + esc(String(game.difficulty || "0")) + '</strong><small>Difficulty out of 10</small></div><div><strong class="vos-as-age">' + esc(game.maturity || "NR") + "</strong><small>" + esc(ageLabel(game.maturity)) + "</small></div></div></section>" +
+        '<section class="vos-as-block"><h2>Ratings</h2><div class="vos-as-rates"><div><small>Difficulty</small><strong>' + esc(ease[0]) + "</strong><small>" + esc(ease[1]) + '</small></div><div><strong class="vos-as-age">' + esc(game.maturity || "NR") + "</strong><small>" + esc(ageLabel(game.maturity)) + "</small></div></div></section>" +
         '<section class="vos-as-block"><h2>About</h2><p>' + esc(game.description || "No description.") + "</p></section>" +
         '<section class="vos-as-block"><h2>How to play</h2><p>' + esc(game.howToPlay || "Not listed.") + "</p><p>" + esc(game.controls || "") + "</p></section>" +
         (game.sideNotes ? '<section class="vos-as-block"><h2>Notes</h2><p>' + esc(game.sideNotes) + "</p></section>" : "") +
-        '<section class="vos-as-block"><h2>Information</h2><dl class="vos-as-info"><div><dt>Category</dt><dd>' + esc(game.category || "Game") + "</dd></div><div><dt>Age</dt><dd>" + esc(ageLabel(game.maturity)) + "</dd></div><div><dt>Difficulty</dt><dd>" + esc(String(game.difficulty || "0")) + "/10</dd></div></dl></section>";
+        '<section class="vos-as-block"><h2>Information</h2><dl class="vos-as-info"><div><dt>Category</dt><dd>' + esc(game.category || "Game") + "</dd></div><div><dt>Age</dt><dd>" + esc(ageLabel(game.maturity)) + "</dd></div><div><dt>Difficulty</dt><dd>" + esc(ease[0]) + "</dd></div></dl></section>";
     }
     body.addEventListener("click", function (e) {
       if (e.target.closest("[data-back]")) {
@@ -1165,19 +1172,6 @@
       e.stopPropagation();
       closeApp(app.id);
     };
-    if (app.installed) {
-      var trash = document.createElement("button");
-      trash.type = "button";
-      trash.className = "vos-ctl vos-uninstall";
-      trash.title = "Uninstall";
-      trash.setAttribute("aria-label", "Uninstall");
-      trash.innerHTML = '<img src="' + IMG + 'trash.svg" alt="">';
-      trash.onclick = function (e) {
-        e.stopPropagation();
-        uninstallApp(app.id);
-      };
-      el.querySelector('[data-act="min"]').before(trash);
-    }
     bindDrag(win, title);
     bindResize(win);
     wins[app.id] = win;
@@ -1373,6 +1367,8 @@
       setStart(!menu.classList.contains("is-open"));
     };
     document.addEventListener("pointerdown", function (e) {
+      if (e.button === 2) return;
+      if (Date.now() - ctxAt < 400) return;
       if (ctxEl && !ctxEl.hidden && !ctxEl.contains(e.target)) closeCtx();
       if (!menu.classList.contains("is-open")) return;
       if (startWrap.contains(e.target)) return;
@@ -1438,7 +1434,7 @@
         makeFolder(nextFolderName(), chosen, icon ? parseFloat(icon.style.left) || 16 : 16, icon ? parseFloat(icon.style.top) || 16 : 16);
       }
     });
-    shell.appendChild(ctxEl);
+    document.body.appendChild(ctxEl);
     document.body.appendChild(shell);
     deskEl = desk;
     tasksEl = tasks;

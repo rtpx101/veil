@@ -184,7 +184,7 @@
           }));
         } catch (err) {}
       });
-    }, 120000);
+    }, 12000);
   }
   function doSignOut() {
     var link = getToken();
@@ -513,7 +513,7 @@
     stopPendingPoll();
     input = setInterval(function () {
       quietCheckAccess(true);
-    }, 120000);
+    }, 8000);
   }
   function showPending(value, extra) {
     stopLivePoll();
@@ -699,7 +699,7 @@
       return loadScript("scramjet/scramjet.all.js");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=18");
+      return loadScript("veil-app.js?v=19");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);
