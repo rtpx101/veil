@@ -385,7 +385,7 @@
     var raw = null;
     try { raw = localStorage.getItem(DESK_KEY); } catch (err) {}
     if (raw == null) {
-      deskApps = ["browser"];
+      deskApps = ["browser", "movies"];
       Object.keys(iconLayout).forEach(function (id) {
         if (!id || id === "browser" || String(id).indexOf("fld_") === 0) return;
         if (/^(img_|note_|code_|aud_|vid_)/.test(id)) return;
@@ -400,6 +400,10 @@
     try { deskApps = JSON.parse(raw) || []; } catch (err2) { deskApps = []; }
     if (!Array.isArray(deskApps)) deskApps = [];
     if (deskApps.indexOf("browser") === -1) deskApps.unshift("browser");
+    if (deskApps.indexOf("movies") === -1 && !holdingFolder("movies")) {
+      deskApps.push("movies");
+      saveDeskApps();
+    }
   }
   function saveDeskApps() {
     try { localStorage.setItem(DESK_KEY, JSON.stringify(deskApps)); } catch (err) {}
@@ -1055,7 +1059,20 @@
       noteRecent(app.id);
       return;
     }
-    if (app.audio || app.video) {
+    if (app.video) {
+      openApp("movies");
+      moviePlay({
+        id: app.id,
+        title: movieNice(app.title),
+        year: "Saved",
+        by: "On this computer",
+        local: true,
+        file: ""
+      });
+      noteRecent("movies");
+      return;
+    }
+    if (app.audio) {
       openApp("player");
       ensurePlayer(wins.player && wins.player.body);
       playerLoad(app);
@@ -1901,7 +1918,7 @@
     if (id === "notes") return { w: 760, h: 560 };
     if (id === "player") return { w: 860, h: 540 };
     if (id === "music") return { w: 1180, h: 720 };
-    if (id === "movies") return { w: 1000, h: 660 };
+    if (id === "movies") return { w: 1100, h: 700 };
     return null;
   }
   function ensurePlaced(win) {
@@ -1948,7 +1965,7 @@
     if (id === "notes") ensureNotepad(win.body);
     if (id === "player") ensurePlayer(win.body);
     if (id === "music") ensureMusic(win.body);
-    if (id === "movies") ensureMovies(win.body);
+    if (id === "movies") ensureMovies(document.getElementById("osApp-movies") || win.body);
     noteRecent(id);
     if (win.installed) ensureProxy(win);
     if (win.file) paintFile(win);
@@ -4103,6 +4120,147 @@
     musicPaint();
     musicHydrate();
   }
+  var MOVIE_SHELF = [
+    { id: "NightOfTheLivingDead-MPEG", title: "Night of the Living Dead", year: "1968", by: "George A. Romero", file: "NightOfTheLivingDead_512kb.mp4", blurb: "A farmhouse, a news report, and the night the dead don't stay down." },
+    { id: "DasKabinettdesDoktorCaligariTheCabinetofDrCaligari", title: "The Cabinet of Dr. Caligari", year: "1919", by: "Robert Wiene", file: "The_Cabinet_of_Dr._Caligari_512kb.mp4", blurb: "A sleeping town, a cabinet, and a story told by a man who may be the monster." },
+    { id: "his_girl_friday", title: "His Girl Friday", year: "1940", by: "Howard Hawks", file: "his_girl_friday_512kb.mp4", blurb: "A newsroom, a deadline, and an editor who will not let his best reporter leave." },
+    { id: "TheGeneral", title: "The General", year: "1926", by: "Buster Keaton", file: "The_General_512kb.mp4", blurb: "A locomotive, a war, and one engineer who will not leave his engine behind." },
+    { id: "house_on_haunted_hill_ipod", title: "House on Haunted Hill", year: "1959", by: "William Castle", file: "house_on_haunted_hill_512kb.mp4", blurb: "A millionaire, a locked house, and a party no one is meant to finish." },
+    { id: "Levoyagedanslalune", title: "A Trip to the Moon", year: "1902", by: "Georges Méliès", file: "Le_voyage_dans_la_lune_A_trip_to_the_moon__Georges_Mlis_1902_512kb.mp4", blurb: "A shell fired at the moon, and the astronomers who climb out of it." },
+    { id: "The_Little_Shop_of_Horrors.mpeg", title: "The Little Shop of Horrors", year: "1960", by: "Roger Corman", file: "The_Little_Shop_of_Horrors_512kb.mp4", blurb: "A florist, a strange plant, and a hunger that starts small." },
+    { id: "carnival_of_souls", title: "Carnival of Souls", year: "1962", by: "Herk Harvey", file: "carnival_of_souls_512kb.mp4", blurb: "A woman walks out of a river and into a pavilion that isn't finished with her." },
+    { id: "Intolerance", title: "Intolerance", year: "1916", by: "D. W. Griffith", file: "Intolerance_512kb.mp4", blurb: "Four stories, one verdict, cut together before anyone else dared." }
+  ];
+  function movieNice(name) {
+    return String(name || "Video").replace(/\.[a-z0-9]{1,8}$/i, "").replace(/[_]+/g, " ").trim() || "Video";
+  }
+  function movieLoadProgress() {
+    try {
+      var data = JSON.parse(localStorage.getItem("veil_os_movies") || "");
+      if (data && typeof data.progress === "object" && data.progress) return data.progress;
+    } catch (err) {}
+    return {};
+  }
+  function movieSaveProgress() {
+    if (!movieState) return;
+    try { localStorage.setItem("veil_os_movies", JSON.stringify({ progress: movieState.progress || {} })); } catch (err) {}
+  }
+  function movieDownload(id, file) {
+    return "https://archive.org/download/" + encodeURIComponent(id) + "/" + encodeURIComponent(file);
+  }
+  function moviePoster(id) {
+    return "https://archive.org/services/img/" + encodeURIComponent(id);
+  }
+  function moviePerson(value) {
+    if (Array.isArray(value)) return String(value[0] || "");
+    return String(value || "");
+  }
+  function movieSafeFile(files) {
+    var best = null;
+    (files || []).forEach(function (file) {
+      var name = String(file && file.name || "");
+      var fmt = String(file && file.format || "");
+      if (!/\.mp4$/i.test(name)) return;
+      var low = name.toLowerCase();
+      var bad = /bluray|bdrip|webrip|yify|1080p|720p|x264-|web-dl|hdtv|dvdrip/.test(low);
+      var size = Number(file.size) || 0;
+      var rank = 0;
+      if (/512kb/.test(low) || fmt === "512Kb MPEG4") rank = 3;
+      else if (!bad && size > 8000000 && size < 700000000) rank = 2;
+      if (!rank) return;
+      if (!best || rank > best.rank || (rank === best.rank && size && size < best.size)) best = { rank: rank, size: size || 999999999999, name: name };
+    });
+    return best ? best.name : "";
+  }
+  function movieSaved() {
+    return files.filter(function (file) { return file.kind === "video"; }).map(function (file) {
+      return { id: file.id, title: movieNice(file.title), year: "Saved", by: "On this computer", local: true, file: "" };
+    });
+  }
+  function movieShelfMatch(q) {
+    var needle = String(q || "").trim().toLowerCase();
+    if (!needle) return MOVIE_SHELF.slice();
+    return MOVIE_SHELF.filter(function (film) {
+      return (film.title + " " + film.by + " " + film.year).toLowerCase().indexOf(needle) !== -1;
+    });
+  }
+  function movieContinue() {
+    if (!movieState) return [];
+    var items = [];
+    Object.keys(movieState.progress || {}).forEach(function (id) {
+      var mark = movieState.progress[id];
+      if (!mark || mark.t < 20) return;
+      if (mark.d && mark.t > mark.d - 30) return;
+      var known = null;
+      MOVIE_SHELF.forEach(function (film) { if (film.id === id) known = film; });
+      if (known) { items.push(known); return; }
+      movieSaved().forEach(function (film) { if (film.id === id) items.push(film); });
+    });
+    return items;
+  }
+  function movieProgressOf(id) {
+    var mark = movieState && movieState.progress && movieState.progress[id];
+    if (!mark || !mark.d || mark.t < 8) return 0;
+    return Math.max(0, Math.min(1, mark.t / mark.d));
+  }
+  function movieCard(item) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "vos-mv-card";
+    btn.innerHTML = '<span class="vos-mv-poster"><img alt="" hidden><i></i><span class="vos-mv-progress" hidden><b></b></span></span><span class="vos-mv-name"></span><span class="vos-mv-year"></span>';
+    btn.querySelector(".vos-mv-name").textContent = item.title || "Untitled";
+    btn.querySelector(".vos-mv-year").textContent = item.year && item.year !== "Saved" ? (item.year + (item.by ? " · " + item.by : "")) : (item.by || "");
+    var fallback = btn.querySelector("i");
+    fallback.textContent = item.title || "Film";
+    var img = btn.querySelector("img");
+    if (!item.local && item.id) {
+      img.hidden = false;
+      img.src = moviePoster(item.id);
+      img.onload = function () { fallback.hidden = true; };
+      img.onerror = function () { img.hidden = true; img.removeAttribute("src"); fallback.hidden = false; };
+    }
+    var ratio = movieProgressOf(item.id);
+    if (ratio > 0.02 && ratio < 0.96) {
+      var bar = btn.querySelector(".vos-mv-progress");
+      bar.hidden = false;
+      bar.querySelector("b").style.width = Math.round(ratio * 100) + "%";
+    }
+    btn.onclick = function () { moviePlay(item); };
+    return btn;
+  }
+  function movieHero(item) {
+    var sec = document.createElement("section");
+    sec.className = "vos-mv-hero";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.innerHTML = '<span class="vos-mv-hero-art"><img alt=""></span><span class="vos-mv-hero-copy"><span class="vos-mv-kicker">Now showing</span><h2></h2><p class="vos-mv-meta"></p><p class="vos-mv-blurb"></p><span class="vos-mv-play">Play</span></span>';
+    btn.querySelector("h2").textContent = item.title || "Film";
+    btn.querySelector(".vos-mv-meta").textContent = [item.year, item.by].filter(Boolean).join(" · ");
+    btn.querySelector(".vos-mv-blurb").textContent = item.blurb || "";
+    var img = btn.querySelector("img");
+    if (!item.local && item.id) img.src = moviePoster(item.id);
+    btn.onclick = function () { moviePlay(item); };
+    sec.appendChild(btn);
+    return sec;
+  }
+  function movieSection(title, items) {
+    if (!items.length) return null;
+    var sec = document.createElement("section");
+    sec.className = "vos-mv-shelf";
+    var heading = document.createElement("h2");
+    heading.textContent = title;
+    sec.appendChild(heading);
+    var row = document.createElement("div");
+    row.className = "vos-mv-row";
+    items.forEach(function (item) { row.appendChild(movieCard(item)); });
+    sec.appendChild(row);
+    return sec;
+  }
+  function movieStatus(text) {
+    if (!movieState) return;
+    var el = movieState.body.querySelector("[data-status]");
+    if (el) el.textContent = text || "";
+  }
   function stopMovies() {
     if (!movieState) return;
     var video = movieState.body && movieState.body.querySelector("[data-video]");
@@ -4110,42 +4268,184 @@
   }
   function moviePaint() {
     if (!movieState) return;
-    var grid = movieState.body.querySelector("[data-grid]");
-    if (!grid) return;
-    var clips = files.filter(function (file) { return file.kind === "video"; });
-    grid.innerHTML = "";
-    if (!clips.length) {
-      grid.innerHTML = '<p class="vos-as-empty">Save a video from the browser and it will show up here.</p>';
+    var scroll = movieState.body.querySelector("[data-scroll]");
+    if (!scroll) return;
+    var q = movieState.query || "";
+    scroll.innerHTML = "";
+    var house = movieShelfMatch(q);
+    var saved = movieSaved().filter(function (film) {
+      if (!q) return true;
+      return film.title.toLowerCase().indexOf(q.toLowerCase()) !== -1;
+    });
+    if (!q) {
+      var cont = movieSection("Continue", movieContinue());
+      if (cont) scroll.appendChild(cont);
+    }
+    if (!q && house.length) {
+      scroll.appendChild(movieHero(house[0]));
+      var rest = movieSection("Also showing", house.slice(1));
+      if (rest) scroll.appendChild(rest);
+    } else {
+      var shelf = movieSection(q ? "Matches" : "Now showing", house);
+      if (shelf) scroll.appendChild(shelf);
+    }
+    var mine = movieSection("On this computer", saved);
+    if (mine) scroll.appendChild(mine);
+    if (q) {
+      var found = movieSection("Early films", movieState.results || []);
+      if (found) scroll.appendChild(found);
+    }
+    if (q && !house.length && !saved.length && !(movieState.results && movieState.results.length) && !movieState.searching) {
+      var empty = document.createElement("p");
+      empty.className = "vos-mv-empty";
+      empty.textContent = "Nothing free to watch under that title.";
+      scroll.appendChild(empty);
+    }
+  }
+  function movieResolve(item) {
+    if (!item || item.local || item.file) return Promise.resolve(item);
+    return fetch("https://archive.org/metadata/" + encodeURIComponent(item.id), { headers: { "Accept": "application/json" } }).then(function (res) {
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }).then(function (data) {
+      var file = movieSafeFile(data && data.files);
+      if (!file) throw new Error("nofile");
+      item.file = file;
+      return item;
+    });
+  }
+  function moviePlay(item) {
+    if (!movieState || !item) return;
+    var stage = movieState.body.querySelector("[data-stage]");
+    var video = movieState.body.querySelector("[data-video]");
+    var title = movieState.body.querySelector("[data-title]");
+    var by = movieState.body.querySelector("[data-by]");
+    if (!stage || !video) return;
+    movieState.current = item;
+    if (title) title.textContent = item.title || "Film";
+    if (by) by.textContent = item.by ? (item.year && item.year !== "Saved" ? item.year + " · " + item.by : item.by) : "Opening…";
+    stage.hidden = false;
+    function start(src) {
+      if (!src) {
+        if (by) by.textContent = "That film isn't on this computer.";
+        return;
+      }
+      var mark = movieState.progress[item.id];
+      function seek() {
+        video.removeEventListener("loadedmetadata", seek);
+        if (!mark || mark.t < 12) return;
+        if (mark.d && mark.t > mark.d - 25) return;
+        try { video.currentTime = mark.t; } catch (err) {}
+      }
+      video.addEventListener("loadedmetadata", seek);
+      video.src = src;
+      video.play().catch(function () {});
+    }
+    if (item.local) {
+      start(fileUrls[item.id] || "");
       return;
     }
-    clips.forEach(function (file) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.innerHTML = '<div><img alt="" src="' + IMG + 'video.svg"></div><span></span>';
-      btn.querySelector("span").textContent = file.title || "Video";
-      btn.onclick = function () {
-        var stage = movieState.body.querySelector("[data-stage]");
-        var video = movieState.body.querySelector("[data-video]");
-        var src = fileUrls[file.id] || "";
-        if (!video || !src) return;
-        video.src = src;
-        if (stage) stage.hidden = false;
-        video.play().catch(function () {});
-      };
-      grid.appendChild(btn);
+    if (item.file) {
+      if (by && item.by) by.textContent = (item.year ? item.year + " · " : "") + item.by;
+      start(movieDownload(item.id, item.file));
+      return;
+    }
+    if (by) by.textContent = "Opening…";
+    movieResolve(item).then(function (ready) {
+      if (!movieState || movieState.current !== item) return;
+      if (by) by.textContent = (ready.year ? ready.year + " · " : "") + (ready.by || "");
+      start(movieDownload(ready.id, ready.file));
+    }).catch(function () {
+      if (!movieState || movieState.current !== item) return;
+      if (by) by.textContent = "That copy isn't playable here.";
+    });
+  }
+  function movieSearch(q) {
+    if (!movieState) return;
+    movieState.query = q;
+    movieState.results = [];
+    movieState.searching = true;
+    movieStatus(q ? "Searching…" : "");
+    moviePaint();
+    if (!q) { movieState.searching = false; return; }
+    var safe = q.replace(/[^\w\s'-]/g, " ").trim().slice(0, 60);
+    if (safe.length < 2) {
+      movieState.searching = false;
+      movieStatus("");
+      moviePaint();
+      return;
+    }
+    var query = 'mediatype:movies AND format:"h.264" AND year:[1895 TO 1930] AND title:(' + safe + ")";
+    var url = "https://archive.org/advancedsearch.php?q=" + encodeURIComponent(query) + "&fl[]=identifier&fl[]=title&fl[]=year&fl[]=creator&rows=16&output=json";
+    fetch(url, { headers: { "Accept": "application/json" } }).then(function (res) {
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }).then(function (data) {
+      if (!movieState || movieState.query !== q) return;
+      var docs = (data && data.response && data.response.docs) || [];
+      var seen = {};
+      MOVIE_SHELF.forEach(function (film) { seen[film.id] = 1; });
+      var results = [];
+      docs.forEach(function (doc) {
+        var id = String(doc.identifier || "");
+        if (!id || seen[id]) return;
+        seen[id] = 1;
+        results.push({
+          id: id,
+          title: movieNice(moviePerson(doc.title) || id),
+          year: moviePerson(doc.year),
+          by: moviePerson(doc.creator),
+          file: "",
+          local: false
+        });
+      });
+      movieState.results = results;
+      movieState.searching = false;
+      movieStatus("");
+      moviePaint();
+    }).catch(function () {
+      if (!movieState || movieState.query !== q) return;
+      movieState.searching = false;
+      movieStatus("Search didn't answer. The house shelf is still here.");
+      moviePaint();
     });
   }
   function ensureMovies(body) {
-    if (!body) return;
-    if (body.dataset.ready === "1" && movieState) { moviePaint(); return; }
-    body.dataset.ready = "1";
-    body.innerHTML = '<div class="vos-movies vos-rise"><div class="vos-movies-bar">Movies</div><div class="vos-movies-grid" data-grid></div><div class="vos-movies-stage" data-stage hidden><button type="button" data-back>Library</button><video data-video controls></video></div></div>';
-    movieState = { body: body };
-    body.querySelector("[data-back]").onclick = function () {
-      var video = body.querySelector("[data-video]");
-      if (video) { try { video.pause(); } catch (err) {} }
-      body.querySelector("[data-stage]").hidden = true;
+    var host = document.getElementById("osApp-movies");
+    if (!host && body && body.id === "osApp-movies") host = body;
+    if (!host || host.id !== "osApp-movies") return;
+    if (host.querySelector("[data-cinema]") && movieState && movieState.body && movieState.body.isConnected && movieState.host === host) {
+      moviePaint();
+      return;
+    }
+    host.dataset.ready = "1";
+    host.innerHTML = '<div class="vos-movies vos-rise" data-cinema="1" data-movies-app="1"><header class="vos-mv-bar"><div class="vos-mv-brand"><h1>Movies</h1><p>A theater. Press play.</p></div><form class="vos-mv-find" data-search><input data-q type="search" placeholder="Search films" aria-label="Search films"><button type="submit">Search</button></form></header><p class="vos-mv-status" data-status></p><div class="vos-mv-scroll" data-scroll></div><div class="vos-movies-stage" data-stage hidden><video data-video controls playsinline></video><div class="vos-mv-chrome"><button type="button" data-back>Library</button><div><b data-title></b><small data-by></small></div></div></div></div>';
+    var root = host.querySelector(".vos-movies");
+    var video = root.querySelector("[data-video]");
+    movieState = { host: host, body: root, progress: movieLoadProgress(), query: "", results: [], searching: false, current: null, lastSave: 0 };
+    root.querySelector("[data-back]").onclick = function () {
+      try { video.pause(); } catch (err) {}
+      root.querySelector("[data-stage]").hidden = true;
+      moviePaint();
     };
+    root.querySelector("[data-search]").addEventListener("submit", function (e) {
+      e.preventDefault();
+      movieSearch(root.querySelector("[data-q]").value.trim());
+    });
+    video.addEventListener("timeupdate", function () {
+      if (!movieState || !movieState.current) return;
+      var now = video.currentTime || 0;
+      if (now < 8) return;
+      if (movieState.lastSave && Date.now() - movieState.lastSave < 4000) return;
+      movieState.lastSave = Date.now();
+      var item = movieState.current;
+      movieState.progress[item.id] = { t: now, d: video.duration || 0, local: !!item.local };
+      movieSaveProgress();
+    });
+    video.addEventListener("error", function () {
+      var by = root.querySelector("[data-by]");
+      if (by && video.src) by.textContent = "Couldn't start that film.";
+    });
     moviePaint();
   }
   function stopVis() {
@@ -4264,7 +4564,7 @@
   function ensurePlayer(body) {
     if (!body || (body.dataset.ready === "1" && playerState)) return;
     body.dataset.ready = "1";
-    body.innerHTML = '<div class="vos-player vos-rise"><div class="vos-player-empty" data-empty>Open a song or video from the desktop.</div><div class="vos-player-view" data-view hidden><canvas data-vis hidden></canvas><video data-video controls playsinline hidden></video><audio data-audio controls hidden></audio></div></div>';
+    body.innerHTML = '<div class="vos-player vos-rise"><div class="vos-player-empty" data-empty>Open a song from the desktop.</div><div class="vos-player-view" data-view hidden><canvas data-vis hidden></canvas><video data-video controls playsinline hidden></video><audio data-audio controls hidden></audio></div></div>';
     playerState = { body: body, actx: null, analyser: null, bins: null, raf: 0, hooked: false };
   }
   function paintClock() {
@@ -4627,6 +4927,7 @@
     });
     document.body.appendChild(ctxEl);
     document.body.appendChild(shell);
+    ensureMovies(wins.movies && wins.movies.body);
     deskEl = desk;
     tasksEl = tasks;
     installed.forEach(function (app) { ensureInstalledWindow(app); });

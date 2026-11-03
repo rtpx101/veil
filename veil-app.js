@@ -327,8 +327,9 @@ async function initEngine() {
     const engineStatus = document.getElementById("engineStatus");
     try {
       if (location.protocol === "about:") {
-        const base = document.querySelector("base") && document.querySelector("base").href || "https://rtpx101.github.io/veil/";
-        document.body.innerHTML = "<iframe src=\"" + String(base).replace(/"/g, "") + "\" style=\"position:fixed;inset:0;width:100%;height:100%;border:0\"></iframe>";
+        console.warn("[veil] proxy skipped on about: page");
+        engineReady = false;
+        if (engineStatus) engineStatus.textContent = "Proxy needs a normal tab.";
         return;
       }
       paintEngineStatus();
@@ -411,18 +412,11 @@ async function initEngine() {
         pushAdblockToSW();
       } catch (err) {}
     } catch (err) {
-      const overlay = String(err && err.message || err);
-      if (location.protocol === "about:" || /invalid state/i.test(overlay)) {
-        const base = document.querySelector("base") && document.querySelector("base").href || "https://rtpx101.github.io/veil/";
-        document.body.innerHTML = "<iframe src=\"" + String(base).replace(/"/g, "") + "\" style=\"position:fixed;inset:0;width:100%;height:100%;border:0\"></iframe>";
-        return;
-      }
       console.error(err);
       engineReady = false;
       if (engineStatus) {
         engineStatus.textContent = err && err.message || String(err);
       }
-      throw err;
     }
   })();
   return engineInitPromise;
@@ -6777,7 +6771,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=32";
+  link.href = BASE + "/veilos.css?v=42";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6788,7 +6782,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=32";
+  script.src = BASE + "/veilos.js?v=42";
   script.onload = () => {
     jsReady = true;
     tryStart();

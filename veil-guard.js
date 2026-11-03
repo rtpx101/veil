@@ -1,5 +1,23 @@
 /* Loaded before the app. Adjusts the server address, the tab icon, and the message-dot switch. */
 (function () {
+  function published(value) { return /github\.io\/veil/i.test(String(value || "")); }
+  try {
+    var html = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+    if (html && html.set && !html.set.__veilLocal) {
+      var setHtml = html.set;
+      var wrapped = function (value) {
+        if (this === document.body && published(value)) return;
+        return setHtml.call(this, value);
+      };
+      wrapped.__veilLocal = 1;
+      Object.defineProperty(Element.prototype, "innerHTML", {
+        configurable: true,
+        enumerable: html.enumerable,
+        get: html.get,
+        set: wrapped
+      });
+    }
+  } catch (err) {}
   if (window.__veilHook) return;
   window.__veilHook = 1;
 
