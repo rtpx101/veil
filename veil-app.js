@@ -6771,7 +6771,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=43";
+  link.href = BASE + "/veilos.css?v=44";
   link.onload = () => {
     cssReady = true;
     tryStart();

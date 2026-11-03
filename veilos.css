@@ -776,7 +776,10 @@ body.veil-os #browser .menu{
 body.veil-os #browser .backdrop,
 body.veil-os #browser .panel{position:absolute}
 body.veil-os .quick-link[data-games],
-body.veil-os .quick-link[data-chat]{display:none !important}
+body.veil-os .quick-link[data-chat],
+body.veil-os .quick-links.row2,
+body.veil-os .launch-btn,
+body.veil-os #settingsOpenBtn{display:none !important}
 body.veil-os #menuSaveImage{display:flex}
 body.veil-os .time-bar{display:none !important}
 body.veil-os .newtab-page{--timebar-h:0px}
