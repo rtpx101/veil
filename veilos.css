@@ -902,20 +902,65 @@ body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / 
 .vos-as-info div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
 .vos-as-info dt{color:var(--muted)}
 .vos-as-empty{color:var(--muted);font-size:14px}
-.vos-music,.vos-movies{position:absolute;inset:0;display:flex;min-height:0;background:var(--bg);color:var(--text);overflow:hidden}
-.vos-music-side{width:220px;flex:0 0 220px;display:flex;flex-direction:column;min-height:0;background:var(--bg2);border-right:1px solid var(--border)}
-.vos-music-side b{padding:16px 14px 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
-.vos-music-list{flex:1;overflow:auto;padding:4px}
-.vos-music-list button{width:100%;border:0;background:transparent;color:var(--text);text-align:left;border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
-.vos-music-list button.on,.vos-music-list button:hover{background:var(--panel)}
-.vos-music-list small{color:var(--muted);font-size:11px}
-.vos-music-main{flex:1;min-width:0;display:flex;flex-direction:column}
-.vos-music-hero{flex:1;display:flex;align-items:flex-end;padding:28px;font-size:32px;font-weight:700;letter-spacing:-.03em}
-.vos-music-now{flex:0 0 72px;display:flex;align-items:center;gap:8px;padding:0 14px;border-top:1px solid var(--border);background:var(--bg2)}
-.vos-music-now button{height:32px;min-width:32px;border:0;border-radius:999px;background:var(--accent);color:var(--accentText);cursor:pointer;font-weight:700}
-.vos-music-now input{flex:1;min-width:0}
-.vos-music-now span{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);width:42px}
-.vos-movies{flex-direction:column}
+.vos-music{position:absolute;inset:0;display:grid;grid-template-columns:210px minmax(0,1fr) 270px;grid-template-rows:minmax(0,1fr) 74px;background:#121212;color:#fff;overflow:hidden;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+.vos-music.is-no-now{grid-template-columns:210px minmax(0,1fr)}
+.vos-music.is-no-now .vos-mu-now{display:none}
+.vos-mu-side{grid-column:1;grid-row:1;display:flex;flex-direction:column;min-height:0;background:#0c0c0c;border-right:1px solid rgba(255,255,255,.06);padding:14px 10px 10px}
+.vos-mu-brand{font-weight:800;letter-spacing:-.04em;font-size:18px;padding:4px 8px 14px}
+.vos-mu-brand i{color:#ff3b6b;font-style:normal}
+.vos-mu-side button.nav{height:38px;border:0;border-radius:8px;background:transparent;color:#ddd;text-align:left;padding:0 10px;cursor:pointer;font-size:14px}
+.vos-mu-side button.nav.on,.vos-mu-side button.nav:hover{background:#242424;color:#fff}
+.vos-mu-plhead{display:flex;align-items:center;justify-content:space-between;margin:16px 8px 6px;color:#8d8d8d;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.vos-mu-plhead button{width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:18px}
+.vos-mu-pls{flex:1;overflow:auto;min-height:0}
+.vos-mu-pls button{width:100%;height:34px;border:0;border-radius:8px;background:transparent;color:#ddd;text-align:left;padding:0 10px;cursor:pointer;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vos-mu-pls button.on,.vos-mu-pls button:hover{background:#242424}
+.vos-mu-io{display:flex;gap:6px;padding-top:8px}
+.vos-mu-io button{flex:1;height:28px;border:1px solid #333;border-radius:8px;background:#181818;color:#ccc;cursor:pointer;font-size:12px}
+.vos-mu-main{grid-column:2;grid-row:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#2a2230 0%,#141414 240px)}
+.vos-mu-main h1{margin:0;padding:22px 22px 12px;font-size:28px;letter-spacing:-.03em}
+.vos-mu-find{display:flex;gap:10px;padding:0 22px 8px}
+.vos-mu-find input{flex:1;height:40px;border-radius:999px;border:1px solid #3a3a3a;background:#1a1a1a;color:#fff;padding:0 16px;font-size:14px}
+.vos-mu-find button{height:40px;padding:0 18px;border:0;border-radius:999px;background:#ff3b6b;color:#fff;font-weight:700;cursor:pointer}
+.vos-mu-meta{display:flex;justify-content:flex-end;padding:8px 22px 0;color:#8d8d8d;font-size:12px;min-height:18px}
+.vos-mu-list{flex:1;overflow:auto;padding:6px 10px 16px}
+.vos-mu-row{display:grid;grid-template-columns:28px 42px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:8px}
+.vos-mu-row:hover{background:rgba(255,255,255,.05)}
+.vos-mu-row .n{color:#8d8d8d;font-size:13px;text-align:right}
+.vos-mu-row img{width:42px;height:42px;object-fit:cover;border-radius:4px;background:#222}
+.vos-mu-row .meta{border:0;background:transparent;color:inherit;text-align:left;min-width:0;cursor:pointer;padding:0}
+.vos-mu-row b{display:block;font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vos-mu-row small{display:block;color:#9a9a9a;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vos-mu-row.is-on b{color:#ff4d78}
+.vos-mu-row .acts{display:flex;gap:4px}
+.vos-mu-row .acts button,.vos-mu-heart{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#aaa;cursor:pointer;font-size:16px}
+.vos-mu-row .acts button.on,.vos-mu-heart.on{color:#ff4d78}
+.vos-mu-now{grid-column:3;grid-row:1;min-height:0;background:#101010;border-left:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;padding:12px}
+.vos-mu-nowtop{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#ddd}
+.vos-mu-nowtop button{border:0;background:transparent;color:#aaa;cursor:pointer;font-size:18px}
+.vos-mu-now img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;margin:12px 0;background:#1b1b1b}
+.vos-mu-now b{font-size:15px}
+.vos-mu-now small{color:#9a9a9a;font-size:13px}
+.vos-mu-nowrow{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.vos-mu-bar{grid-column:1 / -1;grid-row:2;display:grid;grid-template-columns:220px minmax(0,1fr) 120px;gap:12px;align-items:center;padding:0 14px;background:#0a0a0a;border-top:1px solid rgba(255,255,255,.08)}
+.vos-mu-who{display:flex;align-items:center;gap:10px;min-width:0}
+.vos-mu-who img{width:46px;height:46px;object-fit:cover;border-radius:4px;background:#222}
+.vos-mu-who b,.vos-mu-who small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vos-mu-who b{font-size:13px}
+.vos-mu-who small{color:#9a9a9a;font-size:11px}
+.vos-mu-transport{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.vos-mu-btns{display:flex;align-items:center;gap:8px}
+.vos-mu-btns button{width:32px;height:32px;border:0;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
+.vos-mu-btns button.play{width:36px;height:36px;background:#fff;color:#111}
+.vos-mu-seek{display:flex;align-items:center;gap:8px;width:100%}
+.vos-mu-seek span{font-size:11px;color:#9a9a9a;font-variant-numeric:tabular-nums;width:36px}
+.vos-mu-seek input,.vos-mu-vol{flex:1;min-width:0;accent-color:#fff}
+.vos-mu-vol{width:90px}
+.vos-mu-empty{color:#9a9a9a;padding:28px 12px;text-align:center}
+.vos-mu-pop{position:fixed;z-index:300000;min-width:160px;background:#1c1c1c;color:#fff;border:1px solid #333;border-radius:10px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.vos-mu-pop button{display:block;width:100%;height:32px;border:0;border-radius:6px;background:transparent;color:#fff;text-align:left;padding:0 8px;cursor:pointer}
+.vos-mu-pop button:hover{background:#2a2a2a}
+.vos-movies{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:var(--bg);color:var(--text);overflow:hidden}
 .vos-movies-bar{flex:0 0 auto;padding:16px 18px 0;font-size:28px;font-weight:700;letter-spacing:-.03em}
 .vos-movies-grid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:14px 18px 24px}
 .vos-movies-grid button{border:0;background:var(--panel);color:var(--text);border-radius:14px;overflow:hidden;cursor:pointer;text-align:left;padding:0 0 10px}
