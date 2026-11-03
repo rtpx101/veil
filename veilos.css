@@ -214,16 +214,15 @@
   width:56px;
   height:56px;
   flex:0 0 56px;
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,.1);
-  background:rgba(255,255,255,.05);
+  border:0;
+  background:transparent;
+  border-radius:0;
   display:flex;
   align-items:center;
   justify-content:center;
   color:var(--text);
-  overflow:clip;
-  clip-path:inset(0 round 16px);
-  transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;
+  overflow:visible;
+  transition:transform .18s ease;
 }
 .vos-icon img,
 .vos-glyph img,
@@ -239,24 +238,24 @@
 .vos-icon:hover .vos-glyph,
 .vos-icon:focus-visible .vos-glyph{
   transform:translateY(-3px);
-  background:rgba(255,255,255,.09);
-  border-color:rgba(255,255,255,.18);
-  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  background:transparent;
+  border:0;
+  box-shadow:none;
 }
 .vos-icon.is-drop .vos-glyph,
 .vos-icon.is-drop:hover .vos-glyph{
   transform:scale(1.06);
-  background:color-mix(in srgb, #3b82f6 22%, transparent);
-  border-color:color-mix(in srgb, #3b82f6 70%, var(--border));
+  background:transparent;
+  border:0;
   box-shadow:none;
 }
-.vos-glyph img.vos-logo{width:100%;height:100%;padding:9px}
+.vos-glyph img.vos-logo{width:100%;height:100%;padding:0}
 .vos-glyph img.vos-chat,
-.vos-glyph img.vos-pad{padding:9px;box-sizing:border-box}
+.vos-glyph img.vos-pad{padding:0;box-sizing:border-box}
 .vos-glyph img,.vos-title img,.vos-taskbtn img{filter:invert(var(--page-icon-invert,1))}
 .vos-logo{filter:none !important}
-.vos-glyph .vos-appicon{filter:none !important;width:100%;height:100%;object-fit:cover;border-radius:16px;padding:0}
-.vos-title .vos-appicon,.vos-taskbtn .vos-appicon{filter:none !important;width:16px;height:16px;object-fit:contain;border-radius:4px}
+.vos-glyph .vos-appicon,.vos-mini .vos-appicon{filter:none !important;width:100%;height:100%;object-fit:contain;border-radius:0;padding:0;background:transparent}
+.vos-title .vos-appicon,.vos-taskbtn .vos-appicon{filter:none !important;width:16px;height:16px;object-fit:contain;border-radius:0}
 .vos-icon > [data-label]{
   width:92px;
   min-width:92px;
@@ -554,9 +553,9 @@ body.veil-os #menuInstall.is-builtin{display:none}
   overflow:hidden;
   min-width:0;
 }
-.vos-startitem img,.vos-startitem svg{width:18px;height:18px;flex:0 0 18px;display:block}
+.vos-startitem img,.vos-startitem svg{width:22px;height:22px;flex:0 0 22px;display:block;object-fit:contain}
 .vos-startitem img{filter:invert(var(--page-icon-invert,1))}
-.vos-startitem img.vos-appicon{filter:none;object-fit:cover;border-radius:4px}
+.vos-startitem img.vos-appicon,.vos-startitem img.vos-logo{filter:none;object-fit:contain;border-radius:0;background:transparent}
 .vos-startitem span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vos-startitem:hover{background:var(--panel)}
 .vos-startitem:active{transform:scale(.98)}
@@ -648,7 +647,10 @@ html[data-mode="light"] .vos-markwall{filter:invert(1)}
 .vos-start-cols{display:grid;grid-template-columns:1.25fr .85fr;grid-template-rows:minmax(0,1fr);align-items:stretch;min-height:0;max-height:min(480px, calc(100vh - 280px));overflow:hidden}
 .vos-start-col{overflow:auto;min-height:0;max-height:100%;padding:4px;min-width:0}
 .vos-start-col + .vos-start-col{border-left:1px solid var(--border)}
+.vos-start-label{padding:6px 10px 2px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .vos-start-empty{padding:18px 10px;color:var(--muted);font-size:12px}
+.vos-drag-ghost{position:fixed;z-index:300000;width:56px;height:56px;margin:0;pointer-events:none}
+.vos-drag-ghost img,.vos-drag-ghost svg{width:56px;height:56px;object-fit:contain;display:block}
 .vos-start-foot{position:relative;z-index:2;flex:0 0 auto;background:var(--bg2);border-top:1px solid var(--border);padding:6px;display:flex;flex-direction:column;gap:2px}
 .vos-power{color:var(--text) !important}
 .vos-calc,.vos-timeapp,.vos-edit{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;background:var(--bg);color:var(--text)}
@@ -869,8 +871,9 @@ body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / 
 .vos-as-card small{font-size:12px;opacity:.85}
 .vos-as-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
 .vos-as-hit{flex:1;min-width:0;display:flex;align-items:center;gap:12px;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer}
-.vos-as-hit img,.vos-as-mark{width:62px;height:62px;border-radius:14px;object-fit:cover;background:var(--panel2);flex:0 0 62px}
-.vos-as-mark{display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:var(--accentText);background:var(--accent)}
+.vos-as-hit img{width:56px;height:56px;flex:0 0 56px;object-fit:contain;border-radius:0;background:transparent}
+.vos-as-hit img.vos-appicon{width:56px;height:56px;flex:0 0 56px;object-fit:contain;border-radius:0;background:transparent}
+.vos-as-mark{width:56px;height:56px;flex:0 0 56px;border-radius:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:var(--accentText);background:var(--accent)}
 .vos-as-copy{min-width:0;display:flex;flex-direction:column;gap:2px}
 .vos-as-copy b{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vos-as-copy small{color:var(--muted);font-size:13px}
@@ -923,7 +926,7 @@ body.veil-os #osApp-settings .setting-section:has(.preset-grid){grid-column:1 / 
 .vos-movies-stage[hidden]{display:none !important}
 .vos-movies-stage video{flex:1;min-height:0;width:100%;background:#000}
 .vos-movies-stage button{position:absolute;top:12px;left:12px;height:32px;padding:0 12px;border:0;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
-html[data-mode="light"] .vos-glyph{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.1)}
+html[data-mode="light"] .vos-glyph{background:transparent;border:0}
 html[data-mode="light"] .vos-icon:hover .vos-glyph,
 html[data-mode="light"] .vos-icon:focus-visible .vos-glyph{
   background:rgba(0,0,0,.06);

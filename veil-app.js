@@ -6773,7 +6773,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=29";
+  link.href = BASE + "/veilos.css?v=30";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6784,7 +6784,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=29";
+  script.src = BASE + "/veilos.js?v=30";
   script.onload = () => {
     jsReady = true;
     tryStart();

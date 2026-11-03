@@ -704,7 +704,7 @@
       return loadScript("scramjet/scramjet.all.js");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=29");
+      return loadScript("veil-app.js?v=30");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);

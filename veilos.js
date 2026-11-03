@@ -60,7 +60,16 @@
   function sharpIcon(url) {
     return String(url || "").replace(/([?&]sz=)\d+/i, "$1128");
   }
+  function faviconFor(url) {
+    var host = "";
+    try { host = new URL(String(url || "")).hostname; } catch (err) { return ""; }
+    host = String(host || "").replace(/^www\./, "");
+    if (!host) return "";
+    return "https://www.google.com/s2/favicons?sz=128&domain=" + encodeURIComponent(host);
+  }
   function iconHtml(app) {
+    var fav = app && app.url ? faviconFor(app.url) : "";
+    if (fav) return '<img class="vos-appicon" draggable="false" alt="" src="' + esc(fav) + '">';
     if (app && app.iconUrl) return '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">';
     return iconMarkup(app && (app.icon || app.kind));
   }
@@ -361,6 +370,9 @@
     });
   }
   var pins = [];
+  var deskApps = [];
+  var refreshStart = function () {};
+  var DESK_KEY = "veil_os_desk";
   function loadPins() {
     pins = [];
     try { pins = JSON.parse(localStorage.getItem("veil_os_pins") || "[]"); } catch (err) { pins = []; }
@@ -368,6 +380,45 @@
   }
   function savePins() {
     try { localStorage.setItem("veil_os_pins", JSON.stringify(pins)); } catch (err) {}
+  }
+  function loadDeskApps() {
+    var raw = null;
+    try { raw = localStorage.getItem(DESK_KEY); } catch (err) {}
+    if (raw == null) {
+      deskApps = ["browser"];
+      Object.keys(iconLayout).forEach(function (id) {
+        if (!id || id === "browser" || String(id).indexOf("fld_") === 0) return;
+        if (/^(img_|note_|code_|aud_|vid_)/.test(id)) return;
+        var app = appById(id);
+        if (!app || app.file) return;
+        if (holdingFolder(id)) return;
+        if (deskApps.indexOf(id) === -1) deskApps.push(id);
+      });
+      saveDeskApps();
+      return;
+    }
+    try { deskApps = JSON.parse(raw) || []; } catch (err2) { deskApps = []; }
+    if (!Array.isArray(deskApps)) deskApps = [];
+    if (deskApps.indexOf("browser") === -1) deskApps.unshift("browser");
+  }
+  function saveDeskApps() {
+    try { localStorage.setItem(DESK_KEY, JSON.stringify(deskApps)); } catch (err) {}
+  }
+  function placeOnDesktop(id, x, y) {
+    if (!id || id === "browser") return;
+    var app = appById(id);
+    if (!app || app.file || app.folder) return;
+    var holder = holdingFolder(id);
+    if (holder) {
+      holder.items = holder.items.filter(function (item) { return item !== id; });
+      saveFolders();
+    }
+    if (deskApps.indexOf(id) === -1) deskApps.push(id);
+    iconLayout[id] = freeSpot(isFinite(x) ? x : 14, isFinite(y) ? y : 12, {});
+    saveDeskApps();
+    saveLayout();
+    renderDesktopIcons();
+    if (openFolderId) paintFolder();
   }
   function togglePin(id) {
     if (!id) return;
@@ -604,7 +655,9 @@
       if (!Array.isArray(folder.items)) folder.items = [];
       folder.items = folder.items.map(function (id) { return id === "games" ? "store" : id; });
       folder.items = folder.items.filter(function (id) {
-        return !!appById(id) || String(id).indexOf("img_") === 0;
+        id = String(id || "");
+        if (appById(id)) return true;
+        return id.indexOf("img_") === 0 || id.indexOf("note_") === 0 || id.indexOf("code_") === 0 || id.indexOf("aud_") === 0 || id.indexOf("vid_") === 0;
       });
     });
   }
@@ -629,7 +682,9 @@
       list.push({ id: folder.id, title: folder.title || "Folder", folder: true, items: folder.items.slice() });
     });
     shortcutList().forEach(function (app) {
-      if (!holdingFolder(app.id)) list.push(app);
+      if (holdingFolder(app.id)) return;
+      if (app.file) { list.push(app); return; }
+      if (app.id === "browser" || deskApps.indexOf(app.id) !== -1) list.push(app);
     });
     return list;
   }
@@ -649,10 +704,7 @@
     var cells = "";
     shown.forEach(function (id) {
       var app = appById(id);
-      var inner = app.iconUrl
-        ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
-        : iconMarkup(app.kind);
-      cells += '<span class="vos-mini">' + inner + "</span>";
+      cells += '<span class="vos-mini">' + iconHtml(app) + "</span>";
     });
     if (real.length > 4) cells += '<span class="vos-mini vos-more">+' + (real.length - 3) + "</span>";
     var face = "vos-folder-face";
@@ -717,6 +769,11 @@
     var skip = {};
     skip[id] = true;
     iconLayout[id] = freeSpot(px, py, skip);
+    if (deskApps.indexOf(id) === -1) {
+      var back = appById(id);
+      if (back && !back.file) deskApps.push(id);
+    }
+    saveDeskApps();
     saveFolders();
     saveLayout();
     renderDesktopIcons();
@@ -1148,9 +1205,7 @@
       btn.className = "vos-fold-item";
       btn.title = app.title;
       btn.dataset.app = app.id;
-      var glyph = app.iconUrl
-        ? '<img class="vos-appicon" draggable="false" alt="" src="' + esc(sharpIcon(app.iconUrl)) + '">'
-        : iconMarkup(app.kind);
+      var glyph = iconHtml(app);
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
       function choose() {
         Array.prototype.forEach.call(grid.querySelectorAll(".vos-fold-item"), function (node) {
@@ -1263,11 +1318,7 @@
       btn.title = app.title;
       btn.dataset.app = app.id;
       if (app.folder) btn.dataset.folder = "1";
-      var glyph = app.folder
-        ? folderGlyph(app.items)
-        : (app.iconUrl
-          ? '<img class="vos-appicon" draggable="false" src="' + esc(sharpIcon(app.iconUrl)) + '" alt="">'
-          : iconMarkup(app.kind));
+      var glyph = app.folder ? folderGlyph(app.items) : iconHtml(app);
       btn.innerHTML = "<span class=\"vos-glyph\">" + glyph + "</span><span data-label>" + esc(app.title) + "</span>";
       var spot = iconPos(index, app.id, used);
       used.push(spot);
@@ -1395,7 +1446,7 @@
     });
     saveInstalled();
     ensureInstalledWindow(installed[installed.length - 1]);
-    renderDesktopIcons();
+    refreshStart();
     refreshStore();
     return true;
   }
@@ -1405,6 +1456,8 @@
     if (!current) return;
     var at = pins.indexOf(id);
     if (at !== -1) { pins.splice(at, 1); savePins(); }
+    var deskAt = deskApps.indexOf(id);
+    if (deskAt !== -1) { deskApps.splice(deskAt, 1); saveDeskApps(); }
     installed = installed.filter(function (item) { return item.id !== id; });
     folders.forEach(function (folder) {
       folder.items = folder.items.filter(function (item) { return item !== id; });
@@ -1598,13 +1651,13 @@
       return found;
     }
     function siteVisual(site) {
+      var fav = faviconFor(site.url);
+      if (fav) return '<img class="vos-appicon" src="' + esc(fav) + '" alt="">';
       if (site.icon) return '<img src="' + IMG + site.icon + '" alt="">';
       return '<span class="vos-as-mark">' + esc(site.mark || "?") + "</span>";
     }
     function siteIconUrl(site) {
-      if (site.icon) return IMG + site.icon;
-      var svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='16' fill='#161616'/><text x='32' y='42' text-anchor='middle' font-size='32' font-family='sans-serif' fill='#fff'>" + (site.mark || "?") + "</text></svg>";
-      return "data:image/svg+xml," + encodeURIComponent(svg);
+      return faviconFor(site.url) || "";
     }
     var games = [];
     var query = "";
@@ -3740,6 +3793,7 @@
     loadFolders();
     loadLayout();
     loadPins();
+    loadDeskApps();
     icons.addEventListener("dragstart", function (e) { e.preventDefault(); });
     desk.appendChild(icons);
     var snap = document.createElement("div");
@@ -3841,6 +3895,55 @@
     menu.className = "vos-startmenu";
     menu.setAttribute("role", "menu");
     menu.innerHTML = '<div class="vos-start-head"><img data-pfp class="vos-start-pfp" alt=""><b data-user>Guest</b></div><div class="vos-start-search"><input data-find type="text" placeholder="Search programs" spellcheck="false" aria-label="Search programs"></div><div class="vos-start-cols"><div class="vos-start-col" data-left></div><div class="vos-start-col" data-right></div></div><div class="vos-start-foot"><button type="button" class="vos-startitem" data-lock><img src="' + IMG + 'lock.svg" alt=""><span>Lock</span></button><button type="button" class="vos-startitem vos-power" data-power><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.2v7.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.1 6.4a7 7 0 1 0 9.8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Shut down</span></button></div>';
+    function startRow(app, canDrag) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "vos-startitem";
+      btn.setAttribute("role", "menuitem");
+      btn.innerHTML = iconHtml(app) + "<span></span>";
+      btn.querySelector("span").textContent = app.title || "App";
+      var dragged = false;
+      if (canDrag) {
+        btn.addEventListener("pointerdown", function (e) {
+          if (e.button !== 0) return;
+          dragged = false;
+          var sx = e.clientX;
+          var sy = e.clientY;
+          var ghost = null;
+          function move(ev) {
+            if (!dragged && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+            dragged = true;
+            if (!ghost) {
+              ghost = document.createElement("div");
+              ghost.className = "vos-drag-ghost";
+              ghost.innerHTML = '<span class="vos-glyph">' + iconHtml(app) + "</span>";
+              document.body.appendChild(ghost);
+            }
+            ghost.style.left = (ev.clientX - 28) + "px";
+            ghost.style.top = (ev.clientY - 28) + "px";
+          }
+          function up(ev) {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+            if (!dragged || !deskEl) return;
+            var box = deskEl.getBoundingClientRect();
+            var onDesk = ev.clientX >= box.left && ev.clientX <= box.right && ev.clientY >= box.top && ev.clientY <= box.bottom;
+            if (!onDesk) return;
+            placeOnDesktop(app.id, ev.clientX - box.left - 48, ev.clientY - box.top - 20);
+            closeStart();
+          }
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", up);
+        });
+      }
+      btn.onclick = function () {
+        if (dragged) { dragged = false; return; }
+        closeStart();
+        openShortcut(appById(app.id) || app);
+      };
+      return btn;
+    }
     function paintStart() {
       var bits = profileBits();
       var face = menu.querySelector("[data-pfp]");
@@ -3858,64 +3961,46 @@
       if (!left || !right) return;
       left.innerHTML = "";
       right.innerHTML = "";
-      var items = [];
-      if (query) {
-        shortcutList().forEach(function (app) {
-          if (app.folder) return;
-          if (String(app.title || "").toLowerCase().indexOf(query) === -1) return;
-          items.push(app);
-        });
-      } else {
-        var recent = [];
-        try { recent = JSON.parse(localStorage.getItem("veil_os_recent") || "[]"); } catch (err) { recent = []; }
-        if (!Array.isArray(recent)) recent = [];
-        recent.forEach(function (id) {
-          var app = appById(id);
-          if (app && !app.folder) items.push(app);
-        });
-        if (!items.length) {
-          APPS.forEach(function (app) { items.push(appById(app.id) || { id: app.id, title: app.title, builtin: true, kind: app.icon }); });
-        }
-      }
-      if (!items.length) {
+      var appsLabel = document.createElement("div");
+      appsLabel.className = "vos-start-label";
+      appsLabel.textContent = "Apps";
+      left.appendChild(appsLabel);
+      var recentLabel = document.createElement("div");
+      recentLabel.className = "vos-start-label";
+      recentLabel.textContent = "Recent";
+      right.appendChild(recentLabel);
+      var apps = [];
+      shortcutList().forEach(function (app) {
+        if (app.file || app.folder || app.id === "browser") return;
+        if (query && String(app.title || "").toLowerCase().indexOf(query) === -1) return;
+        apps.push(app);
+      });
+      if (!apps.length) {
         var empty = document.createElement("div");
         empty.className = "vos-start-empty";
-        empty.textContent = query ? "No matches" : "Nothing opened yet";
+        empty.textContent = query ? "No matches" : "No apps";
         left.appendChild(empty);
       }
-      items.slice(0, 12).forEach(function (app) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "vos-startitem";
-        btn.setAttribute("role", "menuitem");
-        btn.innerHTML = iconHtml(app) + "<span></span>";
-        btn.querySelector("span").textContent = app.title || "App";
-        btn.onclick = function () {
-          closeStart();
-          openShortcut(app.folder ? app : (appById(app.id) || app));
-        };
-        left.appendChild(btn);
+      apps.forEach(function (app) { left.appendChild(startRow(app, true)); });
+      var recent = [];
+      try { recent = JSON.parse(localStorage.getItem("veil_os_recent") || "[]"); } catch (err) { recent = []; }
+      if (!Array.isArray(recent)) recent = [];
+      var shown = 0;
+      recent.forEach(function (id) {
+        var app = appById(id);
+        if (!app || app.folder) return;
+        if (query && String(app.title || "").toLowerCase().indexOf(query) === -1) return;
+        right.appendChild(startRow(app, !app.file && app.id !== "browser"));
+        shown += 1;
       });
-      if (!folders.length) {
+      if (!shown) {
         var none = document.createElement("div");
         none.className = "vos-start-empty";
-        none.textContent = "No folders";
+        none.textContent = query ? "No matches" : "Nothing opened yet";
         right.appendChild(none);
       }
-      folders.forEach(function (folder) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "vos-startitem";
-        btn.setAttribute("role", "menuitem");
-        btn.innerHTML = '<img src="' + IMG + 'folder.svg" alt=""><span></span>';
-        btn.querySelector("span").textContent = folder.title || "Folder";
-        btn.onclick = function () {
-          closeStart();
-          openFolder(folder.id);
-        };
-        right.appendChild(btn);
-      });
     }
+    refreshStart = paintStart;
     menu.querySelector("[data-lock]").onclick = function () {
       closeStart();
       if (typeof lockVeil === "function") lockVeil();
