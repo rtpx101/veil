@@ -5037,6 +5037,10 @@ async function pushChatAccountNow() {
     next.recent = gamesUserData.recent || [];
     next.notes = gamesUserData.notes || {};
   }
+  if (typeof window.veilMusicAccountSlice === "function") {
+    const musicSlice = window.veilMusicAccountSlice();
+    if (musicSlice) next.music = musicSlice;
+  }
   await postAccountData(next);
 }
 function scheduleChatPush() {
@@ -6773,7 +6777,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=31";
+  link.href = BASE + "/veilos.css?v=32";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6784,7 +6788,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=31";
+  script.src = BASE + "/veilos.js?v=32";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8330,6 +8334,10 @@ async function saveGamesUserData() {
       next.chat = chatBundleFromState(profile);
     } else if (current.chat) {
       next.chat = current.chat;
+    }
+    if (typeof window.veilMusicAccountSlice === "function") {
+      const musicSlice = window.veilMusicAccountSlice();
+      if (musicSlice) next.music = musicSlice;
     }
     gamesDataReady = true;
     await postAccountData(next);

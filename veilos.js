@@ -3542,28 +3542,153 @@
     var s = sec % 60;
     return m + ":" + (s < 10 ? "0" : "") + s;
   }
-  var MUSIC_HOSTS = ["https://api.piped.private.coffee", "https://pipedapi.reallyaweso.me"];
-  function musicLoadLib() {
+  var musicPushTimer = 0;
+  var musicPushGen = 0;
+  var MUSIC_INV = ["https://yt.omada.cafe", "https://invidious.schenkel.eti.br", "https://echostreamz.com"];
+  var MUSIC_SEARCH = ["https://api.piped.private.coffee", "https://pipedapi.ducks.party"];
+  function musicSlimTrack(track) {
+    if (!track || !track.id) return null;
+    return {
+      id: String(track.id).slice(0, 80),
+      title: String(track.title || "Untitled").slice(0, 140),
+      author: String(track.author || "").slice(0, 80),
+      seconds: Math.max(0, Math.floor(Number(track.seconds) || 0)),
+      local: !!track.local
+    };
+  }
+  function musicWithThumb(track) {
+    if (!track.thumb) track.thumb = track.local ? (IMG + "audio.svg") : ("https://i.ytimg.com/vi/" + track.id + "/hqdefault.jpg");
+    return track;
+  }
+  function musicNormalizeLib(raw) {
     var lib = { liked: [], playlists: [] };
-    try {
-      var raw = JSON.parse(localStorage.getItem("veil_os_music") || "");
-      if (raw && typeof raw === "object") lib = raw;
-    } catch (err) {}
-    if (!Array.isArray(lib.liked)) lib.liked = [];
-    if (!Array.isArray(lib.playlists)) lib.playlists = [];
+    if (!raw || typeof raw !== "object") return lib;
+    (Array.isArray(raw.liked) ? raw.liked : []).forEach(function (track) {
+      var slim = musicSlimTrack(track);
+      if (!slim || slim.local) return;
+      if (lib.liked.length < 400) lib.liked.push(musicWithThumb(slim));
+    });
+    (Array.isArray(raw.playlists) ? raw.playlists : []).slice(0, 40).forEach(function (pl) {
+      if (!pl || typeof pl !== "object") return;
+      var tracks = [];
+      (Array.isArray(pl.tracks) ? pl.tracks : []).slice(0, 200).forEach(function (track) {
+        var slim = musicSlimTrack(track);
+        if (slim) tracks.push(musicWithThumb(slim));
+      });
+      lib.playlists.push({
+        id: String(pl.id || ("pl_" + Date.now().toString(36))).slice(0, 40),
+        name: String(pl.name || "Playlist").slice(0, 40),
+        tracks: tracks
+      });
+    });
     return lib;
+  }
+  function musicMergePreferLocal(remote, local) {
+    var base = musicNormalizeLib(local);
+    var other = musicNormalizeLib(remote);
+    var seen = {};
+    base.liked.forEach(function (track) { seen[track.id] = 1; });
+    other.liked.forEach(function (track) { if (!seen[track.id]) base.liked.push(track); });
+    var ids = {};
+    base.playlists.forEach(function (pl) { ids[pl.id] = 1; });
+    other.playlists.forEach(function (pl) { if (!ids[pl.id]) base.playlists.push(pl); });
+    return base;
+  }
+  function musicAccountSlice() {
+    if (!musicState || !musicState.lib) return null;
+    var lib = musicNormalizeLib(musicState.lib);
+    return {
+      liked: lib.liked.map(function (track) {
+        return { id: track.id, title: track.title, author: track.author, seconds: track.seconds, local: false };
+      }),
+      playlists: lib.playlists.map(function (pl) {
+        return {
+          id: pl.id,
+          name: pl.name,
+          tracks: pl.tracks.map(function (track) {
+            return { id: track.id, title: track.title, author: track.author, seconds: track.seconds, local: !!track.local };
+          })
+        };
+      })
+    };
+  }
+  try { window.veilMusicAccountSlice = musicAccountSlice; } catch (err) {}
+  function musicLoadLib() {
+    try { return musicNormalizeLib(JSON.parse(localStorage.getItem("veil_os_music") || "")); }
+    catch (err) { return musicNormalizeLib(null); }
+  }
+  function musicSchedulePush() {
+    if (typeof accountToken !== "function" || !accountToken()) return;
+    if (typeof fetchAccountData !== "function" || typeof postAccountData !== "function") return;
+    if (musicPushTimer) clearTimeout(musicPushTimer);
+    musicPushTimer = setTimeout(function () {
+      musicPushTimer = 0;
+      var gen = ++musicPushGen;
+      var slice = musicAccountSlice();
+      if (!slice) return;
+      fetchAccountData().catch(function () { return null; }).then(function (data) {
+        if (gen !== musicPushGen || !musicState) return;
+        if (!data || typeof data !== "object") data = {};
+        var next = Object.assign({}, data, { music: slice });
+        if (typeof gamesDataReady !== "undefined" && gamesDataReady && typeof gamesUserData !== "undefined") {
+          next.favorites = gamesUserData.favorites || [];
+          next.recent = gamesUserData.recent || [];
+          next.notes = gamesUserData.notes || {};
+        }
+        if (typeof chatProfile === "function" && typeof chatBundleFromState === "function") {
+          try {
+            var profile = chatProfile();
+            if (profile && profile.uid) next.chat = chatBundleFromState(profile);
+          } catch (err) {}
+        }
+        return postAccountData(next);
+      }).catch(function () {});
+    }, 500);
   }
   function musicSaveLib() {
     if (!musicState) return;
-    try { localStorage.setItem("veil_os_music", JSON.stringify({ liked: musicState.lib.liked, playlists: musicState.lib.playlists })); } catch (err) {}
+    if (musicState.hydrating) musicState.pendingSave = true;
+    try { localStorage.setItem("veil_os_music", JSON.stringify(musicAccountSlice())); } catch (err) {}
+    if (!musicState.hydrating) musicSchedulePush();
   }
-  function musicFetch(path) {
+  function musicHydrate() {
+    if (!musicState) return;
+    if (typeof accountToken !== "function" || !accountToken() || typeof fetchAccountData !== "function") return;
+    musicState.hydrating = true;
+    fetchAccountData().then(function (data) {
+      if (!musicState) return;
+      musicState.hydrating = false;
+      var remote = data && data.music;
+      var hasRemote = !!(remote && ((Array.isArray(remote.liked) && remote.liked.length) || (Array.isArray(remote.playlists) && remote.playlists.length)));
+      if (hasRemote && !musicState.pendingSave) {
+        musicState.lib = musicNormalizeLib(remote);
+        try { localStorage.setItem("veil_os_music", JSON.stringify(musicAccountSlice())); } catch (err) {}
+        musicPaint();
+        return;
+      }
+      if (hasRemote && musicState.pendingSave) musicState.lib = musicMergePreferLocal(remote, musicState.lib);
+      musicState.pendingSave = false;
+      var lib = musicState.lib || { liked: [], playlists: [] };
+      if ((lib.liked && lib.liked.length) || (lib.playlists && lib.playlists.length)) {
+        musicPaint();
+        musicSchedulePush();
+      }
+    }).catch(function () {
+      if (!musicState) return;
+      musicState.hydrating = false;
+      if (musicState.pendingSave) {
+        musicState.pendingSave = false;
+        musicSchedulePush();
+      }
+    });
+  }
+  function musicFetchJson(urls) {
     var i = 0;
     function next() {
-      if (i >= MUSIC_HOSTS.length) return Promise.reject(new Error("offline"));
-      var host = MUSIC_HOSTS[i];
+      if (i >= urls.length) return Promise.reject(new Error("offline"));
+      var url = urls[i];
       i += 1;
-      return fetch(host + path, { headers: { "Accept": "application/json" } }).then(function (res) {
+      return fetch(url, { headers: { "Accept": "application/json" } }).then(function (res) {
         if (!res.ok) throw new Error(String(res.status));
         return res.json();
       }).catch(function () { return next(); });
@@ -3571,17 +3696,25 @@
     return next();
   }
   function musicTrackFrom(item) {
-    var id = String(item && item.url || "").split("v=")[1] || "";
+    var id = item && item.videoId ? String(item.videoId) : (String(item && item.url || "").split("v=")[1] || "");
     id = id.split("&")[0];
-    if (!id) return null;
-    return {
+    if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) return null;
+    if (item && item.type && item.type !== "video" && item.type !== "stream") return null;
+    return musicWithThumb({
       id: id,
       title: item.title || "Untitled",
-      author: item.uploaderName || "",
-      thumb: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg",
-      seconds: Number(item.duration) || 0,
+      author: item.author || item.uploaderName || "",
+      seconds: Number(item.lengthSeconds || item.duration) || 0,
       local: false
-    };
+    });
+  }
+  function musicAudioUrls(id) {
+    var urls = [];
+    MUSIC_INV.forEach(function (host) {
+      urls.push(host + "/latest_version?id=" + encodeURIComponent(id) + "&itag=140&local=true");
+      urls.push(host + "/latest_version?id=" + encodeURIComponent(id) + "&itag=251&local=true");
+    });
+    return urls;
   }
   function musicLiked(id) {
     var hit = false;
@@ -3595,21 +3728,6 @@
     else musicState.lib.liked.unshift({ id: track.id, title: track.title, author: track.author, thumb: track.thumb, seconds: track.seconds, local: false });
     musicSaveLib();
     musicPaint();
-  }
-  function musicAudioUrl(data) {
-    var list = (data && data.audioStreams) || [];
-    var best = null;
-    var i;
-    for (i = 0; i < list.length; i++) {
-      var item = list[i];
-      if (!item || !item.url) continue;
-      var mime = String(item.mimeType || "");
-      if (mime.indexOf("audio/") !== 0) continue;
-      var score = Number(item.bitrate) || 0;
-      if (mime.indexOf("mp4") !== -1) score += 8000;
-      if (!best || score > best.score) best = { url: item.url, score: score };
-    }
-    return best ? best.url : "";
   }
   function musicQueue() {
     if (!musicState) return [];
@@ -3639,6 +3757,7 @@
     if (!musicState) return;
     var body = musicState.body;
     body.classList.toggle("is-no-now", !musicState.showNow);
+    body.classList.toggle("is-live", !!(musicState.audio && musicState.audio.src && !musicState.audio.paused && !musicState.audio.ended));
     var heading = body.querySelector("[data-heading]");
     var find = body.querySelector("[data-search]");
     var title = "Search for a song";
@@ -3674,19 +3793,25 @@
     if (count && !musicState.status) count.textContent = rows.length ? (rows.length + (rows.length === 1 ? " song" : " songs")) : "";
     var list = body.querySelector("[data-list]");
     if (list) {
+      var rowsKey = musicState.view + ":" + (musicState.playlistId || "") + ":" + rows.length + ":" + (rows[0] ? rows[0].id : "");
       list.innerHTML = "";
       if (!rows.length) {
         var empty = document.createElement("div");
         empty.className = "vos-mu-empty";
-        empty.textContent = musicState.view === "home" ? "Search YouTube for a song." : "Nothing here yet.";
+        empty.textContent = musicState.view === "home" ? "Search for a song." : "Nothing here yet.";
         list.appendChild(empty);
       }
       rows.forEach(function (track, index) {
         var row = document.createElement("div");
         var current = musicCurrent();
         row.className = "vos-mu-row" + (current && current.id === track.id ? " is-on" : "");
-        var thumb = track.thumb || (IMG + "audio.svg");
-        row.innerHTML = '<span class="n">' + (index + 1) + '</span><img alt="" src="' + esc(thumb) + '"><button type="button" class="meta"><b></b><small></small></button><span class="acts"><button type="button" class="heart" aria-label="Like">♥</button><button type="button" class="add" aria-label="Add to playlist">+</button></span>';
+        var thumb = track.thumb || "";
+        row.innerHTML = '<span class="n">' + (index + 1) + '</span><span class="vos-mu-thumb"><img alt=""></span><button type="button" class="meta"><b></b><small></small></button><span class="acts"><button type="button" class="heart" aria-label="Like">♥</button><button type="button" class="add" aria-label="Add to playlist">+</button></span>';
+        var thumbImg = row.querySelector("img");
+        if (thumb && thumbImg) {
+          thumbImg.src = thumb;
+          thumbImg.onerror = function () { thumbImg.onerror = null; thumbImg.removeAttribute("src"); };
+        }
         row.querySelector("b").textContent = track.title || "Untitled";
         row.querySelector("small").textContent = track.author || "";
         var heart = row.querySelector(".heart");
@@ -3706,13 +3831,40 @@
         };
         list.appendChild(row);
       });
+      if (list.getAttribute("data-key") !== rowsKey) {
+        list.setAttribute("data-key", rowsKey);
+        list.classList.remove("is-swap");
+        void list.offsetWidth;
+        list.classList.add("is-swap");
+      }
     }
     var trackNow = musicCurrent();
     var art = body.querySelector("[data-art]");
     var barArt = body.querySelector("[data-barart]");
-    var src = trackNow && trackNow.thumb ? trackNow.thumb : "";
-    if (art) art.src = src;
-    if (barArt) barArt.src = src;
+    function paintArt(img, src) {
+      if (!img) return;
+      if (!src) {
+        img.hidden = true;
+        img.removeAttribute("src");
+        return;
+      }
+      if (img.getAttribute("src") !== src) {
+        img.hidden = false;
+        img.classList.remove("is-in");
+        img.src = src;
+        void img.offsetWidth;
+        img.classList.add("is-in");
+      } else {
+        img.hidden = false;
+      }
+      img.onerror = function () {
+        img.onerror = null;
+        img.hidden = true;
+        img.removeAttribute("src");
+      };
+    }
+    paintArt(art, trackNow && trackNow.thumb ? trackNow.thumb : "");
+    paintArt(barArt, trackNow && trackNow.thumb ? trackNow.thumb : "");
     var nt = body.querySelector("[data-ntitle]");
     var na = body.querySelector("[data-nauthor]");
     var bt = body.querySelector("[data-btitle]");
@@ -3779,6 +3931,37 @@
       document.addEventListener("pointerdown", bye, true);
     }, 0);
   }
+  function musicKick(audio, id) {
+    var job = musicState && musicState.failovers;
+    if (!job || job.id !== id || job.done) return;
+    if (!musicCurrent() || musicCurrent().id !== id) return;
+    if (job.i >= job.urls.length) {
+      job.done = true;
+      musicStatus("Couldn't play that song. Try another.");
+      musicPaint();
+      return;
+    }
+    job.busy = true;
+    audio.src = job.urls[job.i];
+    audio.play().then(function () {
+      if (!musicState || musicState.failovers !== job) return;
+      job.busy = false;
+      job.ok = true;
+      musicStatus("");
+      musicPaint();
+    }).catch(function (err) {
+      if (!musicState || musicState.failovers !== job) return;
+      job.busy = false;
+      if (err && err.name === "NotAllowedError") {
+        job.done = true;
+        musicStatus("Press play to start.");
+        musicPaint();
+        return;
+      }
+      job.i += 1;
+      musicKick(audio, id);
+    });
+  }
   function musicPlay(index) {
     if (!musicState) return;
     var queue = musicState.queue || [];
@@ -3792,55 +3975,46 @@
     musicPaint();
     if (!audio || !track) return;
     if (track.local) {
-      audio.src = fileUrls[track.id] || "";
+      musicState.failovers = null;
+      var localSrc = fileUrls[track.id] || "";
+      if (!localSrc) {
+        musicStatus("That file isn't on this computer.");
+        return;
+      }
+      audio.src = localSrc;
       audio.play().catch(function () { musicStatus("Couldn't play that file."); });
       return;
     }
     musicStatus("Loading…");
-    var wanted = track.id;
-    musicFetch("/streams/" + encodeURIComponent(track.id)).then(function (data) {
-      if (!musicState || !musicCurrent() || musicCurrent().id !== wanted) return;
-      var url = musicAudioUrl(data);
-      if (!url) throw new Error("no audio");
-      audio.src = url;
-      return audio.play();
-    }).then(function () {
-      musicStatus("");
-      musicPaint();
-    }).catch(function () {
-      if (!musicState || !musicCurrent() || musicCurrent().id !== wanted) return;
-      musicStatus("Couldn't start audio. Opening it in the browser.");
-      try {
-        if (typeof navigate === "function") {
-          openApp("browser");
-          navigate("https://www.youtube.com/watch?v=" + wanted);
-        }
-      } catch (err) {}
-    });
+    musicState.failovers = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: false, done: false, ok: false };
+    musicKick(audio, track.id);
   }
   function ensureMusic(body) {
     if (!body) return;
     if (body.dataset.ready === "1" && musicState) { musicPaint(); return; }
     body.dataset.ready = "1";
-    body.innerHTML = '<div class="vos-music vos-rise"><aside class="vos-mu-side"><div class="vos-mu-brand"><i>♪</i> Music</div><button type="button" class="nav on" data-nav="home">Home</button><button type="button" class="nav" data-nav="liked">Liked Songs</button><button type="button" class="nav" data-nav="saved">Saved</button><div class="vos-mu-plhead"><span>Playlists</span><button type="button" data-newpl aria-label="New playlist">+</button></div><div class="vos-mu-pls" data-pl></div><div class="vos-mu-io"><button type="button" data-import>Import</button><button type="button" data-export>Export</button><input data-file type="file" accept="application/json" hidden></div></aside><section class="vos-mu-main"><h1 data-heading>Search for a song</h1><form class="vos-mu-find" data-search><input data-q type="search" placeholder="Search" aria-label="Search for a song"><button type="submit">Search</button></form><div class="vos-mu-meta" data-count></div><div class="vos-mu-status" data-status style="padding:0 22px;color:#ff8aa3;font-size:12px"></div><div class="vos-mu-list" data-list></div></section><aside class="vos-mu-now" data-now><div class="vos-mu-nowtop"><span>Now playing</span><button type="button" data-hide-now aria-label="Hide">×</button></div><img data-art alt=""><div class="vos-mu-nowrow"><div><b data-ntitle>Nothing playing</b><br><small data-nauthor></small></div><button type="button" class="vos-mu-heart" data-nlike aria-label="Like">♥</button></div></aside><footer class="vos-mu-bar"><div class="vos-mu-who"><img data-barart alt=""><div><b data-btitle>Nothing playing</b><small data-bauthor></small></div></div><div class="vos-mu-transport"><div class="vos-mu-btns"><button type="button" data-prev aria-label="Previous">⏮</button><button type="button" class="play" data-play aria-label="Play">▶</button><button type="button" data-next aria-label="Next">⏭</button><button type="button" data-repeat aria-label="Repeat">↻</button></div><div class="vos-mu-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><input class="vos-mu-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></footer><audio data-audio preload="none"></audio></div>';
+    body.innerHTML = '<div class="vos-music vos-rise"><aside class="vos-mu-side"><div class="vos-mu-brand"><i>♪</i> Music</div><button type="button" class="nav on" data-nav="home">Home</button><button type="button" class="nav" data-nav="liked">Liked Songs</button><button type="button" class="nav" data-nav="saved">Saved</button><div class="vos-mu-plhead"><span>Playlists</span><button type="button" data-newpl aria-label="New playlist">+</button></div><div class="vos-mu-pls" data-pl></div></aside><section class="vos-mu-main"><h1 data-heading>Search for a song</h1><form class="vos-mu-find" data-search><input data-q type="search" placeholder="Search" aria-label="Search for a song"><button type="submit">Search</button></form><div class="vos-mu-meta" data-count></div><div class="vos-mu-status" data-status></div><div class="vos-mu-list" data-list></div></section><aside class="vos-mu-now" data-now><div class="vos-mu-nowtop"><span>Now playing</span><button type="button" data-hide-now aria-label="Hide">×</button></div><div class="vos-mu-art"><span class="vos-mu-ph" aria-hidden="true">♪</span><img data-art alt="" hidden></div><div class="vos-mu-nowrow"><div><b data-ntitle>Nothing playing</b><br><small data-nauthor></small></div><button type="button" class="vos-mu-heart" data-nlike aria-label="Like">♥</button></div></aside><footer class="vos-mu-bar"><div class="vos-mu-who"><span class="vos-mu-barart"><span class="vos-mu-ph" aria-hidden="true">♪</span><img data-barart alt="" hidden></span><div><b data-btitle>Nothing playing</b><small data-bauthor></small></div><span class="vos-mu-eq" aria-hidden="true"><i></i><i></i><i></i></span></div><div class="vos-mu-transport"><div class="vos-mu-btns"><button type="button" data-prev aria-label="Previous">⏮</button><button type="button" class="play" data-play aria-label="Play">▶</button><button type="button" data-next aria-label="Next">⏭</button><button type="button" data-repeat aria-label="Repeat">↻</button></div><div class="vos-mu-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><input class="vos-mu-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></footer><audio data-audio preload="none"></audio></div>';
     var root = body.querySelector(".vos-music");
     var audio = body.querySelector("[data-audio]");
-    musicState = { body: root, audio: audio, lib: musicLoadLib(), view: "home", playlistId: "", results: [], queue: [], index: -1, repeat: "off", showNow: true, seeking: false, status: "" };
+    musicState = { body: root, audio: audio, lib: musicLoadLib(), view: "home", playlistId: "", results: [], queue: [], index: -1, repeat: "off", showNow: true, seeking: false, status: "", hydrating: false, pendingSave: false, failovers: null };
     root.querySelector("[data-search]").addEventListener("submit", function (e) {
       e.preventDefault();
       var q = root.querySelector("[data-q]").value.trim();
       if (!q) return;
       musicState.view = "home";
       musicStatus("Searching…");
-      musicFetch("/search?q=" + encodeURIComponent(q) + "&filter=music_songs").then(function (data) {
-        var items = (data && data.items) || [];
+      var qEnc = encodeURIComponent(q);
+      var urls = [];
+      MUSIC_SEARCH.forEach(function (host) { urls.push(host + "/search?q=" + qEnc + "&filter=music_songs"); });
+      MUSIC_INV.forEach(function (host) { urls.push(host + "/api/v1/search?q=" + qEnc + "&type=video"); });
+      musicFetchJson(urls).then(function (data) {
+        var items = Array.isArray(data) ? data : ((data && data.items) || []);
         var tracks = [];
         items.forEach(function (item) {
-          if (!item || item.type !== "stream") return;
           var track = musicTrackFrom(item);
           if (track) tracks.push(track);
         });
-        musicState.results = tracks;
+        musicState.results = tracks.slice(0, 40);
         musicStatus(tracks.length ? "" : "No songs found.");
         musicPaint();
       }).catch(function () {
@@ -3864,27 +4038,6 @@
       musicState.playlistId = pl.id;
       musicPaint();
     };
-    root.querySelector("[data-export]").onclick = function () {
-      var blob = new Blob([JSON.stringify({ liked: musicState.lib.liked, playlists: musicState.lib.playlists })], { type: "application/json" });
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "veil-music.json";
-      a.click();
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    };
-    root.querySelector("[data-import]").onclick = function () { root.querySelector("[data-file]").click(); };
-    root.querySelector("[data-file]").addEventListener("change", function () {
-      var file = this.files && this.files[0];
-      this.value = "";
-      if (!file) return;
-      file.text().then(function (text) {
-        var data = JSON.parse(text);
-        if (data && Array.isArray(data.liked)) musicState.lib.liked = data.liked;
-        if (data && Array.isArray(data.playlists)) musicState.lib.playlists = data.playlists;
-        musicSaveLib();
-        musicPaint();
-      }).catch(function () { musicStatus("That file could not be imported."); });
-    });
     root.querySelector("[data-hide-now]").onclick = function () {
       musicState.showNow = !musicState.showNow;
       musicPaint();
@@ -3929,6 +4082,14 @@
     });
     audio.addEventListener("play", function () { musicPaint(); });
     audio.addEventListener("pause", function () { musicPaint(); });
+    audio.addEventListener("error", function () {
+      var job = musicState && musicState.failovers;
+      if (!job || job.busy || job.done || !job.ok) return;
+      if (!musicCurrent() || musicCurrent().id !== job.id) return;
+      job.ok = false;
+      job.i += 1;
+      musicKick(audio, job.id);
+    });
     audio.addEventListener("ended", function () {
       if (musicState.repeat === "one") {
         audio.currentTime = 0;
@@ -3940,6 +4101,7 @@
       musicPlay(musicState.index + 1);
     });
     musicPaint();
+    musicHydrate();
   }
   function stopMovies() {
     if (!movieState) return;
