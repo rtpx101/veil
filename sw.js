@@ -404,6 +404,74 @@ function unwrapDoubleProxy(pathname) {
   return "";
 }
 
+const HYPER_FAULT = /Hyper client|hyper_util::client|PROTOCOL_ERROR|http2 error/i;
+
+function isHyperFault(text) {
+  return HYPER_FAULT.test(String(text || ""));
+}
+
+function recoverDocument() {
+  const html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"veil-recover\" content=\"1\"><title></title></head><body></body></html>";
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store"
+    }
+  });
+}
+
+async function notifyTransportFault(proxyUrl, detail) {
+  try {
+    const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    list.forEach((client) => {
+      client.postMessage({
+        type: "veil-transport-fault",
+        url: proxyUrl,
+        detail: String(detail || "").slice(0, 240)
+      });
+    });
+  } catch (err) {}
+}
+
+/* Epoxy's Hyper stack resets HTTP/2 streams with PROTOCOL_ERROR and Scramjet
+   turns that into an error page. Retry a navigation once, then hand back a
+   blank document so the page can switch to Libcurl. Never return the dump. */
+async function fetchProxied(event) {
+  const method = event.request.method || "GET";
+  const canRetry = method === "GET" || method === "HEAD";
+  const attempts = canRetry ? 2 : 1;
+  let lastText = "";
+  for (let i = 0; i < attempts; i++) {
+    let res = null;
+    try {
+      res = await scramjet.fetch(event);
+    } catch (err) {
+      const msg = String(err && (err.stack || err.message) || err);
+      if (!isHyperFault(msg) && !isHyperFault(lastText)) throw err;
+      lastText = msg || lastText;
+      if (i + 1 < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        continue;
+      }
+      break;
+    }
+    if (!res) return res;
+    const type = (res.headers.get("content-type") || "").toLowerCase();
+    if (res.status !== 500 || type.indexOf("text/html") === -1) return res;
+    let text = "";
+    try { text = await res.clone().text(); } catch (err) { return res; }
+    if (!isHyperFault(text)) return res;
+    lastText = text;
+    if (i + 1 < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      continue;
+    }
+  }
+  await notifyTransportFault(event.request.url, lastText);
+  return recoverDocument();
+}
+
 async function proxyFetch(event) {
   const job = proxyFetchInner(event);
   const timeout = new Promise((resolve) => {
@@ -443,7 +511,7 @@ async function proxyFetchInner(event) {
       headers: { "content-type": "text/plain", "cache-control": "no-store" }
     });
   }
-  return scramjet.fetch(event);
+  return fetchProxied(event);
 }
 
 self.addEventListener("message", (event) => {
@@ -499,6 +567,11 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.indexOf(PROXY_PREFIX) !== 0) return;
   event.respondWith(proxyFetch(event).catch((err) => {
     console.warn("[veil] proxy failed", err);
+    const msg = String(err && (err.stack || err.message) || err);
+    if (isHyperFault(msg)) {
+      notifyTransportFault(event.request.url, msg);
+      return recoverDocument();
+    }
     if (err && String(err.message || err).indexOf("prefix") !== -1) {
       codecReady = false;
       try { scramjet.config = null; } catch (e) {}

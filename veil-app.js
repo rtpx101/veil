@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=3";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js";
+const SW_URL = BASE + "/sw.js?v=5";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -441,7 +441,6 @@ async function applyMuxTransport() {
   await useWorkingWisp();
   const index = currentWisp();
   const entry = transportModule();
-  const meta = entry === LIBCURL_MODULE ? EPOXY_MODULE : LIBCURL_MODULE;
   const wanted = settings.transport;
   muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
   try {
@@ -456,13 +455,15 @@ async function applyMuxTransport() {
     }
     return entry;
   } catch (err) {
-    console.warn("[veil] transport failed, trying fallback", err);
+    console.warn("[veil] transport failed", err);
+    if (wanted === "libcurl") throw err;
     muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-    await muxConnection.setTransport(meta, [{
+    await muxConnection.setManualTransport(libcurlFactoryBody(LIBCURL_MODULE), [{
       wisp: index
     }]);
-    if (wanted !== "libcurl") settings.transport = meta === LIBCURL_MODULE ? "libcurl" : "epoxy";
-    return meta;
+    settings.transport = "libcurl";
+    try { save(); } catch (e) {}
+    return LIBCURL_MODULE;
   }
 }
 async function reconnectTransport() {
@@ -1701,8 +1702,17 @@ function bindFrameEvents(value2, extra) {
       hookFrameMenu(raw);
       armFrameErrorWatch(raw, value2);
       try {
-        const text = raw.contentDocument && raw.contentDocument.body ? raw.contentDocument.body.innerText : "";
-        if (/Hyper client|http2 error|PROTOCOL_ERROR/i.test(text)) recoverFrameTransport(value2, text);
+        const doc = raw.contentDocument;
+        const text = doc && doc.body ? doc.body.innerText : "";
+        const recovering = doc && doc.querySelector("meta[name=\"veil-recover\"]");
+        if (looksLikeHyperDump(text)) {
+          wipeHyperDump(doc);
+          onTransportFault(value2.url);
+        } else if (recovering) {
+          onTransportFault(value2.url);
+        } else if (!recovering && text && text.trim().length > 24) {
+          clearTransportFault(value2.url);
+        }
       } catch (err) {}
     });
   }
@@ -1810,6 +1820,144 @@ async function flipTransport() {
   await reconnectTransport();
   return settings.transport;
 }
+function looksLikeHyperDump(text) {
+  const value = String(text || "");
+  return /Hyper client|hyper_util::client/i.test(value) && /PROTOCOL_ERROR|http2 error/i.test(value);
+}
+function rotateWisp() {
+  const list = allWispServers();
+  if (!list.length) return;
+  let idx = list.findIndex(value => value.id === settings.wispId);
+  if (idx < 0) idx = 0;
+  const next = list[(idx + 1) % list.length];
+  if (next && next.id && next.id !== settings.wispId) settings.wispId = next.id;
+}
+const transportFaults = new Map();
+const faultCooldown = new Map();
+const faultGaveUp = new Set();
+function clearTransportFault(url) {
+  const key = unwrapProxyUrl(url) || url || "";
+  if (!key) return;
+  transportFaults.delete(key);
+  faultCooldown.delete(key);
+  faultGaveUp.delete(key);
+}
+function wipeHyperDump(doc) {
+  try {
+    if (doc && doc.body) doc.body.replaceChildren();
+    if (doc) doc.title = "";
+  } catch (err) {}
+}
+function tabForFault(url) {
+  const real = unwrapProxyUrl(url) || url || "";
+  const encoded = real ? encodeURIComponent(real) : "";
+  const list = typeof tabs !== "undefined" && tabs ? tabs : [];
+  return list.find(value => {
+    if (!value || !value.url || value.newTab) return false;
+    if (real && value.url === real) return true;
+    if (encoded && String(url || "").indexOf(encoded) !== -1) return true;
+    if (real && String(url || "").indexOf(encodeURIComponent(value.url)) !== -1) return true;
+    return false;
+  }) || null;
+}
+function showSoftNavFail(tab) {
+  if (!tab) return;
+  finishPageLoader(tab);
+  const frame = tab.engineFrame;
+  const el = frame && (frame.element || frame.frame || frame);
+  const host = el && el.parentElement;
+  if (!host) return;
+  tab.engineFrame = null;
+  host.innerHTML = "<div class=\"engine-error\"><div class=\"engine-error-box\"><h2>Could not open this page</h2><p>The connection kept resetting. Retry to try the next route.</p><button type=\"button\" data-retry-nav>Retry</button></div></div>";
+  const button = host.querySelector("[data-retry-nav]");
+  if (button) {
+    button.onclick = async () => {
+      clearTransportFault(tab.url);
+      host.innerHTML = "";
+      await createEngineFrame(tab, host);
+    };
+  }
+}
+async function healTransportFault(url) {
+  const real = unwrapProxyUrl(url) || url || "";
+  const key = real || String(url || "");
+  if (!key || faultGaveUp.has(key)) return;
+  const count = (transportFaults.get(key) || 0) + 1;
+  transportFaults.set(key, count);
+  const tab = tabForFault(url);
+  if (tab) {
+    try {
+      const el = tab.engineFrame && (tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame);
+      if (el && el.contentDocument) wipeHyperDump(el.contentDocument);
+    } catch (err) {}
+    showPageLoader(tab);
+  }
+  if (count > 3) {
+    faultGaveUp.add(key);
+    showSoftNavFail(tab);
+    return;
+  }
+  settings.transport = "libcurl";
+  settings.transportMigratedV3 = true;
+  if (count > 1) rotateWisp();
+  try { save(); } catch (err) {}
+  try { await applyMuxTransport(); } catch (err) {
+    console.warn("[veil] heal transport", err);
+  }
+  if (tab && tab.engineFrame && tab.url) {
+    tab.__veilHyperRetryUrl = tab.url;
+    const frame = tab.engineFrame;
+    try {
+      if (typeof frame.go === "function") await frame.go(tab.url);
+      else if (typeof frame.navigate === "function") await frame.navigate(tab.url);
+      return;
+    } catch (err) {}
+  }
+  const encoded = real ? encodeURIComponent(real) : "";
+  document.querySelectorAll("iframe.engine-frame").forEach(el => {
+    let src = "";
+    try { src = el.src || ""; } catch (err) { return; }
+    if (encoded && src.indexOf(encoded) === -1 && src !== url) return;
+    try { el.src = src; } catch (err) {}
+  });
+}
+function onTransportFault(url) {
+  const key = unwrapProxyUrl(url) || url || "";
+  if (!key || faultGaveUp.has(key)) return;
+  const now = Date.now();
+  if (now - (faultCooldown.get(key) || 0) < 1200) return;
+  faultCooldown.set(key, now);
+  healTransportFault(key).catch(() => {});
+}
+function scanHyperDumps(win, depth) {
+  if (!win || depth > 5) return;
+  let doc = null;
+  try { doc = win.document; } catch (err) { return; }
+  if (!doc || !doc.body) return;
+  let marked = null;
+  try { marked = doc.getElementById("errorTrace"); } catch (err) {}
+  if ((doc.title === "Scramjet" || marked) && looksLikeHyperDump(marked && marked.value || doc.body.innerText || "")) {
+    wipeHyperDump(doc);
+    let href = "";
+    try { href = win.location && win.location.href || ""; } catch (err) {}
+    onTransportFault(href);
+    return;
+  }
+  let frames = [];
+  try { frames = doc.querySelectorAll("iframe"); } catch (err) { frames = []; }
+  frames.forEach(frame => {
+    try { scanHyperDumps(frame.contentWindow, depth + 1); } catch (err) {}
+  });
+}
+setInterval(() => {
+  try { scanHyperDumps(window, 0); } catch (err) {}
+}, 250);
+if (navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener("message", ev => {
+    const data = ev && ev.data;
+    if (data && data.type === "veil-transport-fault") onTransportFault(data.url);
+  });
+}
 function armFrameErrorWatch(raw, tab) {
   if (!raw || !tab) return;
   const attach = () => {
@@ -1818,7 +1966,9 @@ function armFrameErrorWatch(raw, tab) {
     if (!win || win.__veilErrWatch) return;
     win.__veilErrWatch = true;
     const take = msg => {
-      if (/Hyper client|http2 error|PROTOCOL_ERROR/i.test(String(msg || ""))) recoverFrameTransport(tab, msg);
+      if (looksLikeHyperDump(String(msg || "")) || /Hyper client|PROTOCOL_ERROR|http2 error/i.test(String(msg || ""))) {
+        onTransportFault(tab && tab.url);
+      }
     };
     try {
       win.addEventListener("error", ev => take(ev && (ev.message || ev.error)));
@@ -1841,28 +1991,18 @@ window.addEventListener("error", ev => {
   const msg = String(ev && (ev.message || ev.error) || "");
   if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(msg)) return;
   const tab = typeof getActiveTab === "function" ? getActiveTab() : null;
-  if (tab) recoverFrameTransport(tab, msg);
+  if (tab) onTransportFault(tab.url);
 });
 window.addEventListener("unhandledrejection", ev => {
   const msg = String(ev && ev.reason || "");
   if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(msg)) return;
   const tab = typeof getActiveTab === "function" ? getActiveTab() : null;
-  if (tab) recoverFrameTransport(tab, msg);
+  if (tab) onTransportFault(tab.url);
 });
 async function recoverFrameTransport(tab, message) {
   if (!tab || !tab.url) return;
   if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(String(message || ""))) return;
-  if (tab.__veilHyperRetryUrl === tab.url) return;
-  tab.__veilHyperRetryUrl = tab.url;
-  settings.transport = "libcurl";
-  try { save(); } catch (err) {}
-  try {
-    await applyMuxTransport();
-    const frame = tab.engineFrame;
-    if (!frame) return;
-    if (typeof frame.go === "function") await frame.go(tab.url);
-    else if (typeof frame.navigate === "function") await frame.navigate(tab.url);
-  } catch (err) {}
+  onTransportFault(tab.url);
 }
 async function goFrame(value2, extra) {
   const btn = value2.engineFrame;
@@ -1927,6 +2067,14 @@ async function goFrame(value2, extra) {
       return;
     }
     console.warn("[veil] navigation transport error, switching server...", tab);
+    if (/Hyper client|http2 error|PROTOCOL_ERROR|hyper_util::client/i.test(tab)) {
+      try {
+        const ratio = btn.element || btn.frame || btn;
+        if (ratio && ratio.contentDocument) wipeHyperDump(ratio.contentDocument);
+      } catch (err) {}
+      onTransportFault(extra);
+      return;
+    }
     if (value2.__veilHyperRetryUrl === extra) {
       finishPageLoader(value2);
       return;
