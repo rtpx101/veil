@@ -10,6 +10,30 @@ const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
 const PROXY_PREFIX = BASE + "/service/";
 const ORIGIN = self.location.origin;
+let adblockEnabled = false;
+
+const AD_HOSTS = new Set([
+  "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+  "adservice.google.com", "adnxs.com", "adsystem.com", "advertising.com",
+  "amazon-adsystem.com", "taboola.com", "outbrain.com", "criteo.com",
+  "pubmatic.com", "rubiconproject.com", "openx.net", "adsafeprotected.com",
+  "moatads.com", "scorecardresearch.com", "quantserve.com", "adform.net",
+  "adsrvr.org", "casalemedia.com", "contextweb.com", "lijit.com",
+  "media.net", "smartadserver.com", "yieldmo.com", "zemanta.com"
+]);
+
+function isAdUrl(urlStr) {
+  if (!adblockEnabled || !urlStr) return false;
+  try {
+    const u = new URL(urlStr);
+    const host = u.hostname.toLowerCase();
+    for (const domain of AD_HOSTS) {
+      if (host === domain || host.endsWith("." + domain)) return true;
+    }
+    if (/\/ads?\/|\/advert|\/banner|doubleclick|googlesyndication|pagead/i.test(u.pathname + u.search)) return true;
+  } catch (err) {}
+  return false;
+}
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -401,6 +425,17 @@ async function proxyFetchInner(event) {
     const status = method === "GET" || method === "HEAD" ? 302 : 307;
     return Response.redirect(ORIGIN + PROXY_PREFIX + encodeURIComponent(real), status);
   }
+  let target = "";
+  try {
+    const rest = url.pathname.slice(PROXY_PREFIX.length);
+    target = decodeURIComponent(rest);
+  } catch (err) {}
+  if (isAdUrl(target)) {
+    return new Response("", {
+      status: 204,
+      headers: { "cache-control": "no-store" }
+    });
+  }
   await installCodec();
   if (!configLooksUsable(scramjet.config)) {
     return new Response("Veil could not open this page.", {
@@ -418,6 +453,9 @@ self.addEventListener("message", (event) => {
     if (!(codecReady && configLooksUsable(scramjet.config))) {
       event.waitUntil(installCodec().catch(() => {}));
     }
+  }
+  if (data.type === "veil-adblock") {
+    adblockEnabled = !!data.enabled;
   }
 });
 

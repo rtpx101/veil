@@ -435,7 +435,7 @@ function libcurlFactoryBody(moduleUrl) {
     "          } else {\n            returned_data = full_data;\n          }",
     "          } else if (full_data.length) {\n            returned_data = full_data;\n          }"
   ]];
-  return "const res = await fetch(" + JSON.stringify(moduleUrl) + ");\nif (!res.ok) throw new Error(\"Could not load libcurl\");\nlet src = await res.text();\nconst patches = " + JSON.stringify(patches) + ";\nfor (const pair of patches) {\n  if (src.indexOf(pair[0]) === -1) continue;\n  src = src.replace(pair[0], pair[1]);\n}\nconst blobUrl = URL.createObjectURL(new Blob([src], { type: \"text/javascript\" }));\nconst mod = await import(blobUrl);\nreturn [mod.default, \"libcurl-ws\"];\n";
+  return "const res = await fetch(" + JSON.stringify(moduleUrl) + ");\nif (!res.ok) throw new Error(\"Could not load libcurl\");\nlet src = await res.text();\nconst patches = " + JSON.stringify(patches) + ";\nlet applied = 0;\nfor (const pair of patches) {\n  if (src.indexOf(pair[0]) === -1) {\n    throw new Error(\"libcurl patch no longer matches upstream. First 80 chars: \" + pair[0].slice(0, 80));\n  }\n  src = src.replace(pair[0], pair[1]);\n  applied++;\n}\nif (applied !== patches.length) throw new Error(\"libcurl patches incomplete\");\nconst blobUrl = URL.createObjectURL(new Blob([src], { type: \"text/javascript\" }));\nconst mod = await import(blobUrl);\nreturn [mod.default, \"libcurl-ws\"];\n";
 }
 async function applyMuxTransport() {
   await useWorkingWisp();
@@ -6781,7 +6781,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=45";
+  link.href = BASE + "/veilos.css?v=46";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6792,7 +6792,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=45";
+  script.src = BASE + "/veilos.js?v=46";
   script.onload = () => {
     jsReady = true;
     tryStart();
