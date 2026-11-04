@@ -1005,7 +1005,13 @@ html[data-mode="light"] .vos-startitem img{filter:none}
 @keyframes vosIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes vosBar{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-@media (prefers-reduced-motion:reduce){
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
   .vos-icon,.vos-taskbar,.vos-taskbtn,.vos-win,.vos-glyph,.vos-ctl,.vos-startmenu,
   .vos-rise,.vos-preview,.vos-calc-out,.vos-time-read,.vos-laps div,.vos-pop,
   .vos-as-row,.vos-as-card,.vos-store-detail,.vos-note textarea,.vos-note-tab,.vos-edit-tab,.vos-panel,.vos-note-sheet,

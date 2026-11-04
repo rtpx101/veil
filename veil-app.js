@@ -6792,7 +6792,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=44";
+  script.src = BASE + "/veilos.js?v=45";
   script.onload = () => {
     jsReady = true;
     tryStart();
