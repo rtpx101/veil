@@ -6312,6 +6312,7 @@ Several C libraries are used, and their licenses are listed below:
       api.events.addEventListener("libcurl_abort", (event) => {
         reject(event.detail);
       }, { once: true });
+      if (wasm_ready) resolve();
     });
   }
   Module.onRuntimeInitialized = main;
@@ -6400,25 +6401,17 @@ var LibcurlClient = class {
   async init() {
     if (this.transport)
       libcurl.transport = this.transport;
+    if (!libcurl.ready) {
+      const pending = libcurl.load_wasm();
+      if (pending) await pending;
+    }
     libcurl.set_websocket(this.wisp);
     this.session = new libcurl.HTTPSession({
       proxy: this.proxy
     });
     if (this.connections)
       this.session.set_connections(...this.connections);
-    this.ready = libcurl.ready;
-    if (this.ready) {
-      console.log("running libcurl.js v" + libcurl.version.lib);
-      return;
-    }
-    ;
-    await new Promise((resolve, reject) => {
-      libcurl.onload = () => {
-        console.log("loaded libcurl.js v" + libcurl.version.lib);
-        this.ready = true;
-        resolve(null);
-      };
-    });
+    this.ready = true;
   }
   ready = false;
   async meta() {
