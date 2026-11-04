@@ -2182,8 +2182,8 @@ const SETTINGS_INFO = {
     body: "Signs you out on this device. You will need to log in again next time."
   },
   cleardata: {
-    title: "Clear cookies & cache",
-    body: "Clears saved data on this device and signs you out. Use if something is stuck."
+    title: "Clear local data",
+    body: "Clears Veil’s saved settings, history, bookmarks, and cookies on this device, then signs you out. Does not delete your account."
   },
   reset: {
     title: "Factory reset",
@@ -2948,6 +2948,7 @@ function openPanel(value) {
     } catch {}
     try {
       fillChatSettings();
+      fillDesktopSettings();
     } catch (err) {}
   }
 }
@@ -4046,6 +4047,10 @@ function profileAvatarSrc() {
   }
 }
 function paintProfilePreview() {
+  const newUsername = document.getElementById("newUsername");
+  if (newUsername && document.activeElement !== newUsername && !newUsername.value) {
+    newUsername.value = (profile && profile.name) || "";
+  }
   const profilePreview = document.getElementById("profilePreview");
   if (!profilePreview) {
     return;
@@ -4405,6 +4410,7 @@ function applyCloak() {
   save();
 }
 function resetSettings() {
+  if (!confirm("Factory reset theme, wallpaper, proxy, and all other browser settings to defaults?\n\nThis cannot be undone.")) return;
   settings = Object.assign({}, DEFAULT_SETTINGS);
   panic = Object.assign({}, DEFAULT_PANIC);
   cloak = {
@@ -5076,6 +5082,7 @@ async function syncChatFromAccount() {
       }
       try {
         fillChatSettings();
+      fillDesktopSettings();
       } catch (err) {}
       refreshChatIfOpen();
       return;
@@ -5101,6 +5108,7 @@ async function syncChatFromAccount() {
     }
     try {
       fillChatSettings();
+      fillDesktopSettings();
     } catch (err) {}
     refreshChatIfOpen();
   })().finally(() => {
@@ -6132,6 +6140,8 @@ function fillChatSettings() {
     chatAdminRow.hidden = !isChatAdmin();
   }
   setSwitch(document.getElementById("chatAdminSwitch"), !!invite.adminMode && isChatAdmin());
+  const adminPanelRow = document.getElementById("adminPanelRow");
+  if (adminPanelRow) adminPanelRow.hidden = !isChatAdmin();
 }
 on("menuBtn", value => {
   value.stopPropagation();
@@ -6771,7 +6781,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=44";
+  link.href = BASE + "/veilos.css?v=45";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6782,7 +6792,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=43";
+  script.src = BASE + "/veilos.js?v=44";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8127,6 +8137,7 @@ document.getElementById("chatPfpFile")?.addEventListener("change", value2 => {
     res.pfp = value;
     saveChatProfile(res);
     fillChatSettings();
+      fillDesktopSettings();
     pushChatPresence();
   }).catch(() => chatToast("Could not use that picture", "bad"));
 });
@@ -8159,6 +8170,7 @@ on("chatPfpClear", () => {
   extra.pfp = "";
   saveChatProfile(extra);
   fillChatSettings();
+      fillDesktopSettings();
 });
 on("signOutBtn", () => {
   closePanels();
