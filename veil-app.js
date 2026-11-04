@@ -41,9 +41,9 @@ const SCRAMJET_FILES = {
 const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
 const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=3";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
-const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs";
+const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=2";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=5";
+const SW_URL = BASE + "/sw.js?v=6";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {

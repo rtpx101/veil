@@ -239,12 +239,72 @@ function softenDocumentHeaders(res, dest) {
   if (!ok) raw[ctKey] = Array.isArray(value) ? ["text/html; charset=utf-8"] : "text/html; charset=utf-8";
 }
 
+function pointsAtProxy(value) {
+  if (!value) return false;
+  const text = String(value);
+  try {
+    const url = new URL(text, ORIGIN);
+    if (url.origin === ORIGIN) return true;
+    if (/github\.io$/i.test(url.hostname) && url.pathname.indexOf("/service/") !== -1) return true;
+  } catch (err) {
+    return text.indexOf(ORIGIN) !== -1 || text.indexOf(PROXY_PREFIX) !== -1;
+  }
+  return false;
+}
+
+/* The browser's request is to this origin, so it carries Veil's cookies,
+   Referer, Origin, and Chromium client hints. Scramjet copies those onto
+   the real request. A site treats that as a modified browser. */
+function sanitizeOutbound(url, opts) {
+  const headers = opts && opts.headers;
+  if (!headers) return;
+  const edit = (name, value) => {
+    const key = String(name || "").toLowerCase();
+    const text = Array.isArray(value) ? value.join(", ") : String(value == null ? "" : value);
+    if (key === "host" || key === "forwarded" || key === "x-forwarded-for" || key === "x-real-ip" || key === "via" || key === "proxy-connection") return null;
+    if (key.indexOf("sec-ch-ua") === 0) return null;
+    if ((key === "referer" || key === "origin") && pointsAtProxy(text)) return null;
+    if (key === "cookie") {
+      const kept = text.split(";").map((part) => part.trim()).filter((part) => {
+        const cookieName = part.split("=")[0].trim().toLowerCase();
+        return cookieName && cookieName.indexOf("veil_") !== 0;
+      });
+      return kept.length ? kept.join("; ") : null;
+    }
+    return text;
+  };
+  if (typeof Headers !== "undefined" && headers instanceof Headers) {
+    const names = [];
+    headers.forEach((_, name) => names.push(name));
+    names.forEach((name) => {
+      const next = edit(name, headers.get(name));
+      if (next == null) headers.delete(name);
+      else headers.set(name, next);
+    });
+    return;
+  }
+  if (Array.isArray(headers)) {
+    for (let i = headers.length - 1; i >= 0; i--) {
+      const next = edit(headers[i][0], headers[i][1]);
+      if (next == null) headers.splice(i, 1);
+      else headers[i][1] = next;
+    }
+    return;
+  }
+  Object.keys(headers).forEach((name) => {
+    const next = edit(name, headers[name]);
+    if (next == null) delete headers[name];
+    else headers[name] = next;
+  });
+}
+
 function patchProxyClient() {
   patchCookieStore();
   if (scramjet.client && typeof scramjet.client.fetch === "function" && !scramjet.client.fetch.__veilPatched) {
     const orig = scramjet.client.fetch.bind(scramjet.client);
     const wrapped = function (url, opts) {
       const dest = currentDest;
+      try { sanitizeOutbound(url, opts); } catch (err) {}
       return Promise.resolve(orig(url, opts)).then((res) => {
         try {
           const href = url && url.href ? url.href : String(url || "");

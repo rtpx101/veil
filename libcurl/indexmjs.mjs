@@ -5902,8 +5902,11 @@ Several C libraries are used, and their licenses are listed below:
         headers = Object.fromEntries(headers);
       }
       params.headers = new HeadersDict(headers);
-      if (params.referrer) {
-        params.headers["Referer"] = params.referrer;
+      if (params.referrer && !params.headers["Referer"] && !params.headers["referer"]) {
+        try {
+          var refUrl = new URL(params.referrer, location.href);
+          if (refUrl.origin !== location.origin) params.headers["Referer"] = params.referrer;
+        } catch (e) {}
       }
       if (!params.headers["User-Agent"]) {
         params.headers["User-Agent"] = navigator.userAgent;
