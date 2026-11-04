@@ -15,23 +15,43 @@ let adblockEnabled = false;
 const AD_HOSTS = new Set([
   "doubleclick.net", "googlesyndication.com", "googleadservices.com",
   "adservice.google.com", "adnxs.com", "adsystem.com", "advertising.com",
-  "amazon-adsystem.com", "taboola.com", "outbrain.com", "criteo.com",
+  "amazon-adsystem.com", "adnxs.com", "taboola.com", "outbrain.com", "criteo.com",
   "pubmatic.com", "rubiconproject.com", "openx.net", "adsafeprotected.com",
   "moatads.com", "scorecardresearch.com", "quantserve.com", "adform.net",
   "adsrvr.org", "casalemedia.com", "contextweb.com", "lijit.com",
-  "media.net", "smartadserver.com", "yieldmo.com", "zemanta.com"
+  "media.net", "smartadserver.com", "yieldmo.com", "zemanta.com",
+  "adtechus.com", "ads.yahoo.com", "chartbeat.com", "krxd.net", "demdex.net",
+  "unityads.unity3d.com", "ads-api.twitter.com", "analytics.twitter.com"
 ]);
+
+const AD_BITS = [
+  "youtube.com/api/stats/ads",
+  "youtube.com/pagead",
+  "youtube.com/ptracking",
+  "youtube.com/get_midroll",
+  "facebook.com/tr/",
+  "facebook.com/ads",
+  "fbcdn.net/ads",
+  "graph.facebook.com/ads",
+  "graph.facebook.com/pixel",
+  "twitter.com/i/ads",
+  "/adserver/",
+  "/pagead/",
+  "/api/stats/ads"
+];
 
 function isAdUrl(urlStr) {
   if (!adblockEnabled || !urlStr) return false;
+  const text = String(urlStr).toLowerCase();
   try {
-    const u = new URL(urlStr);
-    const host = u.hostname.toLowerCase();
+    const host = new URL(urlStr).hostname.toLowerCase();
     for (const domain of AD_HOSTS) {
       if (host === domain || host.endsWith("." + domain)) return true;
     }
-    if (/\/ads?\/|\/advert|\/banner|doubleclick|googlesyndication|pagead/i.test(u.pathname + u.search)) return true;
   } catch (err) {}
+  for (let i = 0; i < AD_BITS.length; i++) {
+    if (text.indexOf(AD_BITS[i]) !== -1) return true;
+  }
   return false;
 }
 
@@ -239,6 +259,25 @@ function softenDocumentHeaders(res, dest) {
   if (!ok) raw[ctKey] = Array.isArray(value) ? ["text/html; charset=utf-8"] : "text/html; charset=utf-8";
 }
 
+function realUrlFromProxy(value) {
+  try {
+    let current = String(value || "");
+    for (let i = 0; i < 4; i++) {
+      if (!pointsAtProxy(current)) return /^https?:\/\//i.test(current) ? current : "";
+      const url = new URL(current, ORIGIN);
+      const at = url.pathname.indexOf("/service/");
+      if (at === -1) return "";
+      let rest = url.pathname.slice(at + "/service/".length) + url.search + url.hash;
+      try { rest = decodeURIComponent(rest); } catch (err) {}
+      if (!/^https?:\/\//i.test(rest)) return "";
+      current = rest;
+    }
+    return pointsAtProxy(current) ? "" : current;
+  } catch (err) {
+    return "";
+  }
+}
+
 function pointsAtProxy(value) {
   if (!value) return false;
   const text = String(value);
@@ -263,7 +302,14 @@ function sanitizeOutbound(url, opts) {
     const text = Array.isArray(value) ? value.join(", ") : String(value == null ? "" : value);
     if (key === "host" || key === "forwarded" || key === "x-forwarded-for" || key === "x-real-ip" || key === "via" || key === "proxy-connection") return null;
     if (key.indexOf("sec-ch-ua") === 0) return null;
-    if ((key === "referer" || key === "origin") && pointsAtProxy(text)) return null;
+    if ((key === "referer" || key === "origin") && pointsAtProxy(text)) {
+      const real = realUrlFromProxy(text);
+      if (!real) return null;
+      if (key === "origin") {
+        try { return new URL(real).origin; } catch (err) { return null; }
+      }
+      return real;
+    }
     if (key === "cookie") {
       const kept = text.split(";").map((part) => part.trim()).filter((part) => {
         const cookieName = part.split("=")[0].trim().toLowerCase();
@@ -481,55 +527,89 @@ function recoverDocument() {
   });
 }
 
-async function notifyTransportFault(proxyUrl, detail) {
+async function notifyTransportFault(proxyUrl, detail, reason) {
   try {
     const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     list.forEach((client) => {
       client.postMessage({
         type: "veil-transport-fault",
         url: proxyUrl,
+        reason: reason || "hyper",
         detail: String(detail || "").slice(0, 240)
       });
     });
   } catch (err) {}
 }
 
-/* Epoxy's Hyper stack resets HTTP/2 streams with PROTOCOL_ERROR and Scramjet
-   turns that into an error page. Retry a navigation once, then hand back a
-   blank document so the page can switch to Libcurl. Never return the dump. */
+let transportFails = 0;
+
+function failureKind(res, dest, text) {
+  const type = (res && res.headers && res.headers.get("content-type") || "").toLowerCase();
+  const status = res ? res.status : 0;
+  if (isHyperFault(text) || isHyperFault(res && res.statusText)) return "hyper";
+  if (status === 408 || status === 425 || status === 502 || status === 503 || status === 504) return "hyper";
+  if (status === 500 && (type.indexOf("text/html") === -1 || text.length < 40)) return "hyper";
+  const media = dest === "image" || dest === "media" || dest === "video" || dest === "audio";
+  if (media && (status === 403 || status === 429 || type.indexOf("text/html") !== -1)) return "blocked";
+  return "";
+}
+
+/* A bad image response is usually a reset or a block page, not a missing file.
+   Retry it, and only then ask the page to change route. One failure must not
+   reload the tab. */
 async function fetchProxied(event) {
   const method = event.request.method || "GET";
+  const dest = event.request.destination || "";
   const canRetry = method === "GET" || method === "HEAD";
-  const attempts = canRetry ? 2 : 1;
+  const attempts = canRetry ? 3 : 1;
+  let lastRes = null;
   let lastText = "";
+  let kind = "";
   for (let i = 0; i < attempts; i++) {
-    let res = null;
     try {
-      res = await scramjet.fetch(event);
-    } catch (err) {
-      const msg = String(err && (err.stack || err.message) || err);
-      if (!isHyperFault(msg) && !isHyperFault(lastText)) throw err;
-      lastText = msg || lastText;
+      const res = await scramjet.fetch(event);
+      if (!res) return res;
+      let text = "";
+      const type = (res.headers.get("content-type") || "").toLowerCase();
+      if (res.status === 500 && type.indexOf("text/html") !== -1) {
+        try { text = await res.clone().text(); } catch (err) {}
+      }
+      const why = failureKind(res, dest, text);
+      if (!why) {
+        transportFails = 0;
+        return res;
+      }
+      lastRes = res;
+      lastText = text;
+      kind = why;
       if (i + 1 < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 250 * (i + 1)));
         continue;
       }
-      break;
-    }
-    if (!res) return res;
-    const type = (res.headers.get("content-type") || "").toLowerCase();
-    if (res.status !== 500 || type.indexOf("text/html") === -1) return res;
-    let text = "";
-    try { text = await res.clone().text(); } catch (err) { return res; }
-    if (!isHyperFault(text)) return res;
-    lastText = text;
-    if (i + 1 < attempts) {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      continue;
+    } catch (err) {
+      const msg = String(err && (err.stack || err.message) || err);
+      if (!/connect|eof|handshake|reset|hyper|protocol_error|http2|timed?\s*out|network|curl error/i.test(msg)) throw err;
+      lastText = msg;
+      kind = "hyper";
+      if (i + 1 < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 300 * (i + 1)));
+        continue;
+      }
     }
   }
-  await notifyTransportFault(event.request.url, lastText);
-  return recoverDocument();
+  transportFails += 1;
+  if (transportFails >= 2) {
+    transportFails = 0;
+    await notifyTransportFault(event.request.url, lastText, kind || "hyper");
+  }
+  if ((dest === "document" || dest === "iframe") && (kind === "hyper" || isHyperFault(lastText))) return recoverDocument();
+  if (dest === "image" || dest === "media" || dest === "video" || dest === "audio") {
+    return new Response(null, { status: 502, headers: { "cache-control": "no-store" } });
+  }
+  return lastRes || new Response("Veil could not open this page.", {
+    status: 502,
+    headers: { "content-type": "text/plain", "cache-control": "no-store" }
+  });
 }
 
 async function proxyFetch(event) {

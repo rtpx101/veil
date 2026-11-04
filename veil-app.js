@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=3";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=2";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=6";
+const SW_URL = BASE + "/sw.js?v=7";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -1837,10 +1837,13 @@ const faultCooldown = new Map();
 const faultGaveUp = new Set();
 function clearTransportFault(url) {
   const key = unwrapProxyUrl(url) || url || "";
-  if (!key) return;
-  transportFaults.delete(key);
-  faultCooldown.delete(key);
-  faultGaveUp.delete(key);
+  if (key) {
+    transportFaults.delete(key);
+    faultCooldown.delete(key);
+    faultGaveUp.delete(key);
+  }
+  transportFaults.delete("transport");
+  faultGaveUp.delete("transport");
 }
 function wipeHyperDump(doc) {
   try {
@@ -1878,13 +1881,17 @@ function showSoftNavFail(tab) {
     };
   }
 }
-async function healTransportFault(url) {
+async function healTransportFault(url, reason) {
   const real = unwrapProxyUrl(url) || url || "";
   const key = real || String(url || "");
-  if (!key || faultGaveUp.has(key)) return;
-  const count = (transportFaults.get(key) || 0) + 1;
-  transportFaults.set(key, count);
-  const tab = tabForFault(url);
+  if (!key || faultGaveUp.has("transport")) return;
+  const count = (transportFaults.get("transport") || 0) + 1;
+  transportFaults.set("transport", count);
+  let tab = tabForFault(url);
+  if (!tab && typeof getActiveTab === "function") {
+    const active = getActiveTab();
+    if (active && active.url && !active.newTab && !active.isGames && !active.isAdmin && !active.isChat) tab = active;
+  }
   if (tab) {
     try {
       const el = tab.engineFrame && (tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame);
@@ -1893,13 +1900,13 @@ async function healTransportFault(url) {
     showPageLoader(tab);
   }
   if (count > 3) {
-    faultGaveUp.add(key);
-    showSoftNavFail(tab);
+    faultGaveUp.add("transport");
+    if (reason !== "blocked") showSoftNavFail(tab);
     return;
   }
   settings.transport = "libcurl";
   settings.transportMigratedV3 = true;
-  if (count > 1) rotateWisp();
+  if (reason === "blocked" || count > 1) rotateWisp();
   try { save(); } catch (err) {}
   try { await applyMuxTransport(); } catch (err) {
     console.warn("[veil] heal transport", err);
@@ -1913,21 +1920,20 @@ async function healTransportFault(url) {
       return;
     } catch (err) {}
   }
-  const encoded = real ? encodeURIComponent(real) : "";
   document.querySelectorAll("iframe.engine-frame").forEach(el => {
     let src = "";
     try { src = el.src || ""; } catch (err) { return; }
-    if (encoded && src.indexOf(encoded) === -1 && src !== url) return;
+    if (!src || src === "about:blank") return;
     try { el.src = src; } catch (err) {}
   });
 }
-function onTransportFault(url) {
-  const key = unwrapProxyUrl(url) || url || "";
-  if (!key || faultGaveUp.has(key)) return;
+let lastTransportHeal = 0;
+function onTransportFault(url, reason) {
   const now = Date.now();
-  if (now - (faultCooldown.get(key) || 0) < 1200) return;
-  faultCooldown.set(key, now);
-  healTransportFault(key).catch(() => {});
+  if (faultGaveUp.has("transport")) return;
+  if (now - lastTransportHeal < 2000) return;
+  lastTransportHeal = now;
+  healTransportFault(url, reason || "hyper").catch(() => {});
 }
 function scanHyperDumps(win, depth) {
   if (!win || depth > 5) return;
@@ -1955,7 +1961,7 @@ setInterval(() => {
 if (navigator.serviceWorker) {
   navigator.serviceWorker.addEventListener("message", ev => {
     const data = ev && ev.data;
-    if (data && data.type === "veil-transport-fault") onTransportFault(data.url);
+    if (data && data.type === "veil-transport-fault") onTransportFault(data.url, data.reason);
   });
 }
 function armFrameErrorWatch(raw, tab) {
