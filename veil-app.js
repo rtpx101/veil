@@ -39,11 +39,11 @@ const SCRAMJET_FILES = {
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
 const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
-const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=3";
+const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=7";
+const SW_URL = BASE + "/sw.js?v=8";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -352,6 +352,12 @@ async function initEngine() {
         console.warn("DB check failed", err);
       }
       paintEngineStatus();
+      setBootLine("Starting proxy…");
+      await navigator.serviceWorker.register(SW_URL, {
+        scope: SW_SCOPE,
+        updateViaCache: "none"
+      });
+      await navigator.serviceWorker.ready;
       const tab = typeof window.$scramjetLoadController === "function" ? window.$scramjetLoadController() : null;
       const frame = tab && tab.ScramjetController || window.ScramjetController;
       if (typeof frame !== "function") {
@@ -375,42 +381,20 @@ async function initEngine() {
       } catch (err) {
         if (String(err.message || err).includes("object stores") || String(err.message || err).includes("IDBDatabase")) {
           console.warn("IDB error, force-clear and retry");
-          try {
-            indexedDB.deleteDatabase("$scramjet");
-          } catch {}
+          try { indexedDB.deleteDatabase("$scramjet"); } catch (e) {}
           await new Promise(value => setTimeout(value, 400));
           await engineController.init();
         } else {
           throw err;
         }
       }
-      paintEngineStatus();
-      setBootLine("Starting proxy…");
-      await navigator.serviceWorker.register(SW_URL, {
-        scope: SW_SCOPE,
-        updateViaCache: "none"
-      });
-      const registration = await navigator.serviceWorker.ready;
-      try {
-        if (registration && registration.update) registration.update();
-      } catch (err) {}
-      try {
-        await pushScramjetConfig();
-      } catch (err) {}
+      try { await pushScramjetConfig(); } catch (err) {}
       paintEngineStatus();
       setBootLine("Connecting server…");
-      const transportReady = applyMuxTransport().catch((err) => {
-        console.warn("[veil] transport", err);
-      });
-      await Promise.race([
-        transportReady,
-        new Promise((resolve) => setTimeout(resolve, 20000))
-      ]);
+      await applyMuxTransport();
       engineReady = true;
       paintEngineStatus();
-      try {
-        pushAdblockToSW();
-      } catch (err) {}
+      try { pushAdblockToSW(); } catch (err) {}
     } catch (err) {
       console.error(err);
       engineReady = false;
@@ -421,50 +405,12 @@ async function initEngine() {
   })();
   return engineInitPromise;
 }
-function libcurlFactoryBody(moduleUrl) {
-  const patches = [[
-    "      } else if (result_code === 0 && result_closed) {\n        this.cleanup();\n      } else if (result_code !== 81) {\n        this.cleanup(result_code);\n      }\n      _free(data_ptr);\n      _free(result_ptr);\n      return returned_data;",
-    "      } else if (result_code === 0 && result_closed) {\n        let close_size = 0;\n        let close_code = 1000;\n        let close_reason = \"\";\n        let close_bytes = null;\n        try {\n          close_size = _get_result_size(result_ptr) || 0;\n          if (close_size > 0 && data_ptr) close_bytes = new Uint8Array(Module.HEAPU8.subarray(data_ptr, data_ptr + close_size));\n        } catch (e) {}\n        let looks_close = close_size === 0;\n        if (close_bytes && close_size >= 2 && close_size <= 125) {\n          close_code = (close_bytes[0] << 8) | close_bytes[1];\n          looks_close = close_code >= 1000 && close_code <= 1014 && close_code !== 1004 && close_code !== 1005 && close_code !== 1006 && close_code !== 1015 || close_code >= 3000 && close_code <= 4999;\n          if (looks_close && close_size > 2) {\n            try { close_reason = new TextDecoder().decode(close_bytes.subarray(2)); } catch (e) {}\n          }\n        }\n        if (looks_close) {\n          this._veilClose = { code: close_code, reason: close_reason };\n          this.cleanup();\n        } else if (close_bytes && close_bytes.length) {\n          this.recv_buffer.push(close_bytes);\n          let full_data = merge_arrays(this.recv_buffer);\n          this.recv_buffer = [];\n          returned_data = full_data;\n        } else {\n          this._veilClose = { code: 1000, reason: \"\" };\n          this.cleanup();\n        }\n      } else if (result_code !== 81) {\n        this.cleanup(result_code);\n      }\n      _free(data_ptr);\n      _free(result_ptr);\n      return returned_data;"
-  ], [
-    "        this.onerror(error);\n      } else {\n        this.onclose();\n      }",
-    "        this.onerror(error);\n      } else {\n        let info = this._veilClose || { code: 1000, reason: \"\" };\n        this._veilClose = null;\n        this.onclose(info);\n      }"
-  ], [
-    "      this.socket.onclose = () => {\n        this.status = this.CLOSED;\n        let close_event = new CloseEvent(\"close\");\n        this.dispatchEvent(close_event);\n        this.onclose(close_event);\n      };",
-    "      this.socket.onclose = (info) => {\n        this.status = this.CLOSED;\n        let code = info && typeof info.code === \"number\" ? info.code : 1000;\n        let reason = info && typeof info.reason === \"string\" ? info.reason : \"\";\n        if (!(code >= 1000 && code <= 4999) || code === 1004 || code === 1005 || code === 1006 || code === 1015) code = 1000;\n        let close_event = new CloseEvent(\"close\", { code: code, reason: reason, wasClean: code === 1000 });\n        this.dispatchEvent(close_event);\n        this.onclose(close_event);\n      };"
-  ], [
-    "          } else {\n            returned_data = full_data;\n          }",
-    "          } else if (full_data.length) {\n            returned_data = full_data;\n          }"
-  ]];
-  return "const res = await fetch(" + JSON.stringify(moduleUrl) + ");\nif (!res.ok) throw new Error(\"Could not load libcurl\");\nlet src = await res.text();\nconst patches = " + JSON.stringify(patches) + ";\nlet applied = 0;\nfor (const pair of patches) {\n  if (src.indexOf(pair[0]) === -1) {\n    throw new Error(\"libcurl patch no longer matches upstream. First 80 chars: \" + pair[0].slice(0, 80));\n  }\n  src = src.replace(pair[0], pair[1]);\n  applied++;\n}\nif (applied !== patches.length) throw new Error(\"libcurl patches incomplete\");\nconst blobUrl = URL.createObjectURL(new Blob([src], { type: \"text/javascript\" }));\nconst mod = await import(blobUrl);\nreturn [mod.default, \"libcurl-ws\"];\n";
-}
 async function applyMuxTransport() {
-  await useWorkingWisp();
-  const index = currentWisp();
+  const wisp = currentWisp();
   const entry = transportModule();
-  const wanted = settings.transport;
   muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-  try {
-    if (entry === LIBCURL_MODULE) {
-      await muxConnection.setManualTransport(libcurlFactoryBody(entry), [{
-        wisp: index
-      }]);
-    } else {
-      await muxConnection.setTransport(entry, [{
-        wisp: index
-      }]);
-    }
-    return entry;
-  } catch (err) {
-    console.warn("[veil] transport failed", err);
-    if (wanted === "libcurl") throw err;
-    muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-    await muxConnection.setManualTransport(libcurlFactoryBody(LIBCURL_MODULE), [{
-      wisp: index
-    }]);
-    settings.transport = "libcurl";
-    try { save(); } catch (e) {}
-    return LIBCURL_MODULE;
-  }
+  await muxConnection.setTransport(entry, [{ wisp: wisp, websocket: wisp }]);
+  return entry;
 }
 async function reconnectTransport() {
   try {
@@ -1928,12 +1874,28 @@ async function healTransportFault(url, reason) {
   });
 }
 let lastTransportHeal = 0;
-function onTransportFault(url, reason) {
-  const now = Date.now();
-  if (faultGaveUp.has("transport")) return;
-  if (now - lastTransportHeal < 2000) return;
-  lastTransportHeal = now;
-  healTransportFault(url, reason || "hyper").catch(() => {});
+function onTransportFault() {}
+async function goFrame(value2, extra) {
+  const btn = value2.engineFrame;
+  if (!btn || !extra) {
+    return;
+  }
+  extra = unwrapProxyUrl(extra) || extra;
+  value2.url = extra;
+  value2.title = "Loading";
+  showPageLoader(value2);
+  try { renderTabs(); } catch (err) {}
+  try {
+    if (typeof btn.go === "function") await btn.go(extra);
+    else if (typeof btn.navigate === "function") await btn.navigate(extra);
+    else {
+      const part = btn.element || btn.frame || btn;
+      if (part instanceof HTMLIFrameElement) part.src = SCRAMJET_PREFIX + encodeURIComponent(extra);
+    }
+  } catch (err) {
+    console.warn("[veil] navigation", err);
+    finishPageLoader(value2);
+  }
 }
 function scanHyperDumps(win, depth) {
   if (!win || depth > 5) return;
@@ -1955,9 +1917,6 @@ function scanHyperDumps(win, depth) {
     try { scanHyperDumps(frame.contentWindow, depth + 1); } catch (err) {}
   });
 }
-setInterval(() => {
-  try { scanHyperDumps(window, 0); } catch (err) {}
-}, 250);
 if (navigator.serviceWorker) {
   navigator.serviceWorker.addEventListener("message", ev => {
     const data = ev && ev.data;
@@ -1992,117 +1951,6 @@ function armFrameErrorWatch(raw, tab) {
     attach();
     if (n > 40) clearInterval(timer);
   }, 500);
-}
-window.addEventListener("error", ev => {
-  const msg = String(ev && (ev.message || ev.error) || "");
-  if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(msg)) return;
-  const tab = typeof getActiveTab === "function" ? getActiveTab() : null;
-  if (tab) onTransportFault(tab.url);
-});
-window.addEventListener("unhandledrejection", ev => {
-  const msg = String(ev && ev.reason || "");
-  if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(msg)) return;
-  const tab = typeof getActiveTab === "function" ? getActiveTab() : null;
-  if (tab) onTransportFault(tab.url);
-});
-async function recoverFrameTransport(tab, message) {
-  if (!tab || !tab.url) return;
-  if (!/Hyper client|http2 error|PROTOCOL_ERROR/i.test(String(message || ""))) return;
-  onTransportFault(tab.url);
-}
-async function goFrame(value2, extra) {
-  const btn = value2.engineFrame;
-  if (!btn || !extra) {
-    return;
-  }
-  extra = unwrapProxyUrl(extra) || extra;
-  value2.url = extra;
-  if (/youtube\.com|youtu\.be|googlevideo\.com/i.test(extra) && settings.transport !== "libcurl") {
-    settings.transport = "libcurl";
-    settings.transportMigratedV3 = true;
-    try { save(); } catch (err) {}
-    try { await applyMuxTransport(); } catch (err) {}
-  }
-  value2.title = "Loading";
-  showPageLoader(value2);
-  try {
-    renderTabs();
-  } catch {}
-  const html = async value => {
-    const panic2 = value || extra;
-    if (typeof btn.go === "function") {
-      await btn.go(panic2);
-    } else if (typeof btn.navigate === "function") {
-      await btn.navigate(panic2);
-    } else {
-      const part = btn.element || btn.frame || btn;
-      if (part instanceof HTMLIFrameElement) {
-        part.src = SCRAMJET_PREFIX + encodeURIComponent(panic2);
-      }
-    }
-  };
-  const cls = value => /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|websocket did not open|tls handshake|UnexpectedEof|Hyper client|http2 error|PROTOCOL_ERROR|client error \(IO|SSL connect error|curl error 35/i.test(value);
-  const style = () => {
-    try {
-      const ratio = btn.element || btn.frame || btn;
-      const speed = ratio && ratio.contentDocument && ratio.contentDocument.body ? ratio.contentDocument.body.innerText : "";
-      return cls(speed);
-    } catch (err) {
-      return false;
-    }
-  };
-  try {
-    const frameEl = btn.element || btn.frame || btn;
-    armFrameErrorWatch(frameEl, value2);
-    await html(extra);
-    let broke = "";
-    for (let pass = 0; pass < 8; pass++) {
-      await new Promise(value => setTimeout(value, 250));
-      try {
-        const ratio = btn.element || btn.frame || btn;
-        const speed = ratio && ratio.contentDocument && ratio.contentDocument.body ? ratio.contentDocument.body.innerText : "";
-        if (cls(speed)) broke = String(speed).slice(0, 280);
-      } catch (err) {}
-      if (broke) break;
-    }
-    if (broke) throw new Error(broke);
-  } catch (err2) {
-    const tab = String(err2 && err2.message || err2);
-    if (!cls(tab) && !style()) {
-      console.warn(err2);
-      return;
-    }
-    console.warn("[veil] navigation transport error, switching server...", tab);
-    if (/Hyper client|http2 error|PROTOCOL_ERROR|hyper_util::client/i.test(tab)) {
-      try {
-        const ratio = btn.element || btn.frame || btn;
-        if (ratio && ratio.contentDocument) wipeHyperDump(ratio.contentDocument);
-      } catch (err) {}
-      onTransportFault(extra);
-      return;
-    }
-    if (value2.__veilHyperRetryUrl === extra) {
-      finishPageLoader(value2);
-      return;
-    }
-    value2.__veilHyperRetryUrl = extra;
-    try {
-      if (/websocket|wisp|hyper client|http2 error|PROTOCOL_ERROR|did not open/i.test(tab)) {
-        settings.transport = "libcurl";
-        try { save(); } catch (err) {}
-      }
-      await useWorkingWisp();
-      await applyMuxTransport();
-      await html(extra);
-    } catch (err) {
-      console.warn("[veil] retry failed", err);
-      const engineStatus = document.getElementById("engineStatus");
-      if (engineStatus) {
-        engineStatus.textContent = "Connection lost - try another proxy server";
-      }
-      finishPageLoader(value2);
-    }
-  }
 }
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
