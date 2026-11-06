@@ -1192,60 +1192,76 @@
       }
     } catch (err) {}
   }
-  function initGoogleButton() {
-    if (!letter2 || code) {
+  function initGoogleButton(andPrompt) {
+    if (!letter2) {
       return;
     }
     if (!window.google || !google.accounts || !google.accounts.id) {
       return;
     }
     try {
-      google.accounts.id.initialize({
-        client_id: letter2,
-        callback: onGoogleCredential,
-        auto_select: false,
-        cancel_on_tap_outside: true,
-        use_fedcm_for_prompt: false
-      });
-      var googleSignInBtn = document.getElementById("googleSignInBtn");
-      var googleSignInWrap = document.getElementById("googleSignInWrap");
-      if (googleSignInBtn && googleSignInWrap) {
-        googleSignInBtn.innerHTML = "";
-        var prev = 320;
-        try {
-          if (gateAuthBox && gateAuthBox.clientWidth) {
-            prev = Math.min(360, Math.max(240, gateAuthBox.clientWidth - 56));
-          }
-        } catch (err) {}
-        google.accounts.id.renderButton(googleSignInBtn, {
-          theme: "outline",
-          size: "large",
-          shape: "rectangular",
-          text: "continue_with",
-          width: prev
+      if (!code) {
+        google.accounts.id.initialize({
+          client_id: letter2,
+          callback: onGoogleCredential,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          use_fedcm_for_prompt: true,
+          use_fedcm_for_button: true,
+          itp_support: true
         });
         code = true;
-        var timer = currentGatePanel();
-        setGoogleVisible(timer === "login" || timer === "signup");
       }
+      if (!andPrompt) {
+        return;
+      }
+      google.accounts.id.prompt(function (notification) {
+        var skipped = notification && (notification.isSkippedMoment && notification.isSkippedMoment() || notification.isDismissedMoment && notification.isDismissedMoment());
+        var hidden = notification && notification.isNotDisplayed && notification.isNotDisplayed();
+        if (hidden || skipped) {
+          setMsg("Google sign-in did not open. Use email instead.", true, true);
+        }
+      });
     } catch (err) {
-      console.warn("Google button init", err);
+      setMsg("Google sign-in did not open. Use email instead.", true, true);
     }
+  }
+  function ensureGoogleButton() {
+    var googleSignInBtn = document.getElementById("googleSignInBtn");
+    var googleSignInWrap = document.getElementById("googleSignInWrap");
+    if (!googleSignInBtn || !googleSignInWrap) {
+      return;
+    }
+    if (!googleSignInBtn.querySelector("button")) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "gate-btn secondary";
+      button.textContent = "Continue with Google";
+      button.onclick = function () {
+        setMsg("Opening Google sign-in…", false);
+        if (window.google && google.accounts) {
+          initGoogleButton(true);
+          return;
+        }
+        var script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.onload = function () {
+          initGoogleButton(true);
+        };
+        script.onerror = function () {
+          setMsg("Google sign-in did not load. Use email instead.", true, true);
+        };
+        document.head.appendChild(script);
+      };
+      googleSignInBtn.appendChild(button);
+    }
+    var timer = currentGatePanel();
+    setGoogleVisible(timer === "login" || timer === "signup");
   }
   function loadGoogleScript(value) {
     letter2 = value;
-    if (window.google && google.accounts) {
-      initGoogleButton();
-      return;
-    }
-    var btn = document.createElement("script");
-    btn.src = "https://accounts.google.com/gsi/client";
-    btn.async = true;
-    btn.defer = true;
-    btn.onload = function () {
-      initGoogleButton();
-    };
-    document.head.appendChild(btn);
+    ensureGoogleButton();
   }
   function fetchAuthConfig() {
     return fetch(workerUrl + "/api/auth/config").then(function (value) {
