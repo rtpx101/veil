@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=9";
+const SW_URL = BASE + "/sw.js?v=10";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -164,6 +164,33 @@ let engineReady = false;
 let engineController = null;
 let engineInitPromise = null;
 let muxConnection = null;
+function exposeBarePort() {
+  if (window.__veilBarePort || !("serviceWorker" in navigator)) return;
+  window.__veilBarePort = true;
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const data = event.data;
+    if (!data || data.type !== "getPort" || !data.port) return;
+    try {
+      const worker = new SharedWorker(BAREMUX_WORKER, "bare-mux-worker");
+      data.port.postMessage(worker.port, [worker.port]);
+    } catch (err) {
+      console.warn("[veil] bare port", err);
+    }
+  });
+}
+exposeBarePort();
+function tellWorkerMuxReady() {
+  const note = { type: "veil-mux-ready" };
+  try {
+    if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage(note);
+  } catch (err) {}
+  navigator.serviceWorker.ready.then((reg) => {
+    try { if (reg.active) reg.active.postMessage(note); } catch (err) {}
+  }).catch(() => {});
+}
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => tellWorkerMuxReady());
+}
 function loadScript(value2) {
   return new Promise((value, extra) => {
     const hash = document.createElement("script");
@@ -353,11 +380,14 @@ async function initEngine() {
       }
       paintEngineStatus();
       setBootLine("Starting proxy…");
+      exposeBarePort();
+      if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
       await navigator.serviceWorker.register(SW_URL, {
         scope: SW_SCOPE,
         updateViaCache: "none"
       });
       await navigator.serviceWorker.ready;
+      tellWorkerMuxReady();
       const tab = typeof window.$scramjetLoadController === "function" ? window.$scramjetLoadController() : null;
       const frame = tab && tab.ScramjetController || window.ScramjetController;
       if (typeof frame !== "function") {
@@ -408,7 +438,7 @@ async function initEngine() {
 async function applyMuxTransport() {
   const wisp = currentWisp();
   const entry = transportModule();
-  muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
+  if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
   await muxConnection.setTransport(entry, [{ wisp: wisp, websocket: wisp }]);
   return entry;
 }

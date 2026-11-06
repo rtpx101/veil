@@ -7,7 +7,12 @@ const BASE = (() => {
 importScripts((BASE || "") + "/scramjet/scramjet.all.js");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
-const scramjet = new ScramjetServiceWorker();
+let scramjet = null;
+function startScramjet() {
+  if (scramjet) return scramjet;
+  scramjet = new ScramjetServiceWorker();
+  return scramjet;
+}
 const PREFIX = BASE + "/service/";
 
 let adblockEnabled = false;
@@ -58,9 +63,25 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type === "veil-adblock") adblockEnabled = !!data.enabled;
+  if (data.type === "veil-mux-ready") startScramjet();
 });
 
 async function handleRequest(event) {
+  if (!scramjet) {
+    await new Promise((resolve) => {
+      const timer = setInterval(() => {
+        if (scramjet) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 40);
+      setTimeout(() => {
+        clearInterval(timer);
+        resolve();
+      }, 3000);
+    });
+  }
+  if (!scramjet) return fetch(event.request);
   try {
     if (!scramjet.config) await scramjet.loadConfig();
   } catch (err) {}
