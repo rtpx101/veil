@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=12";
+const SW_URL = BASE + "/sw.js?v=13";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -1398,6 +1398,12 @@ function unwrapProxyUrl(value) {
   } catch (err) {}
   return value;
 }
+function openInNewVeilTab(value) {
+  const target = normalizeUrl(value);
+  if (!target) return;
+  createTab(true);
+  return navigate(target);
+}
 function openInVeilTab(value) {
   const target = normalizeUrl(value);
   if (!target) {
@@ -1583,7 +1589,7 @@ function trapFrameExternalOpens(value2, extra2) {
           try {
             if (value && String(value) !== "about:blank") {
               const extra = String(value);
-              openInVeilTab(unwrapProxyUrl(extra) || extra);
+              openInNewVeilTab(unwrapProxyUrl(extra) || extra);
             }
           } catch (err) {}
           return null;
