@@ -34,7 +34,7 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js?v=3",
+  all: BASE + "/scramjet/scramjet.all.js?v=4",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=13";
+const SW_URL = BASE + "/sw.js?v=14";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -284,28 +284,29 @@ function transportModule() {
   return EPOXY_MODULE;
 }
 async function ensureScramjetDB() {
-  const rec = (await indexedDB.databases?.()) ?? [];
-  const row = rec.find(value => value && value.name === "$scramjet");
-  if (!row) {
-    return;
-  }
-  const count = await new Promise(value => {
-    const base = indexedDB.open("$scramjet");
-    base.onsuccess = () => {
-      const ev = base.result;
-      const handler = [...ev.objectStoreNames];
-      ev.close();
-      value(handler);
+  const openReady = () => new Promise((resolve) => {
+    const open = indexedDB.open("$scramjet", 1);
+    open.onupgradeneeded = () => {
+      const db = open.result;
+      if (!db.objectStoreNames.contains("config")) db.createObjectStore("config");
+      if (!db.objectStoreNames.contains("cookies")) db.createObjectStore("cookies");
     };
-    base.onerror = () => value([]);
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => resolve(null);
   });
-  if (count.length > 0) {
-    return;
-  }
-  await Promise.race([new Promise(value => {
-    const page = indexedDB.deleteDatabase("$scramjet");
-    page.onsuccess = page.onerror = page.onblocked = () => value();
-  }), new Promise(value => setTimeout(value, 1500))]);
+  let db = await openReady();
+  if (!db) return;
+  const ready = db.objectStoreNames.contains("config") && db.objectStoreNames.contains("cookies");
+  db.close();
+  if (ready) return;
+  await new Promise((resolve) => {
+    const del = indexedDB.deleteDatabase("$scramjet");
+    const done = () => resolve();
+    del.onsuccess = del.onerror = del.onblocked = done;
+    setTimeout(done, 1500);
+  });
+  db = await openReady();
+  if (db) db.close();
 }
 async function pushScramjetConfig() {
   let worker = navigator.serviceWorker.controller;
@@ -411,8 +412,13 @@ async function initEngine() {
       } catch (err) {
         if (String(err.message || err).includes("object stores") || String(err.message || err).includes("IDBDatabase")) {
           console.warn("IDB error, force-clear and retry");
-          try { indexedDB.deleteDatabase("$scramjet"); } catch (e) {}
-          await new Promise(value => setTimeout(value, 400));
+          await new Promise(resolve => {
+            const del = indexedDB.deleteDatabase("$scramjet");
+            const done = () => resolve();
+            del.onsuccess = del.onerror = del.onblocked = done;
+            setTimeout(done, 1500);
+          });
+          await ensureScramjetDB();
           await engineController.init();
         } else {
           throw err;
