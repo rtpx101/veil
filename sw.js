@@ -73,5 +73,9 @@ async function handleRequest(event) {
 }
 
 self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+  const path = url.pathname;
+  if (path.indexOf(PREFIX) !== 0 && path !== BASE + "/scramjet/scramjet.wasm.wasm") return;
   event.respondWith(handleRequest(event));
 });
