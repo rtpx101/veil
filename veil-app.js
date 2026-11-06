@@ -34,7 +34,7 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js?v=4",
+  all: BASE + "/scramjet/scramjet.all.js?v=5",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=14";
+const SW_URL = BASE + "/sw.js?v=15";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -283,20 +283,22 @@ function transportModule() {
   }
   return EPOXY_MODULE;
 }
+const SCRAMJET_STORES = ["config", "cookies", "redirectTrackers", "referrerPolicies", "publicSuffixList"];
 async function ensureScramjetDB() {
   const openReady = () => new Promise((resolve) => {
     const open = indexedDB.open("$scramjet", 1);
     open.onupgradeneeded = () => {
       const db = open.result;
-      if (!db.objectStoreNames.contains("config")) db.createObjectStore("config");
-      if (!db.objectStoreNames.contains("cookies")) db.createObjectStore("cookies");
+      SCRAMJET_STORES.forEach(name => {
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+      });
     };
     open.onsuccess = () => resolve(open.result);
     open.onerror = () => resolve(null);
   });
   let db = await openReady();
   if (!db) return;
-  const ready = db.objectStoreNames.contains("config") && db.objectStoreNames.contains("cookies");
+  const ready = SCRAMJET_STORES.every(name => db.objectStoreNames.contains(name));
   db.close();
   if (ready) return;
   await new Promise((resolve) => {
