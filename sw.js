@@ -4,7 +4,7 @@ const BASE = (() => {
   return path === "/" ? "" : path;
 })();
 
-importScripts((BASE || "") + "/scramjet/scramjet.all.js");
+importScripts((BASE || "") + "/scramjet/scramjet.all.js?v=2");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 let scramjet = null;

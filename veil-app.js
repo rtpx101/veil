@@ -34,7 +34,7 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js",
+  all: BASE + "/scramjet/scramjet.all.js?v=2",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=10";
+const SW_URL = BASE + "/sw.js?v=11";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -1956,16 +1956,15 @@ if (navigator.serviceWorker) {
 function armFrameErrorWatch(raw, tab) {
   if (!raw || !tab) return;
   const attach = () => {
-    let win = null;
-    try { win = raw.contentWindow; } catch (err) { return; }
-    if (!win || win.__veilErrWatch) return;
-    win.__veilErrWatch = true;
-    const take = msg => {
-      if (looksLikeHyperDump(String(msg || "")) || /Hyper client|PROTOCOL_ERROR|http2 error/i.test(String(msg || ""))) {
-        onTransportFault(tab && tab.url);
-      }
-    };
     try {
+      const win = raw.contentWindow;
+      if (!win || win.__veilErrWatch) return;
+      win.__veilErrWatch = true;
+      const take = msg => {
+        if (looksLikeHyperDump(String(msg || "")) || /Hyper client|PROTOCOL_ERROR|http2 error/i.test(String(msg || ""))) {
+          onTransportFault(tab && tab.url);
+        }
+      };
       win.addEventListener("error", ev => take(ev && (ev.message || ev.error)));
       win.addEventListener("unhandledrejection", ev => take(ev && ev.reason));
     } catch (err) {}
