@@ -4,7 +4,7 @@ const BASE = (() => {
   return path === "/" ? "" : path;
 })();
 
-importScripts((BASE || "") + "/scramjet/scramjet.all.js?v=2");
+importScripts((BASE || "") + "/scramjet/scramjet.all.js?v=3");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 let scramjet = null;
@@ -67,30 +67,45 @@ self.addEventListener("message", (event) => {
 });
 
 async function handleRequest(event) {
-  if (!scramjet) {
-    await new Promise((resolve) => {
-      const timer = setInterval(() => {
-        if (scramjet) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, 40);
-      setTimeout(() => {
-        clearInterval(timer);
-        resolve();
-      }, 3000);
-    });
-  }
-  if (!scramjet) return fetch(event.request);
+  if (!scramjet) startScramjet();
   try {
-    if (!scramjet.config) await scramjet.loadConfig();
+    if (!scramjet.config || !scramjet.config.prefix) {
+      scramjet.config = null;
+      await scramjet.loadConfig();
+    }
   } catch (err) {}
-  if (!scramjet.config || !scramjet.route(event)) return fetch(event.request);
+  if (scramjet.config && !self.__veilWasmReady) {
+    const start = Date.now();
+    while (!self.__veilWasmReady && Date.now() - start < 8000) {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    if (!self.__veilWasmReady) {
+      try {
+        scramjet.config = null;
+        await scramjet.loadConfig();
+      } catch (err) {}
+    }
+  }
+  if (!scramjet.config || !scramjet.config.prefix || !scramjet.route(event)) return fetch(event.request);
   const target = targetOf(event.request.url);
   if (target && isAdUrl(target)) {
     return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
   }
-  return scramjet.fetch(event);
+  try {
+    return await scramjet.fetch(event);
+  } catch (err) {
+    try {
+      scramjet.config = null;
+      self.__veilWasmReady = 0;
+      await scramjet.loadConfig();
+      return await scramjet.fetch(event);
+    } catch (err2) {
+      return new Response("Veil could not open this page.", {
+        status: 502,
+        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
+      });
+    }
+  }
 }
 
 self.addEventListener("fetch", (event) => {

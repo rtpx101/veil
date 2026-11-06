@@ -34,7 +34,7 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js?v=2",
+  all: BASE + "/scramjet/scramjet.all.js?v=3",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
@@ -43,7 +43,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=11";
+const SW_URL = BASE + "/sw.js?v=12";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
