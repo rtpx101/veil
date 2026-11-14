@@ -3565,7 +3565,11 @@
     };
   }
   function musicWithThumb(track) {
-    if (!track.thumb) track.thumb = track.local ? (IMG + "audio.svg") : ("https://i.ytimg.com/vi/" + track.id + "/hqdefault.jpg");
+    if (track.local) {
+      if (!track.thumb) track.thumb = IMG + "audio.svg";
+      return track;
+    }
+    if (track.id && /^[A-Za-z0-9_-]{6,20}$/.test(String(track.id))) track.thumb = "https://i.ytimg.com/vi/" + track.id + "/mqdefault.jpg";
     return track;
   }
   function musicCoverOk(value) {
@@ -3743,12 +3747,24 @@
     });
   }
   function musicAudioUrls(id) {
+    var hosts = ["https://echostreamz.com", "https://yt.omada.cafe", "https://invidious.schenkel.eti.br"];
     var urls = [];
-    MUSIC_INV.forEach(function (host) {
-      urls.push(host + "/latest_version?id=" + encodeURIComponent(id) + "&itag=140&local=true");
-      urls.push(host + "/latest_version?id=" + encodeURIComponent(id) + "&itag=251&local=true");
+    hosts.forEach(function (host, index) {
+      var itags = index === 0 ? [140, 251, 18] : [140, 18];
+      itags.forEach(function (itag) {
+        urls.push(host + "/latest_version?id=" + encodeURIComponent(id) + "&itag=" + itag + "&local=true");
+      });
     });
+    urls.push("https://echostreamz.com/latest_version?id=" + encodeURIComponent(id) + "&itag=18");
     return urls;
+  }
+  function musicBump(job, attempt, audio) {
+    if (!musicState || !job || musicState.failovers !== job || job.done || job.ok) return;
+    if (attempt == null || job.i !== attempt) return;
+    job.busy = false;
+    job.i = attempt + 1;
+    if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
+    musicKick(audio, job.id);
   }
   function musicLiked(id) {
     var hit = false;
@@ -3980,33 +3996,41 @@
   }
   function musicKick(audio, id) {
     var job = musicState && musicState.failovers;
-    if (!job || job.id !== id || job.done) return;
+    if (!job || job.id !== id || job.done || job.ok) return;
     if (!musicCurrent() || musicCurrent().id !== id) return;
     if (job.i >= job.urls.length) {
       job.done = true;
+      job.busy = false;
       musicStatus("Couldn't play that song. Try another.");
       musicPaint();
       return;
     }
+    var attempt = job.i;
+    job.attempt = attempt;
     job.busy = true;
-    audio.src = job.urls[job.i];
+    if (job.timer) clearTimeout(job.timer);
+    job.timer = setTimeout(function () { musicBump(job, attempt, audio); }, 9000);
+    try { audio.pause(); } catch (err) {}
+    audio.src = job.urls[attempt];
     audio.play().then(function () {
-      if (!musicState || musicState.failovers !== job) return;
+      if (!musicState || musicState.failovers !== job || job.i !== attempt) return;
+      if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
       job.busy = false;
       job.ok = true;
       musicStatus("");
       musicPaint();
     }).catch(function (err) {
       if (!musicState || musicState.failovers !== job) return;
-      job.busy = false;
       if (err && err.name === "NotAllowedError") {
+        if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
+        job.busy = false;
         job.done = true;
         musicStatus("Press play to start.");
         musicPaint();
         return;
       }
-      job.i += 1;
-      musicKick(audio, id);
+      if (err && err.name === "AbortError" && job.i !== attempt) return;
+      musicBump(job, attempt, audio);
     });
   }
   function musicPlay(index) {
@@ -4055,11 +4079,15 @@
     audio.addEventListener("pause", function () { musicPaint(); });
     audio.addEventListener("error", function () {
       var job = musicState && musicState.failovers;
-      if (!job || job.busy || job.done || !job.ok) return;
+      if (!job || job.done) return;
       if (!musicCurrent() || musicCurrent().id !== job.id) return;
-      job.ok = false;
-      job.i += 1;
-      musicKick(audio, job.id);
+      if (job.ok) {
+        job.ok = false;
+        job.busy = false;
+        job.i += 1;
+        if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
+        musicKick(audio, job.id);
+      }
     });
     audio.addEventListener("ended", function () {
       if (!musicState) return;
@@ -4273,6 +4301,10 @@
       var exists = false;
       pl.tracks.forEach(function (item) { if (item.id === track.id) exists = true; });
       if (!exists) pl.tracks.push(musicCopyTrack(track));
+      if (!pl.cover) {
+        var cover = musicCoverOk(track.thumb);
+        if (cover) pl.cover = cover;
+      }
       musicSaveLib();
       musicPaint();
     },
