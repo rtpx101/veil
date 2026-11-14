@@ -2074,8 +2074,120 @@ function armFrameErrorWatch(raw, tab) {
   }, 500);
 }
 let tabJiggleId = "";
+let tabMotionKind = "";
+function veilSpring(bounce, duration) {
+  const anime = window.anime;
+  if (anime && anime.spring) return anime.spring({ bounce: bounce, duration: duration });
+  return "outCubic";
+}
+function snapshotTabs(host) {
+  const map = new Map();
+  if (!host) return map;
+  host.querySelectorAll(".tab").forEach(el => {
+    const rect = el.getBoundingClientRect();
+    map.set(el.dataset.tabId, { left: rect.left, width: rect.width });
+    if (el.classList.contains("active")) map.set("__active", { left: rect.left, width: rect.width });
+  });
+  return map;
+}
+function desiredTabWidth(host, count) {
+  if (!host) return 140;
+  const plus = host.querySelector(".new-tab");
+  const plusW = plus ? plus.offsetWidth : 30;
+  const avail = host.clientWidth - plusW - 3 * Math.max(0, count);
+  const width = avail / Math.max(1, count);
+  return Math.max(72, Math.min(180, width));
+}
+function clearTabBox(el) {
+  if (!el) return;
+  el.style.width = "";
+  el.style.flex = "";
+  el.style.overflow = "";
+  el.style.minWidth = "";
+  el.style.opacity = "";
+}
+function syncTabPill(host, from) {
+  const active = host && host.querySelector(".tab.active");
+  if (!host || !active) return;
+  let pill = host.querySelector(".tab-pill");
+  if (!pill) {
+    pill = document.createElement("span");
+    pill.className = "tab-pill";
+    host.insertBefore(pill, host.firstChild);
+  }
+  host.classList.add("has-pill");
+  const hostRect = host.getBoundingClientRect();
+  const rect = active.getBoundingClientRect();
+  const left = rect.left - hostRect.left + host.scrollLeft;
+  pill.style.left = left + "px";
+  pill.style.width = rect.width + "px";
+  pill.style.transformOrigin = "left center";
+  if (from && window.anime && window.anime.animate && !motionOff()) {
+    const dx = from.left - rect.left;
+    const sx = Math.max(0.35, from.width / (rect.width || 1));
+    try {
+      window.anime.animate(pill, {
+        translateX: [dx, 0],
+        scaleX: [sx, 1],
+        ease: veilSpring(0.38, 420)
+      });
+    } catch (err) {}
+  }
+}
+function runTabStripMotion(host, before) {
+  const anime = window.anime;
+  if (!host || !anime || !anime.animate || motionOff()) return;
+  const items = Array.from(host.querySelectorAll(".tab"));
+  const target = desiredTabWidth(host, items.length);
+  const ease = veilSpring(0.32, 400);
+  let moved = false;
+  host._tabSettled = false;
+  const finish = () => {
+    if (host._tabSettled) return;
+    host._tabSettled = true;
+    items.forEach(clearTabBox);
+    syncTabPill(host, null);
+  };
+  items.forEach(el => {
+    const prev = before.get(el.dataset.tabId);
+    const next = !prev;
+    const delta = prev ? Math.abs(prev.width - target) : target;
+    if (!next && delta < 1.5) return;
+    moved = true;
+    el.style.flex = "0 0 auto";
+    el.style.overflow = "hidden";
+    el.style.minWidth = "0";
+    el.style.width = (prev ? prev.width : 0) + "px";
+    try {
+      anime.animate(el, next ? {
+        width: target,
+        opacity: [0, 1],
+        ease: ease
+      } : {
+        width: target,
+        ease: ease
+      });
+    } catch (err) {}
+  });
+  if (!moved) {
+    syncTabPill(host, tabMotionKind === "switch" ? before.get("__active") : null);
+    return;
+  }
+  const plus = host.querySelector(".new-tab");
+  if (plus) {
+    try {
+      anime.animate(plus, {
+        scale: [0.82, 1],
+        ease: veilSpring(0.46, 440)
+      });
+    } catch (err) {}
+  }
+  setTimeout(finish, 480);
+}
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
+  const before = snapshotTabs(tabs2);
+  const kind = tabMotionKind;
   const src = tabs.map(value => "<div class=\"tab " + (value.id === activeTabId ? "active " : "") + (value.animOpen ? "opening" : "") + "\" data-tab-id=\"" + value.id + "\"><div class=\"tab-icon\"><img src=\"" + escapeHTML(value.favicon || FAVI) + "\" alt=\"\">" + (value.isChat ? "<span class=\"chat-alert\" data-chat-alert></span>" : "") + "</div><div class=\"tab-title\">" + escapeHTML(value.title) + "</div><button class=\"tab-close\" data-close=\"" + value.id + "\" aria-label=\"Close\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div>").join("");
   tabs2.innerHTML = src + "<button class=\"new-tab\" id=\"newTabBtn\" type=\"button\" aria-label=\"New tab\"><img src=\"" + IMG + "plus.svg\" alt=\"\"></button>";
   tabs.forEach(value => {
@@ -2101,28 +2213,24 @@ function renderTabs() {
     tabs2.scrollLeft = tabs2.scrollWidth;
   });
   const anime = window.anime;
-  if (anime && anime.animate && anime.spring && !motionOff()) {
-    tabs2.querySelectorAll(".tab.opening").forEach(el => {
-      try {
-        anime.animate(el, {
-          opacity: [0, 1],
-          scale: [0.9, 1],
-          ease: anime.spring({ bounce: 0.32, duration: 460 })
-        });
-      } catch (err) {}
-    });
-    if (tabJiggleId) {
-      const el = tabs2.querySelector(".tab[data-tab-id=\"" + tabJiggleId + "\"]");
-      if (el && !el.classList.contains("opening")) {
+  if (kind === "open" || kind === "switch") {
+    if (kind === "open") runTabStripMotion(tabs2, before);
+    else {
+      syncTabPill(tabs2, before.get("__active"));
+      const active = tabs2.querySelector(".tab.active");
+      if (active && anime && anime.animate && !motionOff()) {
         try {
-          anime.animate(el, {
-            scale: [0.94, 1],
-            ease: anime.spring({ bounce: 0.34, duration: 420 })
+          anime.animate(active, {
+            translateY: [5, 0],
+            ease: veilSpring(0.5, 380)
           });
         } catch (err) {}
       }
     }
+  } else {
+    syncTabPill(tabs2, null);
   }
+  tabMotionKind = "";
   tabJiggleId = "";
   try {
     paintChatAlerts();
@@ -2540,6 +2648,7 @@ function showActiveOnly() {
   });
 }
 function switchTab(value) {
+  tabMotionKind = "switch";
   tabJiggleId = value;
   activeTabId = value;
   const base = getTab(value);
@@ -2966,6 +3075,7 @@ function createTab(value = true) {
   };
   tabs.push(cloak2);
   activeTabId = cloak2.id;
+  tabMotionKind = "open";
   ensurePage(cloak2);
   showActiveOnly();
   renderChrome();
@@ -2997,18 +3107,33 @@ function closeTab(value2) {
       activeTabId = tabs[Math.min(bookmark, tabs.length - 1)].id;
     }
     showActiveOnly();
+    tabMotionKind = "";
     renderChrome();
   };
-  if (historyItem && window.anime && window.anime.spring && !motionOff()) {
-    historyItem.style.animation = "none";
-    try {
-      window.anime.animate(historyItem, {
-        opacity: [1, 0],
-        scale: [1, 0.88],
-        ease: window.anime.spring({ bounce: 0.22, duration: 320 })
-      });
-    } catch (err) {}
-    setTimeout(game, 300);
+  const host = document.getElementById("tabs");
+  const anime = window.anime;
+  if (historyItem && host && anime && anime.animate && anime.spring && !motionOff()) {
+    const countAfter = Math.max(1, host.querySelectorAll(".tab").length - 1);
+    const target = desiredTabWidth(host, countAfter);
+    const ease = veilSpring(0.32, 400);
+    host.querySelectorAll(".tab").forEach(node => {
+      const width = node.getBoundingClientRect().width;
+      node.style.flex = "0 0 auto";
+      node.style.overflow = "hidden";
+      node.style.minWidth = "0";
+      node.style.width = width + "px";
+      try {
+        if (node === historyItem) anime.animate(node, { width: 0, opacity: [1, 0], ease: ease });
+        else anime.animate(node, { width: target, ease: ease });
+      } catch (err) {}
+    });
+    const plus = host.querySelector(".new-tab");
+    if (plus) {
+      try {
+        anime.animate(plus, { scale: [0.82, 1], ease: veilSpring(0.46, 440) });
+      } catch (err) {}
+    }
+    setTimeout(game, 390);
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -6637,8 +6762,10 @@ on("menuBtn", value => {
   }
   menu.classList.remove("is-placed");
   menu.style.left = "";
-  menu.style.top = "";
   menu.style.right = "";
+  const chrome = document.querySelector(".chrome");
+  const below = chrome ? chrome.getBoundingClientRect().bottom : 88;
+  menu.style.top = Math.round(below + 14) + "px";
   menu.style.opacity = "1";
   menu.style.scale = "1";
   menu.style.transform = "none";
@@ -7287,7 +7414,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=75";
+  link.href = BASE + "/veilos.css?v=76";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7298,7 +7425,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=75";
+  script.src = BASE + "/veilos.js?v=76";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8495,7 +8622,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=75";
+    script.src = REPO_PATH + "anime.min.js?v=76";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
