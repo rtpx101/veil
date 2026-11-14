@@ -7009,7 +7009,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=67";
+  link.href = BASE + "/veilos.css?v=68";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7020,7 +7020,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=67";
+  script.src = BASE + "/veilos.js?v=68";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8192,7 +8192,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=67";
+    script.src = REPO_PATH + "anime.min.js?v=68";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8254,24 +8254,44 @@ function playDashIntro() {
     if (!anime || !anime.animate || dashIntroPlayed) return;
     dashIntroPlayed = true;
     try {
-      anime.animate(".dash-top, .dash-foot, .dash-tile", {
+      anime.animate(".dash-tile", {
         opacity: [0, 1],
-        delay: anime.stagger(36),
-        duration: 420,
-        ease: "outCubic"
+        scale: [0.96, 1],
+        delay: anime.stagger(28),
+        duration: 320,
+        ease: anime.spring ? anime.spring({ bounce: 0.22, duration: 320 }) : "outCubic"
       });
       setTimeout(() => {
-        document.querySelectorAll(".dash-top, .dash-foot, .dash-tile").forEach(el => {
+        document.querySelectorAll(".dash-tile").forEach(el => {
           el.style.opacity = "";
           el.style.transform = "";
           el.style.scale = "";
           el.style.translate = "";
         });
-      }, 700);
+      }, 640);
     } catch (err) {}
   };
   if (window.anime) run(window.anime);
   else ensureAnime().then(run);
+}
+if (!window.__veilNudge) {
+  window.__veilNudge = true;
+  document.addEventListener("pointerdown", event => {
+    const el = event.target.closest(".dash-tile, .quick-link, .tool-btn, .dash-ico, .stage-switch button");
+    if (!el || el.disabled || motionOff()) return;
+    const anime = window.anime;
+    if (!anime || !anime.animate || !anime.spring) return;
+    try {
+      anime.animate(el, {
+        scale: [0.96, 1],
+        ease: anime.spring({ bounce: 0.3, duration: 240 })
+      });
+      setTimeout(() => {
+        el.style.scale = "";
+        el.style.transform = "";
+      }, 280);
+    } catch (err) {}
+  }, { passive: true });
 }
 function setVeilView(view) {
   document.body.dataset.veilView = view;
@@ -8303,14 +8323,23 @@ function setVeilView(view) {
   }
 }
 function showDash() {
-  const stage = document.getElementById("veilStage");
-  const fromStage = !!(stage && (stage.style.display === "flex" || document.body.dataset.veilView === "entertainment" || document.body.dataset.veilView === "chat" || document.body.dataset.veilView === "admin"));
+  const view = document.body.dataset.veilView || "";
+  const cover = view === "browser" ? document.getElementById("browser")
+    : view === "entertainment" || view === "chat" || view === "admin" ? document.getElementById("veilStage")
+    : view === "options" ? document.getElementById("settingsPanel")
+    : null;
   const go = () => {
-    if (stage) {
-      stage.style.opacity = "";
-      stage.style.scale = "";
-      stage.style.transform = "";
-    }
+    const stage = document.getElementById("veilStage");
+    const browser = document.getElementById("browser");
+    [stage, browser, cover].forEach(el => {
+      if (!el) return;
+      el.style.opacity = "";
+      el.style.scale = "";
+      el.style.transform = "";
+      el.style.zIndex = "";
+      el.style.position = "";
+      el.style.inset = "";
+    });
     try { closeMenu(); } catch (err) {}
     try { closeHistory(); } catch (err) {}
     document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope", "is-page"));
@@ -8321,10 +8350,36 @@ function showDash() {
       const title = settingsPanel.querySelector(".panel-head > span");
       if (title) title.textContent = "Settings";
     }
+    const dash = document.getElementById("veilDash");
+    if (dash) dash.style.opacity = "";
     setVeilView("dash");
   };
-  if (fromStage && stage) springClose(stage, go);
-  else go();
+  if (!cover || motionOff() || showDash.busy) {
+    go();
+    return;
+  }
+  showDash.busy = true;
+  const dash = document.getElementById("veilDash");
+  if (dash) {
+    dash.style.display = "flex";
+    dash.style.opacity = "0";
+  }
+  if (view === "browser") {
+    cover.style.position = "fixed";
+    cover.style.inset = "0";
+    cover.style.zIndex = "40";
+  }
+  const anime = window.anime;
+  if (anime && anime.animate) {
+    try {
+      anime.animate(cover, { opacity: [1, 0], duration: 280, ease: "outCubic" });
+      if (dash) anime.animate(dash, { opacity: [0, 1], duration: 280, ease: "outCubic" });
+    } catch (err) {}
+  }
+  setTimeout(() => {
+    showDash.busy = false;
+    go();
+  }, 300);
 }
 function showBrowser() {
   setVeilView("browser");
@@ -8376,7 +8431,7 @@ function moveStagePill(name, animate) {
     anime.animate(pill, {
       left: left,
       width: width,
-      ease: anime.spring({ bounce: 0.45, duration: 540 })
+      ease: anime.spring({ bounce: 0.28, duration: 420 })
     });
   } catch (err) {
     pill.style.left = left + "px";
@@ -8485,8 +8540,12 @@ function showAdmin() {
 }
 let settingsReturn = "dash";
 function leaveSettings(force) {
-  const panel = document.getElementById("settingsPanel");
   const backTo = force === "browser" || force === "dash" ? force : settingsReturn === "browser" ? "browser" : "dash";
+  if (backTo !== "browser") {
+    showDash();
+    return;
+  }
+  const panel = document.getElementById("settingsPanel");
   const go = () => {
     if (panel) {
       panel.classList.remove("open", "is-page", "is-options", "is-browser-scope");
@@ -8496,11 +8555,12 @@ function leaveSettings(force) {
     }
     const backdrop = document.getElementById("backdrop");
     if (backdrop) backdrop.classList.remove("open");
-    if (backTo === "browser") showBrowser();
-    else showDash();
+    showBrowser();
   };
-  if (panel && panel.classList.contains("open")) springClose(panel, go);
-  else go();
+  if (panel && panel.classList.contains("open") && window.anime && window.anime.animate && !motionOff()) {
+    try { window.anime.animate(panel, { opacity: [1, 0], duration: 240, ease: "outCubic" }); } catch (err) {}
+    setTimeout(go, 250);
+  } else go();
 }
 function openSettings(scope) {
   wallpaperScope = scope === "browser" ? "browser" : "home";
@@ -8508,8 +8568,17 @@ function openSettings(scope) {
   closeMenu();
   const panel = document.getElementById("settingsPanel");
   if (!panel) return;
-  panel.classList.remove("is-browser-scope", "is-options");
+  panel.classList.remove("is-options");
+  panel.classList.toggle("is-browser-scope", wallpaperScope === "browser");
   panel.classList.add("open", "is-page");
+  if (wallpaperScope === "browser") {
+    document.querySelectorAll("[data-settings-tab]").forEach(tab => {
+      tab.classList.toggle("active", tab.getAttribute("data-settings-tab") === "custom");
+    });
+    document.querySelectorAll("[data-settings-page]").forEach(page => {
+      page.classList.toggle("active", page.getAttribute("data-settings-page") === "custom");
+    });
+  }
   const title = panel.querySelector(".panel-head > span");
   if (title) title.textContent = "Settings";
   const backdrop = document.getElementById("backdrop");

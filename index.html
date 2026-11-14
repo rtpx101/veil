@@ -257,7 +257,7 @@ body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 .tab .chat-alert{top:auto;bottom:-3px;right:-3px;width:7px;height:7px;box-shadow:0 0 0 2px var(--panel)}
 .chat-page{width:100%;height:100%;background:var(--bg);color:var(--text)}
 .chat-app{display:flex;height:100%;min-height:0;animation:veilUp .28s ease}
-.chat-side{width:248px;flex:0 0 248px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;gap:2px;padding:12px 10px;overflow:auto}
+.chat-side{width:300px;flex:0 0 300px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;gap:4px;padding:14px 12px;overflow:auto}
 .chat-room{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 8px;border-radius:8px;background:transparent;color:var(--text);text-align:left;cursor:pointer;transition:background .16s ease,color .16s ease}
 .chat-room img,.chat-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;flex:0 0 22px;background:var(--bg2)}
 .chat-room img.chat-glyph{border-radius:0;background:transparent;filter:invert(var(--icon-invert,1));opacity:.9;width:16px;height:16px;flex-basis:16px}
@@ -292,9 +292,9 @@ body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 .chat-compose .text-input{margin:0;height:42px;border-radius:10px}
 .chat-compose .primary-btn{width:auto;padding:0 16px;margin:0;height:42px}
 .chat-setup{height:100%;display:flex;align-items:center;justify-content:center;padding:24px;animation:veilUp .28s ease}
-.chat-setup-card{width:min(420px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px}
-.chat-setup-card h2{font-size:20px;margin-bottom:8px}
-.chat-setup-card p{color:var(--muted);font-size:13px;line-height:1.45;margin-bottom:12px}
+.chat-setup-card{width:min(560px,100%);background:var(--panel);border:1px solid var(--border);border-radius:22px;padding:32px}
+.chat-setup-card h2{font-size:28px;margin-bottom:10px;letter-spacing:-.03em}
+.chat-setup-card p{color:var(--muted);font-size:15px;line-height:1.5;margin-bottom:16px}
 .chat-card{position:fixed;z-index:1300;width:240px;padding:14px;border-radius:14px;background:var(--panel);border:1px solid var(--border);box-shadow:0 16px 40px rgba(0,0,0,.35);animation:veilUp .18s ease}
 .chat-card img{width:64px;height:64px;border-radius:50%;object-fit:cover;display:block;margin-bottom:8px;background:var(--bg2)}
 .chat-card h3{font-size:16px;margin-bottom:4px}
@@ -579,59 +579,25 @@ body.gate-lock #accessGate{display:flex!important}
 
 #veilBoot{
   position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;
-  background:#070708;flex-direction:column;padding:28px;overflow:hidden;
-  transition:opacity .7s cubic-bezier(.22,1,.36,1),visibility .7s linear;
+  background:var(--bg,#100c10);color:var(--text,#f4f4f4);
+  transition:opacity .42s ease,visibility .42s linear;
 }
 #veilBoot.done{opacity:0;visibility:hidden;pointer-events:none}
-#veilBoot.err{background:#0e0c0c}
-.boot-glow{
-  position:absolute;width:min(520px,90vw);height:min(520px,90vw);border-radius:50%;
-  background:radial-gradient(circle,rgba(255,255,255,.09),transparent 68%);
-  filter:blur(2px);pointer-events:none;
-  animation:bootGlow 3.8s ease-in-out infinite;
-}
-@keyframes bootGlow{0%,100%{transform:scale(.9);opacity:.45}50%{transform:scale(1.08);opacity:.9}}
-.boot-card{
-  position:relative;width:min(360px,92vw);text-align:center;
-  animation:bootIn .7s cubic-bezier(.22,1,.36,1) both;
-}
-@keyframes bootIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+#veilBoot.err{background:var(--bg,#100c10)}
+.boot-card{position:relative;text-align:center}
 .boot-mark{
-  position:relative;width:86px;height:86px;margin:0 auto 22px;border-radius:28px;
-  background:linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.03));
-  border:1px solid rgba(255,255,255,.14);
+  width:88px;height:88px;margin:0 auto 18px;border-radius:26px;
+  background:var(--panel,#1a1216);border:1px solid var(--border,rgba(255,255,255,.12));
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 24px 70px rgba(0,0,0,.45);
 }
-.boot-ring{
-  position:absolute;inset:-7px;border-radius:34px;border:1px solid rgba(255,255,255,.22);
-  animation:bootPulse 2.2s cubic-bezier(.2,.7,.2,1) infinite;
-}
-@keyframes bootPulse{0%{transform:scale(.94);opacity:.65}100%{transform:scale(1.22);opacity:0}}
-.boot-mark img{width:40px;height:40px;object-fit:contain;position:relative;z-index:1}
-.boot-title{font-size:28px;font-weight:650;color:#f4f4f4;letter-spacing:-.04em;margin-bottom:8px}
-.boot-sub{font-size:13px;color:#8a8a8a;margin-bottom:22px;min-height:18px;letter-spacing:.01em;transition:opacity .25s ease}
-.boot-bar{
-  height:2px;width:min(220px,70%);margin:0 auto 20px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative;
-}
-.boot-bar > i{
-  display:block;height:100%;width:38%;border-radius:99px;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.95),transparent);
-  animation:bootSweep 1.35s cubic-bezier(.4,0,.2,1) infinite;
-}
-@keyframes bootSweep{0%{transform:translateX(-130%)}100%{transform:translateX(340%)}}
-.boot-steps{text-align:left;font-size:12px;color:#6d6d6d;line-height:1.85}
-.boot-steps div{animation:bootStep .35s ease both}
-@keyframes bootStep{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.boot-steps .ok{color:#9adf96}
-.boot-steps .fail{color:#ff8d8d}
-.boot-steps .run{color:#d0d0d0}
+.boot-mark img{width:46px;height:46px;object-fit:contain}
+.boot-line{font-size:20px;font-weight:680;letter-spacing:-.03em;min-height:28px}
 .boot-error{
   display:none;margin-top:8px;padding:14px 16px;border-radius:14px;
   border:1px solid #3a2020;background:#181010;text-align:left;
 }
-#veilBoot.err .boot-error{display:block;animation:bootIn .35s ease both}
-#veilBoot.err .boot-bar,#veilBoot.err .boot-glow{display:none}
+#veilBoot.err .boot-error{display:block}
+#veilBoot.err .boot-line{display:none}
 .boot-error h3{font-size:14px;color:#ff9a9a;margin:0 0 8px;font-weight:650}
 .boot-error p{font-size:13px;color:#aaa;line-height:1.5;margin:0 0 10px;word-break:break-word}
 .boot-error a{color:#f0f0f0;text-decoration:underline}
@@ -639,7 +605,7 @@ body.gate-lock #accessGate{display:flex!important}
   margin-top:12px;width:100%;height:40px;border:0;border-radius:10px;
   background:#f0f0f0;color:#111;font-weight:650;cursor:pointer;font-size:13px;
 }
-body.booting #accessGate,body.booting #browser,body.booting #app,body.booting #veilDash,body.booting #veilStage{visibility:hidden!important}
+body.booting #accessGate,body.booting #browser,body.booting #app,body.booting #veilStage{visibility:hidden!important}
 body.boot-reveal #accessGate .box,
 body.boot-reveal #veilDash{
   animation:bootReveal .55s cubic-bezier(.22,1,.36,1) both;
@@ -870,7 +836,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .stage-back{width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .stage-back img{width:16px;height:16px;display:block;filter:invert(var(--page-icon-invert,1))}
 .stage-bar h1{font-size:18px;font-weight:720;letter-spacing:-.03em;margin:0}
-.stage-switch{position:relative;margin-left:auto;display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg2);border:1px solid var(--border)}
+.stage-switch{position:relative;margin-left:auto;display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);overflow:hidden}
 .stage-switch[hidden]{display:none !important}
 .stage-pill{position:absolute;top:3px;left:3px;height:32px;width:64px;border-radius:9px;background:var(--panel);z-index:0;pointer-events:none}
 .stage-switch button{position:relative;z-index:1;height:32px;padding:0 12px;border-radius:9px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer}
@@ -886,6 +852,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .veil-devgate .modal-actions{display:flex;align-items:stretch;gap:10px;margin-top:16px}
 .veil-devgate .modal-actions button{flex:1;width:auto;height:44px;margin:0;border-radius:12px;font-size:14px;font-weight:650}
 #optionsBack{display:none}
+#settingsPanel.is-page #optionsBack{display:inline-flex}
+#settingsPanel.is-browser-scope .settings-tab:not([data-settings-tab="custom"]):not([data-settings-tab="browser"]){display:none !important}
 #settingsPanel.is-page.open{
   inset:0;left:0;top:0;right:0;width:100%;height:100%;max-height:none;
   border:0;border-radius:0;background:var(--bg);transform:none;box-shadow:none;
@@ -895,7 +863,6 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 #settingsPanel.is-page.open .settings-tabs{margin:14px auto 0;width:min(760px,calc(100% - 32px));border:1px solid var(--border);border-radius:22px;background:var(--panel);padding:0 8px}
 #settingsPanel.is-page.open .panel-body{flex:1;min-height:0;width:min(760px,calc(100% - 32px));max-width:760px;margin:14px auto 16px;padding:22px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
 #settingsPanel.is-page.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-#settingsPanel.is-page #optionsBack{display:inline-flex}
 #settingsPanel.is-page [data-close-panel]{display:none}
 @media (max-width:760px){
   .veil-dash{padding:10px;gap:10px}
@@ -922,13 +889,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 </head>
 <body class="gate-lock booting">
 <div id="veilBoot" aria-live="polite">
-  <div class="boot-glow"></div>
   <div class="boot-card">
-    <div class="boot-mark"><span class="boot-ring"></span><img src="image/favi.png" alt="" onerror="this.style.display='none'"></div>
-    <div class="boot-title">Veil</div>
-    <div class="boot-sub" id="bootSub">Getting ready…</div>
-    <div class="boot-bar"><i></i></div>
-    <div class="boot-steps" id="bootSteps"></div>
+    <div class="boot-mark"><img src="image/favi.png" alt="" onerror="this.style.display='none'"></div>
+    <div class="boot-line" id="bootSub">Loading Veil...</div>
     <div class="boot-error" id="bootError">
       <h3>Couldn’t start Veil</h3>
       <p id="bootErrorMsg"></p>
@@ -955,7 +918,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
   var steps = [];
 
   function setSub(text) {
-    if (sub) sub.textContent = text;
+    if (!sub) return;
+    if (boot && boot.classList.contains("err")) sub.textContent = text;
+    else sub.textContent = "Loading Veil...";
   }
   function addStep(label, state) {
     steps.push({ label: label, state: state || "run" });
@@ -1057,7 +1022,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=67", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=68", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1543,7 +1508,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=67" defer></script>
-<script src="access-gate.js?v=67"></script>
+<script src="anime.min.js?v=68" defer></script>
+<script src="access-gate.js?v=68"></script>
 </body>
 </html>

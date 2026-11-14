@@ -255,29 +255,54 @@
   function dismissBoot(value) {
     var run = function () {
       var veilBoot = document.getElementById("veilBoot");
-      try { document.body.classList.remove("booting"); } catch (err) {}
       if (!veilBoot) {
+        try { document.body.classList.remove("booting"); } catch (err) {}
         return;
       }
       if (veilBoot.classList.contains("err") && !value) {
         return;
       }
       if (value) {
+        try { document.body.classList.remove("booting"); } catch (err) {}
         try {
-          if (veilBoot.parentNode) {
-            veilBoot.parentNode.removeChild(veilBoot);
-          }
+          if (veilBoot.parentNode) veilBoot.parentNode.removeChild(veilBoot);
         } catch (err) {}
         return;
       }
-      veilBoot.classList.add("done");
-      setTimeout(function () {
+      var line = document.getElementById("bootSub");
+      var dash = document.getElementById("veilDash");
+      var reveal = function () {
+        try { document.body.classList.remove("booting"); } catch (err) {}
+        if (dash) dash.style.opacity = "0";
+        veilBoot.classList.add("done");
+        if (dash && window.anime && window.anime.animate) {
+          try { window.anime.animate(dash, { opacity: [0, 1], duration: 420, ease: "outCubic" }); } catch (err) {}
+          setTimeout(function () { dash.style.opacity = ""; }, 460);
+        } else if (dash) {
+          dash.style.opacity = "";
+        }
+        setTimeout(function () {
+          try {
+            if (veilBoot.parentNode) veilBoot.parentNode.removeChild(veilBoot);
+          } catch (err) {}
+        }, 480);
+      };
+      var enjoy = function () {
+        if (line) line.textContent = "Enjoy!";
+        if (line && window.anime && window.anime.animate) {
+          try { window.anime.animate(line, { opacity: [0, 1], duration: 260, ease: "outCubic" }); } catch (err) {}
+        }
+        setTimeout(reveal, 640);
+      };
+      if (line && window.anime && window.anime.animate) {
         try {
-          if (veilBoot.parentNode && veilBoot.classList.contains("done")) {
-            veilBoot.parentNode.removeChild(veilBoot);
-          }
+          var job = window.anime.animate(line, { opacity: [1, 0], duration: 160, ease: "outCubic" });
+          if (job && job.then) job.then(enjoy);
+          else setTimeout(enjoy, 180);
+          return;
         } catch (err) {}
-      }, 760);
+      }
+      enjoy();
     };
     var job = window.__veilBootWork;
     if (job && typeof job.then === "function") {
@@ -292,7 +317,7 @@
       boot = document.createElement("div");
       boot.id = "veilBoot";
       boot.setAttribute("aria-live", "polite");
-      boot.innerHTML = "<div class=\"boot-glow\"></div><div class=\"boot-card\"><div class=\"boot-mark\"><span class=\"boot-ring\"></span><img src=\"image/favi.png\" alt=\"\" onerror=\"this.style.display='none'\"></div><div class=\"boot-title\">Veil</div><div class=\"boot-sub\" id=\"bootSub\">Loading browser…</div><div class=\"boot-bar\"><i></i></div><div class=\"boot-steps\" id=\"bootSteps\"></div><div class=\"boot-error\" id=\"bootError\"><h3>Couldn’t start Veil</h3><p id=\"bootErrorMsg\"></p><p>If this keeps happening, email support:<br><a href=\"mailto:veilsupport01@gmail.com\">veilsupport01@gmail.com</a></p><button type=\"button\" class=\"boot-retry\" id=\"bootRetry\">Try again</button></div></div>";
+      boot.innerHTML = "<div class=\"boot-card\"><div class=\"boot-mark\"><img src=\"image/favi.png\" alt=\"\" onerror=\"this.style.display='none'\"></div><div class=\"boot-line\" id=\"bootSub\">Loading Veil...</div><div class=\"boot-error\" id=\"bootError\"><h3>Couldn’t start Veil</h3><p id=\"bootErrorMsg\"></p><p>If this keeps happening, email support:<br><a href=\"mailto:veilsupport01@gmail.com\">veilsupport01@gmail.com</a></p><button type=\"button\" class=\"boot-retry\" id=\"bootRetry\">Try again</button></div></div>";
       document.body.appendChild(boot);
     }
     boot.classList.remove("done", "err");
@@ -649,7 +674,7 @@
     }
     veilAppLoad = document.createElement("div");
     veilAppLoad.id = "veilAppLoad";
-    veilAppLoad.innerHTML = "<div class=\"boot-card\"><div class=\"boot-mark\"><img src=\"image/favi.png\" alt=\"\" onerror=\"this.style.display='none'\"></div><div class=\"boot-title\">Veil</div><div class=\"boot-sub\" id=\"veilAppLoadSub\">Loading browser…</div><div class=\"boot-bar\"><i></i></div></div>";
+    veilAppLoad.innerHTML = "<div class=\"boot-card\"><div class=\"boot-mark\"><img src=\"image/favi.png\" alt=\"\" onerror=\"this.style.display='none'\"></div><div class=\"boot-line\">Loading Veil...</div></div>";
     veilAppLoad.style.cssText = "position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;background:#0c0c0c;flex-direction:column;padding:28px;transition:opacity .5s ease,visibility .5s ease;opacity:1;visibility:visible";
     document.body.appendChild(veilAppLoad);
     return veilAppLoad;
@@ -687,11 +712,10 @@
     if (accessBlocked) {
       accessBlocked.style.display = "none";
     }
-    function setBootSub(value) {
+    function setBootSub() {
       var bootSub = document.getElementById("bootSub");
-      if (bootSub) {
-        bootSub.textContent = value;
-      }
+      var veilBoot = document.getElementById("veilBoot");
+      if (bootSub && !(veilBoot && veilBoot.classList.contains("err"))) bootSub.textContent = "Loading Veil...";
     }
     setBootSub("Loading browser…");
     startLivePoll();
@@ -704,7 +728,7 @@
       return loadScript("scramjet/scramjet.all.js");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=67");
+      return loadScript("veil-app.js?v=68");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);
