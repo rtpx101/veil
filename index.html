@@ -698,7 +698,8 @@ body.boot-reveal #veilDash{
 .games-hero-dots{position:absolute;right:20px;bottom:16px;display:flex;gap:6px;z-index:3}
 .games-dot{width:8px;height:8px;border-radius:999px;border:0;background:rgba(255,255,255,.35);cursor:pointer;padding:0}
 .games-dot.active{background:#fff;width:22px}
-.games-inner{max-width:1200px;margin:0 auto;padding:18px 18px 48px;box-sizing:border-box}
+.games-inner{width:100%;max-width:none;margin:0;padding:22px 28px 48px;box-sizing:border-box}
+.games-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:16px}
 .games-header{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
 .games-search-wrap{position:relative;width:100%}
 .games-search{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px 0 40px;font-size:14px;outline:none;box-sizing:border-box}
@@ -708,12 +709,11 @@ body.boot-reveal #veilDash{
 .games-cat.active,.games-cat:hover{border-color:var(--accent);color:var(--text);background:var(--panel2)}
 .games-section{margin-bottom:22px}
 .games-section h3{font-size:14px;font-weight:650;margin:0 0 12px;color:var(--text)}
-.games-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
 .games-row.filtering{opacity:.35;transform:translateY(4px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
 .games-row.filtering-done{opacity:1;transform:none;transition:opacity .28s ease,transform .28s ease}
 .game-tile{position:relative;border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:visible;cursor:pointer;transition:transform .18s ease,border-color .18s ease,opacity .28s ease,box-shadow .18s ease;opacity:1;animation:gameTileIn .32s ease both}
 .game-tile::after{content:"";position:absolute;left:0;right:0;top:100%;height:8px;background:transparent;pointer-events:auto}
-.game-tile:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.28)}
+.game-tile:hover{border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .game-tile .thumb{width:100%;aspect-ratio:1;background:var(--bg3);overflow:hidden;position:relative;border-radius:13px 13px 0 0}
 .game-tile .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .tile-tools{position:absolute;top:8px;left:8px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .16s ease;z-index:2}
@@ -727,7 +727,7 @@ body.boot-reveal #veilDash{
 .game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
 .game-tile.fav .meta .name{color:var(--text)}
 .games-empty{color:var(--muted);font-size:13px;padding:16px 4px}
-@keyframes gameTileIn{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+@keyframes gameTileIn{from{opacity:0}to{opacity:1}}
 .game-player-overlay{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
 .game-player{width:min(1100px,100%);height:min(720px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:row;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
 .game-player-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
@@ -848,9 +848,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .stage-bar h1{font-size:18px;font-weight:720;letter-spacing:-.03em;margin:0}
 .stage-switch{position:relative;margin-left:auto;display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);overflow:hidden}
 .stage-switch[hidden]{display:none !important}
-.stage-pill{position:absolute;top:3px;left:3px;height:32px;width:64px;border-radius:9px;background:var(--panel);z-index:0;pointer-events:none}
+.stage-pill{position:absolute;top:3px;left:3px;height:32px;width:64px;border-radius:9px;background:var(--accent);z-index:0;pointer-events:none}
 .stage-switch button{position:relative;z-index:1;height:32px;padding:0 12px;border-radius:9px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer}
-.stage-switch button.on{background:transparent;color:var(--text)}
+.stage-switch button.on{background:transparent;color:var(--accentText)}
 .stage-body{flex:1;min-height:0;margin:14px 16px 16px;border-radius:22px;overflow:auto;border:1px solid var(--border);background:var(--bg)}
 .ent-pane{display:none;height:100%}
 .ent-pane.on{display:block}
@@ -1048,7 +1048,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=73", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=74", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1535,7 +1535,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=73" defer></script>
-<script src="access-gate.js?v=73"></script>
+<script src="anime.min.js?v=74" defer></script>
+<script src="access-gate.js?v=74"></script>
 </body>
 </html>

@@ -3608,45 +3608,23 @@ function setupHomeFx(value3, extra2) {
   list2.shooters = [];
   list2.clouds = [];
   list2.leaves = [];
-  list2.anims = [];
   if (orbs === "sakura" || orbs === "snow" || orbs === "fall") {
-    const leafCount = orbs === "snow" ? Math.max(8, Math.min(28, Math.round(next2 * 1.2))) : Math.max(6, Math.min(16, Math.round(next2 * 0.7)));
+    const leafCount = orbs === "snow" ? Math.max(10, Math.min(26, Math.round(next2))) : Math.max(8, Math.min(16, Math.round(next2 * 0.7)));
     const pace = Math.max(0.35, raw);
-    const armLeaf = blob => {
-      if (homeFxLoops.get(value3) !== list2) return;
-      const anime = window.anime;
-      blob.y = -0.08 - Math.random() * 0.25;
-      blob.baseX = Math.random();
-      blob.x = blob.baseX;
-      blob.sway = 0;
-      blob.rot = Math.random() * Math.PI * 2;
-      blob.s = orbs === "snow" ? 0.004 + Math.random() * 0.006 : 0.012 + Math.random() * 0.012;
-      blob.spin = (Math.random() > 0.5 ? 1 : -1) * (0.6 + Math.random() * 1.1);
-      if (!anime || !anime.animate) return;
-      try {
-        if (blob.fall && blob.fall.cancel) blob.fall.cancel();
-        if (blob.swayAnim && blob.swayAnim.cancel) blob.swayAnim.cancel();
-      } catch (err) {}
-      blob.fall = anime.animate(blob, {
-        y: 1.12,
-        rot: blob.rot + blob.spin,
-        duration: (12000 + Math.random() * 8000) / pace,
-        ease: "linear",
-        onComplete: () => armLeaf(blob)
-      });
-      blob.swayAnim = anime.animate(blob, {
-        sway: blob.sway > 0 ? -0.07 : 0.07,
-        duration: (3400 + Math.random() * 1800) / pace,
-        ease: "inOutSine",
-        loop: true,
-        alternate: true
-      });
-    };
+    const now = performance.now();
     for (let i = 0; i < leafCount; i++) {
-      const blob = { y: Math.random(), baseX: Math.random(), x: 0, sway: 0, rot: 0, s: 0.01, spin: 1, tone: i % 2 };
-      blob.x = blob.baseX;
-      list2.leaves.push(blob);
-      setTimeout(() => armLeaf(blob), i * 280);
+      const dur = (14000 + Math.random() * 7000) / pace;
+      list2.leaves.push({
+        born: now - Math.random() * dur,
+        dur: dur,
+        baseX: Math.random(),
+        swayAmp: orbs === "snow" ? 0.015 + Math.random() * 0.02 : 0.03 + Math.random() * 0.035,
+        swayDur: 3600 + Math.random() * 2200,
+        rot0: Math.random() * Math.PI * 2,
+        spin: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 1.2),
+        s: orbs === "snow" ? 0.004 + Math.random() * 0.005 : 0.011 + Math.random() * 0.01,
+        tone: i % 2
+      });
     }
   } else if (false && orbs === "rain") {
     for (let delay = 0; delay < next2; delay++) {
@@ -3719,15 +3697,19 @@ function setupHomeFx(value3, extra2) {
     const entry = hexToRgb(animColor("a"));
     const meta = hexToRgb(animColor("b"));
     if (orbs === "sakura" || orbs === "snow" || orbs === "fall") {
+      const now = performance.now();
       (list2.leaves || []).forEach(leaf => {
         const style = leaf.tone ? meta : entry;
-        const x = (leaf.baseX + (leaf.sway || 0)) * row;
-        const y = leaf.y * count;
+        const p = ((now - leaf.born) % leaf.dur) / leaf.dur;
+        const sway = Math.sin(now / leaf.swayDur * Math.PI * 2) * leaf.swayAmp;
+        const x = (leaf.baseX + sway) * row;
+        const y = (-0.06 + p * 1.18) * count;
         const len = Math.max(3, leaf.s * Math.min(row, count) * found2);
+        const rot = leaf.rot0 + p * leaf.spin;
         err2.save();
         err2.translate(x, y);
-        err2.rotate(leaf.rot || 0);
-        err2.fillStyle = "rgba(" + style.r + "," + style.g + "," + style.b + ",0.9)";
+        err2.rotate(rot);
+        err2.fillStyle = "rgba(" + style.r + "," + style.g + "," + style.b + ",0.92)";
         err2.beginPath();
         if (orbs === "snow") {
           err2.arc(0, 0, len * 0.55, 0, Math.PI * 2);
@@ -7254,7 +7236,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=73";
+  link.href = BASE + "/veilos.css?v=74";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7265,7 +7247,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=73";
+  script.src = BASE + "/veilos.js?v=74";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8462,7 +8444,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=73";
+    script.src = REPO_PATH + "anime.min.js?v=74";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8546,21 +8528,21 @@ function playDashIntro() {
 }
 if (!window.__veilNudge) {
   window.__veilNudge = true;
-  const nudgeSel = ".dash-tile, .quick-link, .tool-btn, .menu-btn, .dash-ico, .primary-btn, .secondary-btn, .settings-tab, .preset, .menu-item, .stage-switch button, .stage-back";
+  const nudgeSel = ".dash-tile, .quick-link, .dash-ico, .stage-back, .preset";
   const springTo = (el, scale) => {
     const anime = window.anime;
     if (!el || el.disabled || motionOff() || !anime || !anime.animate || !anime.spring) return;
     try {
       anime.animate(el, {
         scale: scale,
-        ease: anime.spring({ bounce: 0.32, duration: 520 })
+        ease: anime.spring({ bounce: 0.12, duration: 360 })
       });
     } catch (err) {}
   };
   document.addEventListener("pointerover", event => {
     const el = event.target.closest(nudgeSel);
     if (!el || el.contains(event.relatedTarget)) return;
-    springTo(el, 1.02);
+    springTo(el, 1.012);
   }, { passive: true });
   document.addEventListener("pointerout", event => {
     const el = event.target.closest(nudgeSel);
@@ -8570,12 +8552,12 @@ if (!window.__veilNudge) {
   document.addEventListener("pointerdown", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, 0.98);
+    springTo(el, 0.992);
   }, { passive: true });
   document.addEventListener("pointerup", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, el.matches(":hover") ? 1.02 : 1);
+    springTo(el, el.matches(":hover") ? 1.012 : 1);
   }, { passive: true });
 }
 function setVeilView(view) {
