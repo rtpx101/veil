@@ -4,7 +4,7 @@
     { id: "browser", title: "Browser", icon: "favi" },
     { id: "store", title: "App Store", icon: "store" },
     { id: "chat", title: "Chat", icon: "chat" },
-    { id: "settings", title: "Settings", icon: "settings" },
+    { id: "settings", title: "Options", icon: "settings" },
     { id: "calc", title: "Calculator", icon: "calc" },
     { id: "timer", title: "Timer", icon: "clock" },
     { id: "editor", title: "Code Editor", icon: "editor" },

@@ -2234,7 +2234,7 @@ const SETTINGS_INFO = {
   },
   avatar: {
     title: "Profile picture",
-    body: "Shown in Settings and on the lock screen. Veil does not ask for this when you create an account. If you skip it, the default picture is used."
+    body: "Shown in Options and on the lock screen. Veil does not ask for this when you create an account. If you skip it, the default picture is used."
   },
   time24: {
     title: "24-hour time",
@@ -3104,15 +3104,19 @@ function closePanelsInner() {
   const backdrop = document.getElementById("backdrop");
   const finish = () => {
     if (backdrop) backdrop.classList.remove("open");
+    const settingsPanel = document.getElementById("settingsPanel");
+    if (settingsPanel) {
+      settingsPanel.style.transition = "none";
+      settingsPanel.style.visibility = "hidden";
+    }
     document.querySelectorAll(".panel").forEach(value => {
       value.classList.remove("open");
       value.style.opacity = "";
       value.style.scale = "";
       value.style.transform = "";
     });
-    const settingsPanel = document.getElementById("settingsPanel");
     if (settingsPanel) {
-      settingsPanel.classList.remove("is-browser-scope", "is-page");
+      settingsPanel.classList.remove("is-browser-scope", "is-page", "open");
       if (document.body.dataset.veilView === "options") {
         setVeilView(settingsReturn === "browser" ? "browser" : "dash");
       }
@@ -3487,6 +3491,21 @@ function hexToRgb(value) {
     b: parseInt(name2.slice(4, 6), 16)
   };
 }
+function pauseHomeFx(value) {
+  const key = homeFxLoops.get(value);
+  if (!key) return;
+  if (key.raf) cancelAnimationFrame(key.raf);
+  key.raf = 0;
+  key.paused = true;
+}
+function resumeHomeFx(value) {
+  const key = homeFxLoops.get(value);
+  if (!key || !key.draw) return false;
+  if (key.raf) return true;
+  key.paused = false;
+  key.raf = requestAnimationFrame(key.draw);
+  return true;
+}
 function stopHomeFx(value) {
   const key = homeFxLoops.get(value);
   if (key && key.raf) {
@@ -3531,8 +3550,12 @@ function setupHomeFx(value3, extra2) {
   };
   const item2 = () => {
     const btn = value3.getBoundingClientRect();
-    node2.width = Math.max(1, Math.floor(btn.width * (window.devicePixelRatio || 1)));
-    node2.height = Math.max(1, Math.floor(btn.height * (window.devicePixelRatio || 1)));
+    if (btn.width < 8 || btn.height < 8) return;
+    const w = Math.max(1, Math.floor(btn.width * (window.devicePixelRatio || 1)));
+    const h = Math.max(1, Math.floor(btn.height * (window.devicePixelRatio || 1)));
+    if (node2.width === w && node2.height === h) return;
+    node2.width = w;
+    node2.height = h;
     node2.style.width = btn.width + "px";
     node2.style.height = btn.height + "px";
   };
@@ -3807,6 +3830,7 @@ function setupHomeFx(value3, extra2) {
     }
     list2.raf = requestAnimationFrame(box);
   };
+  list2.draw = box;
   list2.raf = requestAnimationFrame(box);
   const resizeObserver = new ResizeObserver(item2);
   resizeObserver.observe(value3);
@@ -4897,9 +4921,36 @@ function absFaviconUrl(value) {
     return location.origin + REPO_PATH + "image/favi.png";
   }
 }
+const cloakIconData = {};
+function warmCloakIcons() {
+  const icons = {};
+  try {
+    Object.keys(CLOAK_PRESETS).forEach(key => {
+      const icon = CLOAK_PRESETS[key] && CLOAK_PRESETS[key].icon;
+      if (icon) icons[icon] = true;
+    });
+  } catch (err) {}
+  icons[FAVI] = true;
+  Object.keys(icons).forEach(icon => {
+    fetch(icon).then(res => res.ok ? res.blob() : null).then(blob => {
+      if (!blob) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const url = String(reader.result || "");
+        if (url.indexOf("data:") === 0) {
+          cloakIconData[icon] = url;
+          cloakIconData[absFaviconUrl(icon)] = url;
+        }
+      };
+      reader.readAsDataURL(blob);
+    }).catch(() => {});
+  });
+}
+try { warmCloakIcons(); } catch (err) {}
 function cloakNow() {
   const veil = cloak && cloak.title || document.title || "Veil";
-  const gate = absFaviconUrl(cloak && cloak.icon || FAVI);
+  const raw = cloak && cloak.icon || FAVI;
+  const gate = cloakIconData[raw] || absFaviconUrl(raw);
   return {
     title: veil,
     icon: gate
@@ -4921,7 +4972,7 @@ function escCloak(value2) {
 }
 function cloakHead() {
   const value = cloakNow();
-  return "<title>" + escCloak(value.title) + "</title><link rel=\"icon\" href=\"" + escCloak(value.icon) + "\"><script>window.addEventListener('message',function(ev){var data=ev.data||{};if(!data||data.type!=='veil-chrome')return;if(data.title)document.title=String(data.title);if(data.icon){var link=document.querySelector('link[rel=\"icon\"]');if(!link){link=document.createElement('link');link.rel='icon';document.head.appendChild(link);}link.href=String(data.icon);}});</script>";
+  return "<title>" + escCloak(value.title) + "</title><link rel=\"icon\" type=\"image/png\" href=\"" + escCloak(value.icon) + "\"><script>window.addEventListener('message',function(ev){var data=ev.data||{};if(!data||data.type!=='veil-chrome')return;if(data.title)document.title=String(data.title);if(data.icon){var old=document.querySelectorAll('link[rel*=\"icon\"]');for(var i=0;i<old.length;i++)old[i].parentNode.removeChild(old[i]);var link=document.createElement('link');link.rel='icon';link.type='image/png';link.href=String(data.icon);document.head.appendChild(link);}});</script>";
 }
 function pushCloak(value) {
   if (!value) {
@@ -6044,7 +6095,7 @@ function renderChatPage(value3) {
   closeChatCard();
   const code = chatProfile();
   if (!code.username) {
-    value3.innerHTML = "<div class=\"chat-setup\"><div class=\"chat-setup-card\"><h2>Choose a username</h2><p>This is the name people see in chat. You can change it later in Settings, then Chat, then Profile.</p><input class=\"text-input\" id=\"chatSetupName\" maxlength=\"24\" placeholder=\"Username\" autocomplete=\"off\"><button type=\"button\" class=\"primary-btn\" id=\"chatSetupGo\">Continue</button></div></div>";
+    value3.innerHTML = "<div class=\"chat-setup\"><div class=\"chat-setup-card\"><h2>Choose a username</h2><p>This is the name people see in chat. You can change it later in Options, then Chat, then Profile.</p><input class=\"text-input\" id=\"chatSetupName\" maxlength=\"24\" placeholder=\"Username\" autocomplete=\"off\"><button type=\"button\" class=\"primary-btn\" id=\"chatSetupGo\">Continue</button></div></div>";
     const chatSetupGo = value3.querySelector("#chatSetupGo");
     const chatSetupName = value3.querySelector("#chatSetupName");
     const amount = () => {
@@ -7009,7 +7060,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=68";
+  link.href = BASE + "/veilos.css?v=69";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7020,7 +7071,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=68";
+  script.src = BASE + "/veilos.js?v=69";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8192,7 +8243,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=68";
+    script.src = REPO_PATH + "anime.min.js?v=69";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8276,21 +8327,36 @@ function playDashIntro() {
 }
 if (!window.__veilNudge) {
   window.__veilNudge = true;
-  document.addEventListener("pointerdown", event => {
-    const el = event.target.closest(".dash-tile, .quick-link, .tool-btn, .dash-ico, .stage-switch button");
-    if (!el || el.disabled || motionOff()) return;
+  const nudgeSel = ".dash-tile, .quick-link, .tool-btn, .menu-btn, .dash-ico, .primary-btn, .secondary-btn, .settings-tab, .preset, .menu-item, .stage-switch button, .stage-back";
+  const springTo = (el, scale) => {
     const anime = window.anime;
-    if (!anime || !anime.animate || !anime.spring) return;
+    if (!el || el.disabled || motionOff() || !anime || !anime.animate || !anime.spring) return;
     try {
       anime.animate(el, {
-        scale: [0.96, 1],
-        ease: anime.spring({ bounce: 0.3, duration: 240 })
+        scale: scale,
+        ease: anime.spring({ bounce: 0.32, duration: 520 })
       });
-      setTimeout(() => {
-        el.style.scale = "";
-        el.style.transform = "";
-      }, 280);
     } catch (err) {}
+  };
+  document.addEventListener("pointerover", event => {
+    const el = event.target.closest(nudgeSel);
+    if (!el || el.contains(event.relatedTarget)) return;
+    springTo(el, 1.04);
+  }, { passive: true });
+  document.addEventListener("pointerout", event => {
+    const el = event.target.closest(nudgeSel);
+    if (!el || el.contains(event.relatedTarget)) return;
+    springTo(el, 1);
+  }, { passive: true });
+  document.addEventListener("pointerdown", event => {
+    const el = event.target.closest(nudgeSel);
+    if (!el) return;
+    springTo(el, 0.98);
+  }, { passive: true });
+  document.addEventListener("pointerup", event => {
+    const el = event.target.closest(nudgeSel);
+    if (!el) return;
+    springTo(el, el.matches(":hover") ? 1.04 : 1);
   }, { passive: true });
 }
 function setVeilView(view) {
@@ -8305,14 +8371,18 @@ function setVeilView(view) {
   if (view === "dash") {
     try { paintDashStatus(); } catch (err) {}
     try { startWelcomeClock(); } catch (err) {}
-    try { applyNewTabBackground(); } catch (err) {}
-    try { if (wall) setupHomeFx(wall); } catch (err) {}
+    try {
+      if (wall && !resumeHomeFx(wall)) {
+        applyNewTabBackground();
+        setupHomeFx(wall);
+      }
+    } catch (err) {}
     try {
       if (wall) wall.querySelectorAll("video").forEach(video => video.play().catch(() => {}));
     } catch (err) {}
     try { playDashIntro(); } catch (err) {}
   } else if (wall) {
-    try { stopHomeFx(wall); } catch (err) {}
+    try { pauseHomeFx(wall); } catch (err) {}
     try { wall.querySelectorAll("video").forEach(video => video.pause()); } catch (err) {}
   }
   if (view !== "entertainment") {
@@ -8321,6 +8391,16 @@ function setVeilView(view) {
       if (stage) stage.querySelectorAll("video").forEach(video => video.pause());
     } catch (err) {}
   }
+}
+function quietSettingsPanel() {
+  const panel = document.getElementById("settingsPanel");
+  if (!panel) return;
+  panel.style.transition = "none";
+  panel.style.visibility = "hidden";
+  panel.style.opacity = "";
+  panel.style.transform = "";
+  panel.style.scale = "";
+  panel.classList.remove("open", "is-options", "is-browser-scope", "is-page");
 }
 function showDash() {
   const view = document.body.dataset.veilView || "";
@@ -8342,13 +8422,14 @@ function showDash() {
     });
     try { closeMenu(); } catch (err) {}
     try { closeHistory(); } catch (err) {}
+    quietSettingsPanel();
     document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope", "is-page"));
     const backdrop = document.getElementById("backdrop");
     if (backdrop) backdrop.classList.remove("open");
     const settingsPanel = document.getElementById("settingsPanel");
     if (settingsPanel) {
       const title = settingsPanel.querySelector(".panel-head > span");
-      if (title) title.textContent = "Settings";
+      if (title) title.textContent = "Options";
     }
     const dash = document.getElementById("veilDash");
     if (dash) dash.style.opacity = "";
@@ -8547,12 +8628,7 @@ function leaveSettings(force) {
   }
   const panel = document.getElementById("settingsPanel");
   const go = () => {
-    if (panel) {
-      panel.classList.remove("open", "is-page", "is-options", "is-browser-scope");
-      panel.style.opacity = "";
-      panel.style.scale = "";
-      panel.style.transform = "";
-    }
+    quietSettingsPanel();
     const backdrop = document.getElementById("backdrop");
     if (backdrop) backdrop.classList.remove("open");
     showBrowser();
@@ -8568,6 +8644,11 @@ function openSettings(scope) {
   closeMenu();
   const panel = document.getElementById("settingsPanel");
   if (!panel) return;
+  panel.style.transition = "";
+  panel.style.visibility = "";
+  panel.style.opacity = "";
+  panel.style.transform = "";
+  panel.style.scale = "";
   panel.classList.remove("is-options");
   panel.classList.toggle("is-browser-scope", wallpaperScope === "browser");
   panel.classList.add("open", "is-page");
@@ -8580,7 +8661,7 @@ function openSettings(scope) {
     });
   }
   const title = panel.querySelector(".panel-head > span");
-  if (title) title.textContent = "Settings";
+  if (title) title.textContent = "Options";
   const backdrop = document.getElementById("backdrop");
   if (backdrop) backdrop.classList.remove("open");
   const back = document.getElementById("optionsBack");

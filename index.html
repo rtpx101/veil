@@ -324,10 +324,10 @@ body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 .modal-box.info-modal p{font-size:13px;line-height:1.55;color:var(--muted);margin:0 0 16px}
 .modal-box.info-modal .modal-actions{display:flex;justify-content:flex-end}
 .preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
-.preset{min-height:67px;border:1px solid var(--border);background:var(--bg2);border-radius:11px;cursor:pointer;text-align:left;padding:10px}
+.preset{min-height:67px;border:1px solid var(--border);background:var(--bg2);border-radius:11px;cursor:pointer;text-align:left;padding:10px;color:#fff}
 .preset:hover{border-color:color-mix(in srgb, var(--text) 42%, var(--border))}
 .preset.active{border-color:var(--accent)}
-.preset-name{font-size:12px;margin-bottom:9px}
+.preset-name{font-size:12px;margin-bottom:9px;color:#fff}
 .preset-preview{display:flex;gap:5px}
 .preset-dot{width:14px;height:14px;border-radius:50%;display:inline-block}
 .custom-card{display:none;margin-top:12px;padding:14px;border:1px solid var(--border);background:var(--bg2);border-radius:12px}
@@ -853,6 +853,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .veil-devgate .modal-actions button{flex:1;width:auto;height:44px;margin:0;border-radius:12px;font-size:14px;font-weight:650}
 #optionsBack{display:none}
 #settingsPanel.is-page #optionsBack{display:inline-flex}
+#settingsPanel.is-page,#settingsPanel.is-page.open{transition:none !important}
 #settingsPanel.is-browser-scope .settings-tab:not([data-settings-tab="custom"]):not([data-settings-tab="browser"]){display:none !important}
 #settingsPanel.is-page.open{
   inset:0;left:0;top:0;right:0;width:100%;height:100%;max-height:none;
@@ -1022,7 +1023,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=68", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=69", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1154,7 +1155,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
         <button class="address-bookmark" id="bookmarkBtn" title="Bookmark"><img id="bookmarkIcon" src="image/bookmarkh.svg" alt=""></button>
       </div>
       <div class="right-tools">
-        <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
+        <button class="menu-btn" id="settingsOpenBtn" title="Options"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
         <button class="menu-btn" id="menuBtn" title="Menu"><span class="icon" style="--i:url('image/menu.svg')"></span></button>
       </div>
     </div>
@@ -1184,7 +1185,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 <div class="backdrop" id="backdrop"></div>
 
 <aside class="panel" id="settingsPanel">
-  <div class="panel-head"><button type="button" class="close-panel" id="optionsBack" title="Back"><img src="image/backward.svg" alt=""></button><span>Settings</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
+  <div class="panel-head"><button type="button" class="close-panel" id="optionsBack" title="Back"><img src="image/backward.svg" alt=""></button><span>Options</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
   <div class="settings-tabs" role="tablist">
     <button type="button" class="settings-tab active" data-settings-tab="custom" role="tab">Customization</button>
     <button type="button" class="settings-tab" data-settings-tab="privacy" role="tab">Privacy</button>
@@ -1508,7 +1509,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=68" defer></script>
-<script src="access-gate.js?v=68"></script>
+<script src="anime.min.js?v=69" defer></script>
+<script src="access-gate.js?v=69"></script>
 </body>
 </html>
