@@ -2114,33 +2114,108 @@ function clearTabBox(el) {
   el.style.opacity = "";
   el.style.marginRight = "";
 }
-function syncTabPill(host) {
-  if (!host) return;
-  const pill = host.querySelector(".tab-pill");
-  if (pill) pill.remove();
-  host.classList.remove("has-pill");
+function freezeTabFace(el) {
+  const face = el && el.querySelector(".tab-face");
+  if (!face) return;
+  const width = face.getBoundingClientRect().width;
+  face.style.flex = "0 0 " + width + "px";
+  face.style.width = width + "px";
+  face.style.minWidth = width + "px";
+  face.style.maxWidth = width + "px";
+}
+function clearTabFace(el) {
+  const face = el && el.querySelector(".tab-face");
+  if (!face) return;
+  face.style.flex = "";
+  face.style.width = "";
+  face.style.minWidth = "";
+  face.style.maxWidth = "";
+}
+function syncTabPill(host, from) {
+  const active = host && host.querySelector(".tab.active");
+  if (!host || !active) return;
+  let pill = host.querySelector(".tab-pill");
+  if (!pill) {
+    pill = document.createElement("span");
+    pill.className = "tab-pill";
+    host.insertBefore(pill, host.firstChild);
+  }
+  host.classList.add("has-pill");
+  const hostRect = host.getBoundingClientRect();
+  const rect = active.getBoundingClientRect();
+  const left = rect.left - hostRect.left + host.scrollLeft;
+  pill.style.left = left + "px";
+  pill.style.width = rect.width + "px";
+  pill.style.transformOrigin = "left center";
+  if (from && window.anime && window.anime.animate && !motionOff()) {
+    const dx = from.left - rect.left;
+    const sx = Math.max(0.35, from.width / (rect.width || 1));
+    try {
+      window.anime.animate(pill, {
+        translateX: [dx, 0],
+        scaleX: [sx, 1],
+        ease: veilSpring(0.34, 620)
+      });
+    } catch (err) {}
+  }
 }
 function runTabStripMotion(host, before) {
   const anime = window.anime;
-  syncTabPill(host);
-  if (!host || !anime || !anime.animate || motionOff()) return;
+  if (!host || !anime || !anime.animate || motionOff()) {
+    syncTabPill(host, null);
+    return;
+  }
   const fresh = Array.from(host.querySelectorAll(".tab")).filter(el => !before.get(el.dataset.tabId));
-  if (!fresh.length) return;
+  if (!fresh.length) {
+    syncTabPill(host, tabMotionKind === "switch" ? before.get("__active") : null);
+    return;
+  }
   fresh.forEach(el => {
     const target = el.getBoundingClientRect().width;
+    freezeTabFace(el);
+    el.style.boxSizing = "border-box";
     el.style.flex = "0 0 auto";
     el.style.overflow = "hidden";
     el.style.minWidth = "0";
+    el.style.maxWidth = target + "px";
     el.style.width = "0px";
     try {
-      anime.animate(el, { width: target, duration: 320, ease: "outCubic" });
+      anime.animate(el, { width: target, duration: 340, ease: "outCubic" });
     } catch (err) {}
-    setTimeout(() => clearTabBox(el), 340);
+    setTimeout(() => {
+      clearTabFace(el);
+      clearTabBox(el);
+      syncTabPill(host, null);
+    }, 360);
   });
+  const from = before.get("__active");
+  const active = host.querySelector(".tab.active");
+  if (from && active) {
+    const hostRect = host.getBoundingClientRect();
+    const rect = active.getBoundingClientRect();
+    let pill = host.querySelector(".tab-pill");
+    if (!pill) {
+      pill = document.createElement("span");
+      pill.className = "tab-pill";
+      host.insertBefore(pill, host.firstChild);
+    }
+    host.classList.add("has-pill");
+    pill.style.transformOrigin = "left center";
+    pill.style.left = from.left - hostRect.left + host.scrollLeft + "px";
+    pill.style.width = from.width + "px";
+    try {
+      anime.animate(pill, {
+        left: rect.left - hostRect.left + host.scrollLeft,
+        width: rect.width,
+        duration: 340,
+        ease: "outCubic"
+      });
+    } catch (err) {}
+  }
   const plus = host.querySelector(".new-tab");
   if (plus) {
     try {
-      anime.animate(plus, { scale: [0.94, 1], ease: veilSpring(0.35, 480) });
+      anime.animate(plus, { scale: [0.9, 1], ease: veilSpring(0.42, 520) });
     } catch (err) {}
   }
 }
@@ -2176,17 +2251,14 @@ function renderTabs() {
   if (kind === "open" || kind === "switch") {
     if (kind === "open") runTabStripMotion(tabs2, before);
     else {
-      syncTabPill(tabs2);
-      const active = tabs2.querySelector(".tab.active .tab-icon");
-      if (active) {
-        active.style.scale = "";
-        active.style.transform = "";
-      }
+      syncTabPill(tabs2, before.get("__active"));
+      const active = tabs2.querySelector(".tab.active");
       if (active && anime && anime.animate && !motionOff()) {
         try {
+          active.style.transformOrigin = "center";
           anime.animate(active, {
-            scale: [0.84, 1],
-            ease: veilSpring(0.4, 460)
+            scale: [0.94, 1],
+            ease: veilSpring(0.48, 620)
           });
         } catch (err) {}
       }
@@ -3117,30 +3189,32 @@ function closeTab(value2) {
       historyItem.classList.remove("active");
       if (keep) keep.classList.add("active");
     }
-    syncTabPill(host);
     const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
-    const width = Math.round(historyItem.getBoundingClientRect().width);
-    const face = historyItem.querySelector(".tab-face");
+    const box = historyItem.getBoundingClientRect();
+    const from = { left: box.left, width: box.width };
+    freezeTabFace(historyItem);
+    historyItem.style.boxSizing = "border-box";
     historyItem.style.flex = "0 0 auto";
     historyItem.style.overflow = "hidden";
-    historyItem.style.minWidth = "0";
-    historyItem.style.maxWidth = width + "px";
-    historyItem.style.width = width + "px";
+    historyItem.style.minWidth = "0px";
+    historyItem.style.maxWidth = box.width + "px";
+    historyItem.style.width = box.width + "px";
     historyItem.style.marginRight = "0px";
-    if (face) {
-      face.style.minWidth = "0";
-      face.style.maxWidth = "100%";
-    }
+    if (keep) syncTabPill(host, from);
     try {
       anime.animate(historyItem, {
         width: 0,
         marginRight: -gap,
         opacity: [1, 0],
-        duration: 280,
+        duration: 320,
         ease: "outCubic"
       });
     } catch (err) {}
-    setTimeout(game, 290);
+    const plus = host.querySelector(".new-tab");
+    if (plus) {
+      try { anime.animate(plus, { scale: [0.92, 1], ease: veilSpring(0.4, 480) }); } catch (err) {}
+    }
+    setTimeout(game, 340);
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -7441,7 +7515,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=84";
+  link.href = BASE + "/veilos.css?v=85";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7452,7 +7526,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=84";
+  script.src = BASE + "/veilos.js?v=85";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8649,7 +8723,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=84";
+    script.src = REPO_PATH + "anime.min.js?v=85";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
