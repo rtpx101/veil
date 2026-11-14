@@ -4423,17 +4423,38 @@ function highlightTheme() {
     if (brOpts) brOpts.classList.toggle("enabled", !!settings.brAnimEnabled);
     const brStyle = document.getElementById("brAnimStyle");
     if (brStyle) brStyle.value = ["orbs", "stars", "constellation", "rain", "custom"].includes(settings.brAnimStyle) ? settings.brAnimStyle : "orbs";
-    const brUrlRow = document.getElementById("brAnimUrlRow");
-    const brColorRows = document.getElementById("brAnimColorRows");
     const brCustom = settings.brAnimStyle === "custom";
+    const brMedia = brCustom && isTimedMedia(settings.brBackgroundUrl || "");
+    const brUrlRow = document.getElementById("brAnimUrlRow");
+    const brTuneRows = document.getElementById("brAnimTuneRows");
+    const brColorRows = document.getElementById("brAnimColorRows");
+    const brMediaRow = document.getElementById("brAnimMediaSpeedRow");
     if (brUrlRow) brUrlRow.style.display = brCustom ? "" : "none";
+    if (brTuneRows) brTuneRows.style.display = brCustom ? "none" : "";
     if (brColorRows) brColorRows.style.display = brCustom ? "none" : "";
+    if (brMediaRow) brMediaRow.style.display = brMedia ? "" : "none";
     const brUrl = document.getElementById("brBackgroundUrl");
     if (brUrl && document.activeElement !== brUrl) brUrl.value = settings.brBackgroundUrl || "";
     const brA = document.getElementById("brAnimColorA");
     const brB = document.getElementById("brAnimColorB");
     if (brA) brA.value = safeColorValue(settings.brAnimColorA, "#7aa2ff");
     if (brB) brB.value = safeColorValue(settings.brAnimColorB, "#b88cff");
+    const brSpeed = document.getElementById("brAnimSpeed");
+    const brSpeedVal = document.getElementById("brAnimSpeedVal");
+    if (brSpeed && document.activeElement !== brSpeed) brSpeed.value = String(settings.brAnimSpeed || 1);
+    if (brSpeedVal) brSpeedVal.textContent = Number(settings.brAnimSpeed || 1).toFixed(2) + "x";
+    const brCount = document.getElementById("brAnimCount");
+    const brCountVal = document.getElementById("brAnimCountVal");
+    if (brCount && document.activeElement !== brCount) brCount.value = String(settings.brAnimCount || 18);
+    if (brCountVal) brCountVal.textContent = String(settings.brAnimCount || 18);
+    const brSize = document.getElementById("brAnimSize");
+    const brSizeVal = document.getElementById("brAnimSizeVal");
+    if (brSize && document.activeElement !== brSize) brSize.value = String(settings.brAnimSize || 1);
+    if (brSizeVal) brSizeVal.textContent = Number(settings.brAnimSize || 1).toFixed(2) + "x";
+    const brMediaSpeed = document.getElementById("brAnimMediaSpeed");
+    const brMediaSpeedVal = document.getElementById("brAnimMediaSpeedVal");
+    if (brMediaSpeed && document.activeElement !== brMediaSpeed) brMediaSpeed.value = String(settings.brAnimMediaSpeed || 1);
+    if (brMediaSpeedVal) brMediaSpeedVal.textContent = Number(settings.brAnimMediaSpeed || 1).toFixed(2) + "x";
     paintProfilePreview();
   } catch (err) {
     console.warn("highlightTheme", err);
@@ -4986,8 +5007,9 @@ on("veilRefreshBtn", refreshVeil);
 on("backBtn", goBack);
 on("forwardBtn", goForward);
 on("refreshBtn", reload);
+on("dashBackBtn", () => showDash());
 on("homeBtn", () => showDash());
-on("settingsOpenBtn", () => openBrowserSettings());
+on("settingsOpenBtn", () => showOptions());
 on("bookmarkBtn", toggleBookmark);
 document.getElementById("address").addEventListener("keydown", value => {
   if (value.key === "Enter") {
@@ -6962,7 +6984,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=61";
+  link.href = BASE + "/veilos.css?v=62";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6973,7 +6995,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=61";
+  script.src = BASE + "/veilos.js?v=62";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7155,6 +7177,26 @@ if (brBackgroundUrl) {
     refreshHomeFxAll();
   });
 });
+function bindBrRange(id, key, digits) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  const label = document.getElementById(id + "Val");
+  const paint = () => {
+    const n = Number(input.value);
+    settings[key] = Number.isFinite(n) ? n : settings[key];
+    if (label) label.textContent = digits ? Number(settings[key]).toFixed(digits) + "x" : String(Math.round(Number(settings[key])));
+  };
+  input.addEventListener("input", paint);
+  input.addEventListener("change", () => {
+    paint();
+    save();
+    refreshHomeFxAll();
+  });
+}
+bindBrRange("brAnimSpeed", "brAnimSpeed", 2);
+bindBrRange("brAnimCount", "brAnimCount", 0);
+bindBrRange("brAnimSize", "brAnimSize", 2);
+bindBrRange("brAnimMediaSpeed", "brAnimMediaSpeed", 2);
 on("saverEnabledSwitch", () => {
   settings.saverEnabled = !settings.saverEnabled;
   save();
@@ -8125,7 +8167,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=61";
+    script.src = REPO_PATH + "anime.min.js?v=62";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8161,16 +8203,29 @@ function playDashIntro() {
     try {
       anime.animate(".dash-top, .dash-foot", {
         opacity: [0, 1],
-        translateY: [8, 0],
+        scale: [0.98, 1],
         duration: 320,
         ease: "outCubic"
       });
-      anime.animate(".dash-tile", {
+      const tiles = anime.animate(".dash-tile:not(.dash-soon)", {
         opacity: [0, 1],
-        translateY: [12, 0],
+        scale: [0.96, 1],
         delay: anime.stagger(45),
         duration: 360,
         ease: "outCubic"
+      });
+      const soon = anime.animate(".dash-tile.dash-soon", {
+        opacity: [0, 0.38],
+        scale: [0.96, 1],
+        delay: anime.stagger(45),
+        duration: 360,
+        ease: "outCubic"
+      });
+      Promise.all([tiles, soon].filter(Boolean).map(item => item && item.then ? item : Promise.resolve())).then(() => {
+        document.querySelectorAll(".dash-tile, .dash-top, .dash-foot").forEach(el => {
+          el.style.opacity = "";
+          el.style.transform = "";
+        });
       });
     } catch (err) {}
   };
@@ -8184,7 +8239,7 @@ function setVeilView(view) {
   const stage = document.getElementById("veilStage");
   if (browser && !document.body.classList.contains("veil-os")) browser.style.display = view === "browser" ? "flex" : "none";
   if (dash) dash.style.display = view === "dash" ? "flex" : "none";
-  if (stage) stage.style.display = view === "entertainment" || view === "chat" ? "flex" : "none";
+  if (stage) stage.style.display = view === "entertainment" || view === "chat" || view === "admin" ? "flex" : "none";
   const wall = document.getElementById("dashWall");
   if (view === "dash") {
     try { paintDashStatus(); } catch (err) {}
@@ -8253,10 +8308,15 @@ function playStageIntro(root, selector) {
     try {
       anime.animate(nodes, {
         opacity: [0, 1],
-        translateY: [16, 0],
+        scale: [0.98, 1],
         delay: anime.stagger(46),
-        duration: 460,
+        duration: 420,
         ease: "outCubic"
+      }).then(() => {
+        nodes.forEach(el => {
+          el.style.opacity = "";
+          el.style.transform = "";
+        });
       });
     } catch (err) {}
   });
@@ -8315,19 +8375,22 @@ function openBrowserSettings() {
     window.veilOSOpenApp("settings");
     return;
   }
-  const panel = document.getElementById("settingsPanel");
-  if (!panel) return;
-  panel.classList.add("is-browser-scope");
-  panel.classList.remove("is-options");
-  const title = panel.querySelector(".panel-head > span");
-  if (title) title.textContent = "Settings";
-  const active = panel.querySelector(".settings-tab.active");
-  const token = active && active.getAttribute("data-settings-tab");
-  if (token !== "custom" && token !== "browser") {
-    const custom = panel.querySelector('[data-settings-tab="custom"]');
-    if (custom) custom.click();
+  showOptions();
+}
+function showAdmin() {
+  closeMenu();
+  try { closePanels(); } catch (err) {}
+  const title = document.getElementById("stageTitle");
+  const sw = document.getElementById("stageSwitch");
+  const body = document.getElementById("stageBody");
+  if (title) title.textContent = "Admin";
+  if (sw) sw.hidden = true;
+  if (body) {
+    const src = new URL("admin/index.html", location.href).href;
+    body.innerHTML = '<iframe class="admin-frame" title="Admin" src="' + src + '"></iframe>';
   }
-  openPanel("settingsPanel");
+  setVeilView("admin");
+  fadeIn(document.getElementById("veilStage"));
 }
 function showOptions() {
   closeMenu();
@@ -9512,69 +9575,7 @@ function showGameInfo(value2) {
   };
 }
 on("openAdminPanel", () => {
-  closePanels();
-  closeMenu();
-  try {
-    closeHistory();
-  } catch {}
-  const err = location.pathname.replace(/\/?index\.html$/i, "/").replace(/\/?$/, "/");
-  const list = location.origin + err + "admin/index.html";
-  let item = tabs.find(value => value.isAdmin);
-  if (!item) {
-    if (tabs.length >= MAX_TABS) {
-      alert("Too many tabs");
-      return;
-    }
-    item = {
-      id: uid(),
-      title: "Admin Panel",
-      url: "veil://admin",
-      history: [],
-      historyIndex: -1,
-      newTab: false,
-      isAdmin: true,
-      engineFrame: null,
-      favicon: FAVI,
-      animOpen: true,
-      lastActive: Date.now()
-    };
-    tabs.push(item);
-  } else {
-    item.url = "veil://admin";
-    item.title = "Admin Panel";
-    item.favicon = FAVI;
-    item.lastActive = Date.now();
-  }
-  activeTabId = item.id;
-  const viewport = document.getElementById("viewport");
-  if (!viewport) {
-    return;
-  }
-  let raw = viewport.querySelector(".page[data-page-id=\"" + item.id + "\"]");
-  if (!raw) {
-    raw = document.createElement("section");
-    raw.className = "page";
-    raw.dataset.pageId = item.id;
-    viewport.appendChild(raw);
-  }
-  raw.innerHTML = "";
-  const found = document.createElement("iframe");
-  found.className = "engine-frame";
-  found.setAttribute("title", "Admin Panel");
-  found.style.cssText = "width:100%;height:100%;border:0;background:#101010";
-  found.src = list;
-  raw.appendChild(found);
-  item.engineFrame = {
-    frame: found,
-    element: found
-  };
-  found.addEventListener("load", function () {
-    item.url = "veil://admin";
-    item.isAdmin = true;
-    renderToolbar();
-  });
-  showActiveOnly();
-  renderChrome();
+  showAdmin();
 });
 setTimeout(function () {
   if (typeof navigate !== "function" || typeof save !== "function") {

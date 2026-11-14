@@ -669,7 +669,7 @@ body.boot-reveal #veilDash{
 
 @keyframes veilFade{from{opacity:0}to{opacity:1}}
 @keyframes veilFadeOut{from{opacity:1}to{opacity:0}}
-@keyframes veilUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes veilUp{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
 @keyframes veilDown{from{opacity:1;transform:none}to{opacity:0;transform:translateY(10px)}}
 .modal-overlay .modal-box,.cookie-overlay .modal-box,.signup-overlay .signup-card{animation:veilUp .2s ease}
 .modal-overlay.closing,.cookie-overlay.closing,.signup-overlay.closing,.game-player-overlay.closing{animation:veilFadeOut .2s ease forwards;pointer-events:none}
@@ -752,7 +752,7 @@ body.boot-reveal #veilDash{
 .game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
 .game-tile.fav .meta .name{color:var(--text)}
 .games-empty{color:var(--muted);font-size:13px;padding:16px 4px}
-@keyframes gameTileIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes gameTileIn{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
 .game-player-overlay{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
 .game-player{width:min(1100px,100%);height:min(720px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:row;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
 .game-player-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
@@ -840,7 +840,7 @@ body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-hello{font-size:clamp(18px,2.3vw,28px);font-weight:720;letter-spacing:-.03em;line-height:1.15}
 .dash-when{margin-top:4px;font-size:clamp(12px,1.45vw,16px);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dash-logo{width:52px;height:52px;object-fit:contain;flex:0 0 52px}
-.dash-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:14px}
+.dash-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:14px;overflow:visible}
 .dash-tile{position:relative;min-height:0;border-radius:22px;border:1px solid var(--border);background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;padding:16px}
 .dash-tile img{width:42px;height:42px;object-fit:contain;display:block;filter:invert(var(--page-icon-invert,1))}
 .dash-label{font-size:clamp(15px,1.7vw,20px);font-weight:720;letter-spacing:-.02em}
@@ -865,7 +865,7 @@ body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-sep{opacity:.45}
 .dash-left,.dash-os{white-space:nowrap}
 .veil-stage{position:fixed;inset:0;z-index:20;display:none;flex-direction:column;background:var(--bg);color:var(--text)}
-body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .veil-stage{display:flex}
+body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .veil-stage,body[data-veil-view="admin"] .veil-stage{display:flex}
 .stage-bar{flex:0 0 auto;display:flex;align-items:center;gap:12px;min-height:64px;margin:16px 16px 0;padding:10px 14px;border-radius:22px;background:var(--panel);border:1px solid var(--border)}
 .stage-back{width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .stage-back img{width:16px;height:16px;display:block;filter:invert(var(--page-icon-invert,1))}
@@ -874,13 +874,14 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .stage-switch[hidden]{display:none !important}
 .stage-switch button{height:32px;padding:0 12px;border-radius:9px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer}
 .stage-switch button.on{background:var(--panel);color:var(--text)}
-.stage-body{flex:1;min-height:0;margin:14px 16px 16px;border-radius:22px;overflow:hidden;border:1px solid var(--border);background:var(--bg)}
+.stage-body{flex:1;min-height:0;margin:14px 16px 16px;border-radius:22px;overflow:auto;border:1px solid var(--border);background:var(--bg)}
 .ent-pane{display:none;height:100%}
 .ent-pane.on{display:block}
 .ent-pane .games-page{height:100%}
 .ent-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);text-align:center;padding:24px}
 .ent-empty strong{color:var(--text);font-size:18px;font-weight:720;letter-spacing:-.02em}
 .stage-body > .chat-page{height:100%}
+.admin-frame{width:100%;height:100%;min-height:100%;border:0;background:var(--bg);display:block}
 #optionsBack{display:none}
 #settingsPanel.open{inset:0;width:100%;max-width:none;height:100%;border-left:0;background:var(--bg);transform:none}
 #settingsPanel.open .panel-head{margin:16px 16px 0;padding:0 14px;height:64px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
@@ -1050,7 +1051,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=61", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=62", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1170,6 +1171,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     </div>
     <div class="toolbar">
       <div class="nav-buttons">
+        <button class="tool-btn" id="dashBackBtn" title="Back to dashboard" aria-label="Back to dashboard"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
         <button class="tool-btn" id="backBtn" title="Back"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
         <button class="tool-btn" id="forwardBtn" title="Forward"><span class="icon" style="--i:url('image/forward.svg')"></span></button>
         <button class="tool-btn" id="refreshBtn" title="Refresh"><span class="icon" style="--i:url('image/refresh.svg')"></span></button>
@@ -1286,6 +1288,39 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
       </div>
     </section>
     <section class="setting-section">
+      <div class="setting-title">Browser wallpaper <button type="button" class="info-btn" data-info="browserbg" title="About this option" aria-label="About Browser wallpaper"><img src="image/info.svg" alt=""></button></div>
+      <div class="switch-row">
+        <span class="switch-label">Enable on the browser new tab</span>
+        <button type="button" class="switch" id="brAnimEnabledSwitch" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="anim-opts" id="brAnimOpts">
+        <div class="input-row" style="margin-top:10px"><label class="input-label">Style</label>
+          <select class="text-input" id="brAnimStyle">
+            <option value="orbs">Floating orbs</option>
+            <option value="stars">Twinkling stars</option>
+            <option value="constellation">Constellation</option>
+            <option value="rain">Rain & storms</option>
+            <option value="custom">Custom URL</option>
+          </select>
+        </div>
+        <div id="brAnimUrlRow" style="display:none">
+          <div class="input-row"><input class="text-input" id="brBackgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
+        </div>
+        <div id="brAnimTuneRows">
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="brAnimSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="brAnimSpeedVal">1.00x</span></div>
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span><input type="range" id="brAnimCount" min="4" max="80" step="1" value="18"><span class="range-val" id="brAnimCountVal">18</span></div>
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="brAnimSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="brAnimSizeVal">1.00x</span></div>
+        </div>
+        <div id="brAnimColorRows">
+          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="brAnimColorA" value="#7aa2ff"></div>
+          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="brAnimColorB" value="#b88cff"></div>
+        </div>
+        <div id="brAnimMediaSpeedRow" style="display:none">
+          <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="brAnimMediaSpeed" min="0.25" max="3" step="0.05" value="1"><span class="range-val" id="brAnimMediaSpeedVal">1.00x</span></div>
+        </div>
+      </div>
+    </section>
+    <section class="setting-section">
       <div class="setting-title">Screen saver <button type="button" class="info-btn" data-info="screensaver" title="About this option" aria-label="About Screen saver"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Enable screen saver</span>
@@ -1378,31 +1413,6 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     </div>
 
     <div class="settings-page" data-settings-page="browser">
-    <section class="setting-section">
-      <div class="setting-title">Browser wallpaper <button type="button" class="info-btn" data-info="browserbg" title="About this option" aria-label="About Browser wallpaper"><img src="image/info.svg" alt=""></button></div>
-      <div class="switch-row">
-        <span class="switch-label">Enable on the new tab page</span>
-        <button type="button" class="switch" id="brAnimEnabledSwitch" role="switch" aria-checked="false"></button>
-      </div>
-      <div class="anim-opts" id="brAnimOpts">
-        <div class="input-row" style="margin-top:10px"><label class="input-label">Style</label>
-          <select class="text-input" id="brAnimStyle">
-            <option value="orbs">Floating orbs</option>
-            <option value="stars">Twinkling stars</option>
-            <option value="constellation">Constellation</option>
-            <option value="rain">Rain & storms</option>
-            <option value="custom">Custom URL</option>
-          </select>
-        </div>
-        <div id="brAnimUrlRow" style="display:none">
-          <div class="input-row"><input class="text-input" id="brBackgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
-        </div>
-        <div id="brAnimColorRows">
-          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="brAnimColorA" value="#7aa2ff"></div>
-          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="brAnimColorB" value="#b88cff"></div>
-        </div>
-      </div>
-    </section>
     <section class="setting-section">
       <div class="setting-title">Search engine <button type="button" class="info-btn" data-info="search" title="About this option" aria-label="About Search engine"><img src="image/info.svg" alt=""></button></div>
       <select class="text-input" id="searchEngineSelect">
@@ -1560,7 +1570,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=61" defer></script>
-<script src="access-gate.js?v=61"></script>
+<script src="anime.min.js?v=62" defer></script>
+<script src="access-gate.js?v=62"></script>
 </body>
 </html>
