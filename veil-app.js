@@ -2089,6 +2089,11 @@ function snapshotTabs(host) {
     map.set(el.dataset.tabId, { left: rect.left, width: rect.width });
     if (el.classList.contains("active")) map.set("__active", { left: rect.left, width: rect.width });
   });
+  const plus = host.querySelector(".new-tab");
+  if (plus) {
+    const rect = plus.getBoundingClientRect();
+    map.set("__plus", { left: rect.left, width: rect.width });
+  }
   return map;
 }
 function desiredTabWidth(host, count) {
@@ -2159,8 +2164,8 @@ function syncTabPill(host, from) {
       host._pillMotion = anime.animate(pill, {
         left: left,
         width: rect.width,
-        duration: 420,
-        ease: "outCubic"
+        duration: 520,
+        ease: veilSpring(0.32, 560)
       });
     } catch (err) {
       pill.style.left = left + "px";
@@ -2171,77 +2176,44 @@ function syncTabPill(host, from) {
   pill.style.left = left + "px";
   pill.style.width = rect.width + "px";
 }
+function slideStrip(host, before) {
+  const anime = window.anime;
+  if (!host || !before || !anime || !anime.animate || motionOff()) return;
+  const nodes = Array.from(host.querySelectorAll(".tab:not(.tab-ghost)"));
+  const plus = host.querySelector(".new-tab");
+  if (plus) nodes.push(plus);
+  nodes.forEach(el => {
+    const key = el.classList.contains("new-tab") ? "__plus" : el.dataset.tabId;
+    const prev = before.get(key);
+    if (!prev) return;
+    const dx = prev.left - el.getBoundingClientRect().left;
+    if (Math.abs(dx) < 0.5) return;
+    el.style.transform = "translateX(" + dx + "px)";
+    try {
+      anime.animate(el, { translateX: [dx, 0], ease: veilSpring(0.38, 540) });
+    } catch (err) {}
+  });
+}
 function runTabStripMotion(host, before) {
   const anime = window.anime;
   if (!host || !anime || !anime.animate || motionOff()) {
     syncTabPill(host, null);
     return;
   }
-  const fresh = Array.from(host.querySelectorAll(".tab")).filter(el => !before.get(el.dataset.tabId));
-  if (!fresh.length) {
-    syncTabPill(host, before.get("__active"));
-    return;
-  }
-  const hostRect = host.getBoundingClientRect();
-  const finals = new Map();
-  host.querySelectorAll(".tab").forEach(el => {
-    const rect = el.getBoundingClientRect();
-    finals.set(el, { width: rect.width, left: rect.left - hostRect.left + host.scrollLeft });
-  });
-  fresh.forEach(el => {
-    const target = finals.get(el).width;
-    freezeTabFace(el);
-    el.style.boxSizing = "border-box";
-    el.style.flex = "0 0 auto";
-    el.style.overflow = "hidden";
-    el.style.minWidth = "0";
-    el.style.maxWidth = target + "px";
-    el.style.width = "0px";
+  slideStrip(host, before);
+  host.querySelectorAll(".tab.opening, .tab.active").forEach(el => {
+    if (before.get(el.dataset.tabId)) return;
     try {
-      anime.animate(el, { width: target, opacity: [0.4, 1], duration: 420, ease: "outCubic" });
+      anime.animate(el, { opacity: [0, 1], scale: [0.9, 1], ease: veilSpring(0.46, 560) });
     } catch (err) {}
-    setTimeout(() => {
-      clearTabFace(el);
-      clearTabBox(el);
-      syncTabPill(host, null);
-    }, 440);
   });
-  const active = host.querySelector(".tab.active");
-  const dest = active && finals.get(active);
-  const from = before.get("__active");
-  if (dest) {
-    let pill = host.querySelector(".tab-pill");
-    if (!pill) {
-      pill = document.createElement("span");
-      pill.className = "tab-pill";
-      host.insertBefore(pill, host.firstChild);
-    }
-    host.classList.add("has-pill");
-    if (host._pillMotion && host._pillMotion.cancel) {
-      try { host._pillMotion.cancel(); } catch (err) {}
-    }
-    pill.style.transform = "none";
-    pill.style.left = (from ? from.left - hostRect.left + host.scrollLeft : dest.left) + "px";
-    pill.style.width = (from ? from.width : 0) + "px";
-    try {
-      host._pillMotion = anime.animate(pill, {
-        left: dest.left,
-        width: dest.width,
-        duration: 420,
-        ease: "outCubic"
-      });
-    } catch (err) {}
-  }
-  const plus = host.querySelector(".new-tab");
-  if (plus) {
-    try { anime.animate(plus, { scale: [0.92, 1], ease: veilSpring(0.35, 480) }); } catch (err) {}
-  }
+  syncTabPill(host, before.get("__active"));
 }
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
   const before = snapshotTabs(tabs2);
   const kind = tabMotionKind;
-  const existing = Array.from(tabs2.querySelectorAll(".tab"));
+  const existing = Array.from(tabs2.querySelectorAll(".tab:not(.tab-ghost)"));
   const same = existing.length === tabs.length && existing.every((el, index) => el.dataset.tabId === tabs[index].id);
   if (same && kind !== "open") {
     existing.forEach(el => {
@@ -2252,15 +2224,20 @@ function renderTabs() {
       const img = el.querySelector(".tab-icon img");
       if (tab && img && tab.favicon && img.getAttribute("src") !== tab.favicon) img.src = tab.favicon;
     });
-    if (kind === "switch") {
-      syncTabPill(tabs2, before.get("__active"));
-      const icon = tabs2.querySelector(".tab.active .tab-icon");
-      const anime = window.anime;
-      if (icon && anime && anime.animate && !motionOff()) {
-        try { anime.animate(icon, { scale: [0.82, 1], ease: veilSpring(0.42, 480) }); } catch (err) {}
+    if (!window.__veilHoldPill) {
+      if (kind === "switch") {
+        syncTabPill(tabs2, before.get("__active"));
+        const active = tabs2.querySelector(".tab.active");
+        const anime = window.anime;
+        if (active && anime && anime.animate && !motionOff()) {
+          try {
+            active.style.transformOrigin = "center";
+            anime.animate(active, { scale: [0.94, 1], ease: veilSpring(0.5, 600) });
+          } catch (err) {}
+        }
+      } else {
+        syncTabPill(tabs2, null);
       }
-    } else {
-      syncTabPill(tabs2, null);
     }
     tabMotionKind = "";
     tabJiggleId = "";
@@ -3173,8 +3150,7 @@ function createTab(value = true) {
   };
   tabs.push(cloak2);
   activeTabId = cloak2.id;
-  tabMotionKind = window.__veilSkipTabMotion ? "" : "open";
-  window.__veilSkipTabMotion = false;
+  tabMotionKind = "open";
   ensurePage(cloak2);
   showActiveOnly();
   renderChrome();
@@ -3186,7 +3162,6 @@ function closeTab(value2) {
   }
   const historyItem = document.querySelector("[data-tab-id=\"" + value2 + "\"]");
   const game = () => {
-    try { if (historyItem && historyItem.parentNode) historyItem.remove(); } catch (err) {}
     const response = tabs[bookmark];
     if (response && response.engineFrame) {
       try {
@@ -3200,7 +3175,6 @@ function closeTab(value2) {
     tabs.splice(bookmark, 1);
     prunePages();
     if (!tabs.length) {
-      window.__veilSkipTabMotion = true;
       createTab(true);
       return;
     }
@@ -3213,68 +3187,44 @@ function closeTab(value2) {
   };
   const host = document.getElementById("tabs");
   const anime = window.anime;
-  if (historyItem && host && anime && anime.animate && !motionOff() && host.querySelectorAll(".tab").length > 1) {
-    const nodes = Array.from(host.querySelectorAll(".tab"));
+  const liveTabs = host ? Array.from(host.querySelectorAll(".tab:not(.tab-ghost)")) : [];
+  if (historyItem && host && liveTabs.length <= 1) {
+    if (anime && anime.animate && !motionOff()) {
+      try { anime.animate(historyItem, { opacity: [1, 0], scale: [1, 0.9], ease: veilSpring(0.42, 380) }); } catch (err) {}
+    }
+    setTimeout(game, anime && anime.animate && !motionOff() ? 320 : 0);
+    return;
+  }
+  if (historyItem && host && anime && anime.animate && !motionOff()) {
+    const before = snapshotTabs(host);
+    const nodes = liveTabs;
     const closeIndex = nodes.indexOf(historyItem);
-    let keep = host.querySelector(".tab.active");
+    let keep = host.querySelector(".tab.active:not(.tab-ghost)");
     if (!keep || keep === historyItem) keep = nodes[closeIndex + 1] || nodes[closeIndex - 1] || null;
     if (historyItem.classList.contains("active")) {
       historyItem.classList.remove("active");
       if (keep) keep.classList.add("active");
     }
-    const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
     const hostRect = host.getBoundingClientRect();
     const box = historyItem.getBoundingClientRect();
-    const keepBox = keep ? keep.getBoundingClientRect() : null;
-    let destLeft = keepBox ? keepBox.left - hostRect.left + host.scrollLeft : 0;
-    if (keepBox && keepBox.left > box.left) destLeft -= box.width + gap;
-    freezeTabFace(historyItem);
-    historyItem.style.boxSizing = "border-box";
-    historyItem.style.flex = "0 0 auto";
-    historyItem.style.overflow = "hidden";
-    historyItem.style.minWidth = "0px";
-    historyItem.style.maxWidth = box.width + "px";
+    historyItem.classList.add("tab-ghost");
+    historyItem.style.left = box.left - hostRect.left + host.scrollLeft + "px";
+    historyItem.style.top = "4px";
     historyItem.style.width = box.width + "px";
-    historyItem.style.marginRight = -gap + "px";
-    let pill = host.querySelector(".tab-pill");
-    if (keep && keepBox) {
-      if (!pill) {
-        pill = document.createElement("span");
-        pill.className = "tab-pill";
-        host.insertBefore(pill, host.firstChild);
-      }
-      host.classList.add("has-pill");
-      if (host._pillMotion && host._pillMotion.cancel) {
-        try { host._pillMotion.cancel(); } catch (err) {}
-      }
-      pill.style.transform = "none";
-      pill.style.left = box.left - hostRect.left + host.scrollLeft + "px";
-      pill.style.width = box.width + "px";
-      try {
-        host._pillMotion = anime.animate(pill, {
-          left: destLeft,
-          width: keepBox.width,
-          duration: 420,
-          ease: "outCubic"
-        });
-      } catch (err) {}
-    }
+    historyItem.style.height = "32px";
+    historyItem.style.margin = "0";
     try {
-      anime.animate(historyItem, {
-        width: 0,
-        opacity: [1, 0],
-        duration: 420,
-        ease: "outCubic"
-      });
+      anime.animate(historyItem, { opacity: [1, 0], scale: [1, 0.96], ease: veilSpring(0.28, 380) });
     } catch (err) {}
-    const plus = host.querySelector(".new-tab");
-    if (plus) {
-      try { anime.animate(plus, { scale: [0.94, 1], ease: veilSpring(0.32, 460) }); } catch (err) {}
-    }
-    setTimeout(game, 440);
-  } else if (historyItem && host && host.querySelectorAll(".tab").length <= 1) {
+    setTimeout(() => { try { historyItem.remove(); } catch (err) {} }, 400);
+    window.__veilHoldPill = true;
+    syncTabPill(host, before.get("__active"));
+    slideStrip(host, before);
     game();
-  } else if (historyItem) {
+    window.__veilHoldPill = false;
+    return;
+  }
+  if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
   } else {
@@ -7574,7 +7524,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=86";
+  link.href = BASE + "/veilos.css?v=87";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7585,7 +7535,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=86";
+  script.src = BASE + "/veilos.js?v=87";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8782,7 +8732,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=86";
+    script.src = REPO_PATH + "anime.min.js?v=87";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
