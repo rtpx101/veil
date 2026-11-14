@@ -866,6 +866,72 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .ent-pane .games-page{height:100%}
 .ent-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);text-align:center;padding:24px}
 .ent-empty strong{color:var(--text);font-size:18px;font-weight:720;letter-spacing:-.02em}
+.ent-pane[data-pane="music"]{overflow:hidden}
+.sp{height:100%;min-height:0;display:grid;grid-template-columns:252px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 84px;background:var(--bg);color:var(--text)}
+.sp-side{grid-row:1;min-height:0;overflow:auto;background:var(--panel);border-right:1px solid var(--border);padding:14px 10px 18px}
+.sp-main{grid-row:1;min-width:0;min-height:0;overflow:auto;padding:22px 22px 32px}
+.sp-bar{grid-column:1 / -1;display:grid;grid-template-columns:minmax(160px,1fr) minmax(220px,1.3fr) 120px;align-items:center;gap:14px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border)}
+.sp-label{margin:14px 8px 6px;font-size:11px;font-weight:720;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sp-nav,.sp-mini{width:100%;display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border:0;border-radius:11px;background:transparent;color:var(--text);font-size:13px;font-weight:650;cursor:pointer;text-align:left}
+.sp-nav.on,.sp-mini.on,.sp-row.on{background:var(--bg2)}
+.sp-tools{display:flex;gap:8px;margin:8px 0 4px}
+.sp-tools button,.sp-icon{height:34px;padding:0 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;font-weight:680;cursor:pointer}
+.sp-folder{margin-top:4px}
+.sp-row{display:flex;align-items:center;gap:8px;min-height:40px;margin:2px 0;padding:4px 6px;border-radius:12px;cursor:grab}
+.sp-row button,.sp-song button.meta{flex:1;min-width:0;display:flex;align-items:center;gap:8px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;padding:0}
+.sp-row b,.sp-song b,.sp-card b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:680}
+.sp-row small,.sp-song small,.sp-card small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+.sp-row .sp-art,.sp-song .sp-art{width:32px;height:32px;flex:0 0 32px;border-radius:8px;font-size:14px}
+.sp-kids{padding-left:14px}
+.sp-search{display:flex;gap:8px;margin-bottom:18px}
+.sp-search input{flex:1;height:44px;border-radius:14px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px;font-size:14px}
+.sp-search button,.sp-play{height:44px;padding:0 16px;border-radius:14px;border:0;background:var(--accent);color:var(--accentText);font-weight:720;cursor:pointer}
+.sp-h{margin:0 0 14px;font-size:28px;font-weight:760;letter-spacing:-.04em}
+.sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;align-content:start}
+.sp-grid[data-kind="shelf"]{min-height:92px}
+.sp-grid .sp-empty{grid-column:1 / -1}
+.sp-cardwrap{position:relative;min-width:0}
+.sp-card{width:100%;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:16px;border:1px solid var(--border);background:var(--bg2);color:var(--text);text-align:left;cursor:pointer}
+.sp-card .sp-art{width:100%;aspect-ratio:1;border-radius:12px}
+.sp-quick{position:absolute;right:20px;bottom:58px;width:40px;height:40px;border:0;border-radius:50%;background:var(--accent);color:var(--accentText);font-size:13px;cursor:pointer;opacity:0;box-shadow:0 8px 18px rgba(0,0,0,.28)}
+.sp-cardwrap:hover .sp-quick,.sp-cardwrap:focus-within .sp-quick{opacity:1}
+.sp-art{object-fit:cover;background:var(--panel);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:28px}
+.sp-hero{display:flex;gap:18px;align-items:flex-end;margin:-22px -22px 18px;padding:28px 22px 8px;background:linear-gradient(180deg,var(--panel),transparent)}
+.sp-hero .sp-art{width:168px;height:168px;flex:0 0 168px;border-radius:16px}
+.sp-hero h2{margin:0 0 6px;font-size:34px;letter-spacing:-.04em}
+.sp-acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.sp-song{display:flex;align-items:center;gap:10px;height:52px;padding:0 8px;border-radius:12px;cursor:grab}
+.sp-song:hover,.sp-row:hover,.sp-card:hover{background:var(--bg3)}
+.sp-song .n{width:22px;flex:0 0 22px;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+.sp-song.is-on{background:var(--bg2)}
+.sp-song.is-on b,.sp-song.is-on .n{color:var(--accent)}
+.sp-x{width:28px;height:28px;flex:0 0 28px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.sp-x.on{color:var(--accent)}
+.sp-time{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.sp-status{min-height:18px;margin:-8px 0 12px;color:var(--muted);font-size:13px}
+.sp-who{display:flex;align-items:center;gap:10px;min-width:0}
+.sp-who .sp-art{width:52px;height:52px;flex:0 0 52px;border-radius:10px;font-size:18px}
+.sp-who b,.sp-who small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-who small{color:var(--muted);font-size:12px}
+.sp-transport{display:flex;flex-direction:column;align-items:center;gap:6px}
+.sp-btns{display:flex;align-items:center;gap:8px}
+.sp-btns button{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer}
+.sp-btns .play{width:40px;height:40px;background:var(--accent);color:var(--accentText);border:0;font-size:14px}
+.sp-seek{display:flex;align-items:center;gap:8px;width:min(420px,100%);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sp-seek input,.sp-vol{flex:1;accent-color:var(--accent)}
+.sp-vol{width:100%}
+.sp-drop{outline:1px dashed var(--accent)}
+.sp-pop{position:fixed;z-index:40;min-width:180px;max-height:240px;overflow:auto;padding:6px;border-radius:12px;border:1px solid var(--border);background:var(--panel);box-shadow:0 12px 30px rgba(0,0,0,.28)}
+.sp-pop button{width:100%;height:34px;border:0;border-radius:8px;background:transparent;color:var(--text);text-align:left;padding:0 8px;cursor:pointer}
+.sp-loading,.sp-empty{color:var(--muted);padding:12px 4px}
+.sp-coverpick{width:120px;height:120px;border-radius:16px;border:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;margin-bottom:12px}
+.sp-coverpick img{width:100%;height:100%;object-fit:cover}
+@media (max-width:760px){
+  .sp{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) 84px}
+  .sp-side{max-height:180px;border-right:0;border-bottom:1px solid var(--border)}
+  .sp-bar{grid-template-columns:1fr}
+  .sp-vol{display:none}
+}
 .stage-body > .chat-page{height:100%}
 .admin-frame{width:100%;height:100%;min-height:100%;border:0;background:var(--bg);display:block}
 .veil-devgate .modal-actions{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:10px;margin-top:16px}
@@ -1057,7 +1123,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=87", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=88", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1543,7 +1609,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=87" defer></script>
-<script src="access-gate.js?v=87"></script>
+<script src="anime.min.js?v=88" defer></script>
+<script src="access-gate.js?v=88"></script>
 </body>
 </html>

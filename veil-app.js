@@ -7524,7 +7524,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=87";
+  link.href = BASE + "/veilos.css?v=88";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7533,9 +7533,10 @@ function openDesktop() {
     cssReady = true;
     tryStart();
   };
-  document.head.appendChild(link);
+  if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
+  else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=87";
+  script.src = BASE + "/veilos.js?v=88";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7547,7 +7548,8 @@ function openDesktop() {
       status.textContent = "Could not load veilOS.";
     }
   };
-  document.body.appendChild(script);
+  if (!document.querySelector('script[src*="veilos.js"]')) document.body.appendChild(script);
+  else { jsReady = true; tryStart(); }
   setTimeout(() => {
     if (!cssReady) {
       cssReady = true;
@@ -8732,7 +8734,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=87";
+    script.src = REPO_PATH + "anime.min.js?v=88";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -9028,6 +9030,7 @@ function showEntPane(name) {
       next.style.visibility = "";
     }, 580);
   }
+  if (name === "music" && next) mountEntMusic(next);
   requestAnimationFrame(() => moveStagePill(name, !first));
 }
 function moveSettingsPill(animate) {
@@ -9160,6 +9163,494 @@ function confirmDevArea(next) {
     next();
   };
 }
+function ensureVeilMusic() {
+  if (window.VeilMusic) return Promise.resolve(window.VeilMusic);
+  if (ensureVeilMusic.job) return ensureVeilMusic.job;
+  ensureVeilMusic.job = new Promise(resolve => {
+    let tries = 0;
+    const done = () => {
+      if (window.VeilMusic) {
+        resolve(window.VeilMusic);
+        return;
+      }
+      if (++tries > 160) {
+        resolve(null);
+        return;
+      }
+      setTimeout(done, 50);
+    };
+    if (!document.querySelector('script[src*="veilos.js"]')) {
+      const script = document.createElement("script");
+      script.src = BASE + "/veilos.js?v=88";
+      script.onload = done;
+      script.onerror = () => resolve(null);
+      document.body.appendChild(script);
+      return;
+    }
+    done();
+  });
+  return ensureVeilMusic.job;
+}
+function mountEntMusic(pane) {
+  if (!pane || pane.dataset.music === "1") return;
+  pane.dataset.music = "1";
+  pane.innerHTML = '<div class="sp"><div class="sp-main"><div class="sp-loading">Loading music…</div></div></div>';
+  ensureVeilMusic().then(api => {
+    if (!api || !pane.isConnected) {
+      pane.innerHTML = '<div class="ent-empty"><strong>Music</strong><span>Could not load the player.</span></div>';
+      pane.dataset.music = "";
+      return;
+    }
+    try { api.boot(); } catch (err) {}
+    buildEntMusic(pane, api);
+  });
+}
+function buildEntMusic(pane, api) {
+  const ui = { page: "home", albumId: "", folderId: "", open: {}, query: "", cover: "" };
+  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">♪</span><div><b data-title>Nothing playing</b><small data-by></small></div></div><div class="sp-transport"><div class="sp-btns"><button type="button" data-prev aria-label="Previous">⏮</button><button type="button" class="play" data-toggle aria-label="Play">▶</button><button type="button" data-next aria-label="Next">⏭</button></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></footer></div>';
+  const root = pane.querySelector(".sp");
+  const side = root.querySelector("[data-side]");
+  const main = root.querySelector("[data-main]");
+  const lib = () => api.lib() || { playlists: [], folders: [], liked: [] };
+  const albumOf = id => (lib().playlists || []).find(item => item.id === id) || null;
+  const folderOf = id => (lib().folders || []).find(item => item.id === id) || null;
+  const art = src => src ? '<img class="sp-art" draggable="false" src="' + escapeHTML(src) + '" alt="">' : '<span class="sp-art sp-ph" aria-hidden="true">♪</span>';
+  const spring = (el, from, to) => {
+    const anime = window.anime;
+    if (!el || motionOff() || !anime || !anime.animate) return;
+    try { anime.animate(el, { scale: [from, to], ease: veilSpring(0.4, 480) }); } catch (err) {}
+  };
+  const inFolder = folderId => (lib().playlists || []).filter(item => (item.folderId || "") === (folderId || ""));
+  const albumRow = item => '<div class="sp-row' + (ui.page === "album" && ui.albumId === item.id ? " on" : "") + '" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></span></button></div>';
+  const albumCard = item => '<div class="sp-cardwrap" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" class="sp-card" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></button><button type="button" class="sp-quick" data-play-card="' + escapeHTML(item.id) + '" aria-label="Play album">▶</button></div>';
+  let nowId = "";
+  function songRow(track, index, extra) {
+    const on = nowId && nowId === track.id ? " is-on" : "";
+    const drag = ui.page === "album" ? "true" : "false";
+    const time = track.seconds ? api.clock(track.seconds) : "";
+    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + '</span>' + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><b>' + escapeHTML(track.title || "Untitled") + '</b><small>' + escapeHTML(track.author || "") + '</small></span></button><span class="sp-time">' + time + '</span>' + (extra || "") + '</div>';
+  }
+  function paintSide() {
+    const data = lib();
+    let html = '<button type="button" class="sp-nav' + (ui.page === "home" ? " on" : "") + '" data-go="home">Home</button><button type="button" class="sp-nav' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">Liked songs</button><div class="sp-tools"><button type="button" data-new="album">Album</button><button type="button" data-new="folder">Folder</button></div><div class="sp-label">Library</div>';
+    (data.folders || []).forEach(item => {
+      const open = ui.open[item.id] !== false;
+      html += '<div class="sp-folder"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '">' + (open ? "▾" : "▸") + '</button><button type="button" data-open-folder="' + escapeHTML(item.id) + '"><span class="sp-art sp-ph">▣</span><span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button><button type="button" class="sp-x" data-edit-folder="' + escapeHTML(item.id) + '" aria-label="Edit folder">✎</button></div>';
+      if (open) html += '<div class="sp-kids">' + inFolder(item.id).map(albumRow).join("") + '</div>';
+      html += '</div>';
+    });
+    html += inFolder("").map(albumRow).join("");
+    if (!(data.playlists || []).length && !(data.folders || []).length) html += '<div class="sp-empty">No albums yet.</div>';
+    side.innerHTML = html;
+  }
+  function albumsInCount(id) {
+    return inFolder(id).length + (inFolder(id).length === 1 ? " album" : " albums");
+  }
+  function paintMain(animate) {
+    const snap = api.snap();
+    nowId = snap.track ? snap.track.id : "";
+    let html = "";
+    if (ui.page === "liked") {
+      const tracks = lib().liked || [];
+      html = '<h2 class="sp-h">Liked songs</h2><div class="sp-acts"><button type="button" class="sp-play" data-play-liked>Play</button></div>';
+      html += tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-unlike="' + escapeHTML(track.id) + '" aria-label="Remove">×</button>')).join("") : '<div class="sp-empty">Songs you like show up here.</div>';
+    } else if (ui.page === "album") {
+      const item = albumOf(ui.albumId);
+      if (!item) ui.page = "home";
+      else {
+        html = '<div class="sp-hero">' + art(item.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(item.name || "Album") + '</h2><div>' + (item.tracks || []).length + ' songs</div><div class="sp-acts"><button type="button" class="sp-play" data-play-album>Play</button><button type="button" class="sp-icon" data-edit-album>Edit</button></div></div></div>';
+        html += (item.tracks || []).length ? item.tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-remove-track="' + index + '" aria-label="Remove">×</button>')).join("") : '<div class="sp-empty">Search on Home and add songs here.</div>';
+      }
+    } else if (ui.page === "folder") {
+      const item = folderOf(ui.folderId);
+      if (!item) ui.page = "home";
+      else {
+        const kids = inFolder(item.id);
+        html = '<h2 class="sp-h">' + escapeHTML(item.name || "Folder") + '</h2><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(item.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
+      }
+    }
+    if (ui.page === "home") {
+      html = '<form class="sp-search" data-search><input data-q type="search" placeholder="Search for a song" value="' + escapeHTML(ui.query) + '" aria-label="Search"><button type="submit">Search</button></form><div class="sp-status">' + escapeHTML(snap.status || "") + '</div>';
+      if ((snap.results || []).length) html += '<div class="sp-label">Songs</div>' + snap.results.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + index + '" aria-label="Like">♥</button><button type="button" class="sp-x" data-add="' + index + '" aria-label="Add to album">+</button>')).join("");
+      (lib().folders || []).forEach(folder => {
+        const kids = inFolder(folder.id);
+        html += '<div class="sp-label">' + escapeHTML(folder.name || "Folder") + '</div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(folder.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
+      });
+      const loose = inFolder("");
+      html += '<div class="sp-label">Albums</div><div class="sp-grid" data-kind="shelf" data-id="">' + (loose.length ? loose.map(albumCard).join("") : '<div class="sp-empty">Create an album, then drag it into a folder.</div>') + '</div>';
+    }
+    const top = main.scrollTop;
+    main.innerHTML = html;
+    if (!animate) main.scrollTop = top;
+    const anime = window.anime;
+    if (animate && anime && anime.animate && !motionOff()) {
+      try { anime.animate(main.firstElementChild || main, { opacity: [0, 1], translateY: [10, 0], ease: veilSpring(0.28, 520) }); } catch (err) {}
+    }
+  }
+  function paintBar() {
+    const snap = api.snap();
+    const track = snap.track;
+    const who = root.querySelector(".sp-who");
+    const src = track && track.thumb ? track.thumb : "";
+    const current = who.querySelector(".sp-art");
+    const shown = current && current.tagName === "IMG" ? current.getAttribute("src") || "" : "";
+    if (current && src !== shown) current.outerHTML = art(src);
+    root.querySelector("[data-title]").textContent = track ? track.title : "Nothing playing";
+    root.querySelector("[data-by]").textContent = track ? track.author || "" : "";
+    root.querySelector("[data-toggle]").textContent = snap.playing ? "❚❚" : "▶";
+    const id = track && track.id;
+    root.querySelectorAll(".sp-song").forEach(el => el.classList.toggle("is-on", el.getAttribute("data-track") === id));
+  }
+  function signature() {
+    const data = lib();
+    const snap = api.snap();
+    return [ui.page, ui.albumId, ui.folderId, (data.folders || []).map(item => item.id + item.name).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), snap.status || ""].join("~");
+  }
+  let sig = "";
+  function grabFlip(scope) {
+    const map = new Map();
+    if (!scope) return map;
+    scope.querySelectorAll("[data-flip]").forEach(el => map.set(el.getAttribute("data-flip"), el.getBoundingClientRect()));
+    return map;
+  }
+  function runFlip(scope, prev) {
+    const anime = window.anime;
+    if (!prev || !scope || motionOff() || !anime || !anime.animate) return;
+    scope.querySelectorAll("[data-flip]").forEach(el => {
+      const old = prev.get(el.getAttribute("data-flip"));
+      if (!old) return;
+      const now = el.getBoundingClientRect();
+      const dx = old.left - now.left;
+      const dy = old.top - now.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      try { anime.animate(el, { translateX: [dx, 0], translateY: [dy, 0], ease: veilSpring(0.32, 520) }); } catch (err) {}
+    });
+  }
+  function full(animate) {
+    const sidePrev = animate ? null : grabFlip(side);
+    const mainPrev = animate ? null : grabFlip(main);
+    sig = signature();
+    paintSide();
+    paintMain(animate);
+    paintBar();
+    runFlip(side, sidePrev);
+    runFlip(main, mainPrev);
+  }
+  function askName(title, value, withCover, onOk, onDelete) {
+    const old = document.querySelector(".sp-modal");
+    if (old) old.remove();
+    const modal = document.createElement("div");
+    modal.className = "modal-overlay sp-modal";
+    modal.innerHTML = '<div class="modal-box"><h2></h2><button type="button" class="sp-coverpick" data-pick>Cover</button><input class="text-input" data-name maxlength="40"><div class="modal-actions"><button type="button" class="modal-cancel" data-cancel>Cancel</button><button type="button" class="primary-btn" data-ok>Save</button></div></div>';
+    modal.querySelector("h2").textContent = title;
+    const input = modal.querySelector("[data-name]");
+    input.value = value || "";
+    const pick = modal.querySelector("[data-pick]");
+    if (!withCover) pick.hidden = true;
+    else if (ui.cover) pick.innerHTML = '<img alt="" src="' + escapeHTML(ui.cover) + '">';
+    if (onDelete) {
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "modal-cancel";
+      del.textContent = "Delete";
+      del.onclick = () => { modal.remove(); onDelete(); };
+      modal.querySelector(".modal-actions").prepend(del);
+    }
+    pick.onclick = () => {
+      const file = document.createElement("input");
+      file.type = "file";
+      file.accept = "image/*";
+      file.onchange = () => {
+        const blob = file.files && file.files[0];
+        if (!blob) return;
+        const image = new Image();
+        const url = URL.createObjectURL(blob);
+        image.onload = () => {
+          const canvas = document.createElement("canvas");
+          const scale = Math.min(1, 240 / Math.max(image.width, image.height));
+          canvas.width = Math.max(1, Math.round(image.width * scale));
+          canvas.height = Math.max(1, Math.round(image.height * scale));
+          canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          let quality = 0.72;
+          let data = canvas.toDataURL("image/jpeg", quality);
+          while (data.length >= 140000 && quality > 0.4) {
+            quality -= 0.12;
+            data = canvas.toDataURL("image/jpeg", quality);
+          }
+          ui.cover = data.length < 140000 ? data : "";
+          pick.innerHTML = ui.cover ? '<img alt="" src="' + ui.cover + '">' : "Cover";
+        };
+        image.onerror = () => URL.revokeObjectURL(url);
+        image.src = url;
+      };
+      file.click();
+    };
+    modal.querySelector("[data-cancel]").onclick = () => modal.remove();
+    modal.querySelector("[data-ok]").onclick = () => {
+      const name = input.value.trim();
+      modal.remove();
+      if (name) onOk(name, ui.cover || "");
+    };
+    document.body.appendChild(modal);
+    input.focus();
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        modal.querySelector("[data-ok]").click();
+      } else if (event.key === "Escape") modal.remove();
+    });
+    spring(modal.querySelector(".modal-box"), 0.96, 1);
+  }
+  let skipClick = false;
+  root.addEventListener("click", event => {
+    if (skipClick) {
+      skipClick = false;
+      return;
+    }
+    const playCard = event.target.closest("[data-play-card]");
+    if (playCard) {
+      const item = albumOf(playCard.getAttribute("data-play-card"));
+      if (item && (item.tracks || []).length) api.play(item.tracks, 0);
+      return;
+    }
+    const fold = event.target.closest("[data-fold]");
+    if (fold) {
+      const id = fold.getAttribute("data-fold");
+      ui.open[id] = ui.open[id] === false;
+      full(false);
+      return;
+    }
+    const openAlbum = event.target.closest("[data-open-album]");
+    const openFolder = event.target.closest("[data-open-folder]");
+    const go = event.target.closest("[data-go]");
+    const made = event.target.closest("[data-new]");
+    if (openAlbum) {
+      ui.page = "album";
+      ui.albumId = openAlbum.getAttribute("data-open-album");
+      full(true);
+      return;
+    }
+    if (openFolder && !event.target.closest("[data-edit-folder]")) {
+      ui.page = "folder";
+      ui.folderId = openFolder.getAttribute("data-open-folder");
+      ui.open[ui.folderId] = true;
+      full(true);
+      return;
+    }
+    if (go) {
+      ui.page = go.getAttribute("data-go");
+      full(true);
+      return;
+    }
+    if (made) {
+      const kind = made.getAttribute("data-new");
+      ui.cover = "";
+      askName(kind === "folder" ? "New folder" : "New album", "", kind !== "folder", name => {
+        if (kind === "folder") api.createFolder(name);
+        else {
+          ui.page = "album";
+          ui.albumId = api.createAlbum(name, ui.cover);
+        }
+        ui.cover = "";
+        full(true);
+      });
+      return;
+    }
+    if (event.target.closest("[data-edit-album]")) {
+      const item = albumOf(ui.albumId);
+      if (!item) return;
+      ui.cover = item.cover || "";
+      askName("Edit album", item.name, true, name => {
+        api.updateAlbum(item.id, { name: name, cover: ui.cover || "" });
+        ui.cover = "";
+        full(true);
+      }, () => {
+        api.deleteAlbum(item.id);
+        ui.page = "home";
+        full(true);
+      });
+      return;
+    }
+    const editFolder = event.target.closest("[data-edit-folder]");
+    if (editFolder) {
+      const id = editFolder.getAttribute("data-edit-folder");
+      const item = folderOf(id);
+      if (!item) return;
+      ui.cover = "";
+      askName("Edit folder", item.name, false, name => {
+        api.renameFolder(id, name);
+        full(false);
+      }, () => {
+        api.deleteFolder(id);
+        if (ui.folderId === id) ui.page = "home";
+        full(true);
+      });
+      return;
+    }
+    const playIndex = event.target.closest("[data-play-index]");
+    if (playIndex) {
+      const index = Number(playIndex.getAttribute("data-play-index"));
+      const tracks = ui.page === "album" ? ((albumOf(ui.albumId) || {}).tracks || []) : ui.page === "liked" ? (lib().liked || []) : (api.snap().results || []);
+      api.play(tracks, index);
+      return;
+    }
+    if (event.target.closest("[data-play-album]")) {
+      const tracks = (albumOf(ui.albumId) || {}).tracks || [];
+      if (tracks.length) api.play(tracks, 0);
+      return;
+    }
+    if (event.target.closest("[data-play-liked]")) {
+      const tracks = lib().liked || [];
+      if (tracks.length) api.play(tracks, 0);
+      return;
+    }
+    const add = event.target.closest("[data-add]");
+    if (add) {
+      const track = (api.snap().results || [])[Number(add.getAttribute("data-add"))];
+      if (!track) return;
+      const pop = document.createElement("div");
+      pop.className = "sp-pop";
+      const albums = lib().playlists || [];
+      pop.innerHTML = albums.length ? albums.map(item => '<button type="button" data-to="' + escapeHTML(item.id) + '">' + escapeHTML(item.name || "Album") + '</button>').join("") : '<button type="button" data-to="new">New album</button>';
+      document.body.appendChild(pop);
+      const box = add.getBoundingClientRect();
+      pop.style.left = Math.max(8, box.left - 160) + "px";
+      pop.style.top = box.bottom + 6 + "px";
+      spring(pop, 0.94, 1);
+      const close = event2 => {
+        if (pop.contains(event2.target)) return;
+        pop.remove();
+        document.removeEventListener("pointerdown", close, true);
+      };
+      setTimeout(() => document.addEventListener("pointerdown", close, true), 0);
+      pop.onclick = event2 => {
+        const to = event2.target.closest("[data-to]");
+        if (!to) return;
+        const id = to.getAttribute("data-to");
+        pop.remove();
+        if (id === "new") {
+          ui.cover = track.thumb || "";
+          askName("New album", "", true, name => {
+            const madeId = api.createAlbum(name, ui.cover);
+            api.addTrack(madeId, track);
+            ui.cover = "";
+            full(false);
+          });
+          return;
+        }
+        api.addTrack(id, track);
+      };
+      return;
+    }
+    const like = event.target.closest("[data-like]");
+    if (like) {
+      const track = (api.snap().results || [])[Number(like.getAttribute("data-like"))];
+      if (track) api.like(track);
+      return;
+    }
+    const unlike = event.target.closest("[data-unlike]");
+    if (unlike) {
+      const track = (lib().liked || []).find(item => item.id === unlike.getAttribute("data-unlike"));
+      if (track) api.like(track);
+      return;
+    }
+    const remove = event.target.closest("[data-remove-track]");
+    if (remove) api.removeTrack(ui.albumId, Number(remove.getAttribute("data-remove-track")));
+  });
+  root.addEventListener("submit", event => {
+    const form = event.target.closest("[data-search]");
+    if (!form) return;
+    event.preventDefault();
+    ui.query = form.querySelector("[data-q]").value.trim();
+    ui.page = "home";
+    api.search(ui.query);
+  });
+  root.addEventListener("pointerdown", event => {
+    const el = event.target.closest(".sp-card, .sp-row, .sp-play, .sp-nav, .sp-song, .sp-quick");
+    if (el) spring(el, 0.95, 1);
+  });
+  let drag = null;
+  root.addEventListener("dragstart", event => {
+    const el = event.target.closest("[data-kind]");
+    if (!el) return;
+    drag = { kind: el.getAttribute("data-kind"), id: el.getAttribute("data-id") || "", index: Number(el.getAttribute("data-index")) };
+    skipClick = true;
+    event.dataTransfer.effectAllowed = "move";
+    try { event.dataTransfer.setData("text/plain", drag.id || String(drag.index)); } catch (err) {}
+    el.style.opacity = "0.55";
+  });
+  root.addEventListener("dragend", event => {
+    const el = event.target.closest("[data-kind]");
+    if (el) el.style.opacity = "";
+    root.querySelectorAll(".sp-drop").forEach(node => node.classList.remove("sp-drop"));
+    drag = null;
+    setTimeout(() => { skipClick = false; }, 80);
+  });
+  root.addEventListener("dragover", event => {
+    if (!drag) return;
+    const el = event.target.closest("[data-kind]");
+    if (!el) return;
+    const kind = el.getAttribute("data-kind");
+    const ok = (drag.kind === "track" && kind === "track" && ui.page === "album")
+      || (drag.kind === "folder" && kind === "folder" && el.getAttribute("data-id") !== drag.id)
+      || (drag.kind === "album" && (kind === "folder" || kind === "shelf"))
+      || (drag.kind === "album" && kind === "album" && el.getAttribute("data-id") !== drag.id);
+    if (!ok) return;
+    event.preventDefault();
+    root.querySelectorAll(".sp-drop").forEach(node => node.classList.remove("sp-drop"));
+    el.classList.add("sp-drop");
+  });
+  root.addEventListener("drop", event => {
+    const el = event.target.closest("[data-kind]");
+    if (!drag || !el) return;
+    event.preventDefault();
+    const kind = el.getAttribute("data-kind");
+    if (drag.kind === "track" && kind === "track" && ui.page === "album") {
+      api.moveTrack(ui.albumId, drag.index, Number(el.getAttribute("data-index")));
+      return;
+    }
+    if (drag.kind === "folder" && kind === "folder" && el.getAttribute("data-id") !== drag.id) {
+      api.placeFolder(drag.id, el.getAttribute("data-id"));
+      return;
+    }
+    if (drag.kind !== "album") return;
+    if (kind === "shelf" || kind === "folder") {
+      api.placeAlbum(drag.id, el.getAttribute("data-id") || "", "");
+      return;
+    }
+    if (kind === "album" && el.getAttribute("data-id") !== drag.id) {
+      api.placeAlbum(drag.id, el.getAttribute("data-folder") || "", el.getAttribute("data-id"));
+    }
+  });
+  root.querySelector("[data-prev]").onclick = () => api.prev();
+  root.querySelector("[data-next]").onclick = () => api.next();
+  root.querySelector("[data-toggle]").onclick = () => api.toggle();
+  root.querySelector("[data-vol]").oninput = event => api.volume(Number(event.target.value) / 100);
+  const seek = root.querySelector("[data-seek]");
+  seek.addEventListener("input", () => api.seek(Number(seek.value) / 1000));
+  const off = api.on(() => {
+    if (!pane.isConnected) {
+      off();
+      return;
+    }
+    const next = signature();
+    if (next !== sig) full(false);
+    else paintBar();
+  });
+  const offTick = api.onTick(audio => {
+    if (!pane.isConnected) {
+      offTick();
+      return;
+    }
+    root.querySelector("[data-cur]").textContent = api.clock(audio.currentTime);
+    const dur = audio.duration || 0;
+    root.querySelector("[data-dur]").textContent = api.clock(dur);
+    if (dur && document.activeElement !== seek) seek.value = String(Math.round((audio.currentTime / dur) * 1000));
+  });
+  full(false);
+}
+
 function showEntertainment() {
   const stage = document.getElementById("veilStage");
   const title = document.getElementById("stageTitle");
