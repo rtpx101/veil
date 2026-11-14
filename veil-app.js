@@ -3119,22 +3119,28 @@ function closeTab(value2) {
     }
     syncTabPill(host);
     const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
-    const width = historyItem.getBoundingClientRect().width;
+    const width = Math.round(historyItem.getBoundingClientRect().width);
+    const face = historyItem.querySelector(".tab-face");
     historyItem.style.flex = "0 0 auto";
     historyItem.style.overflow = "hidden";
     historyItem.style.minWidth = "0";
+    historyItem.style.maxWidth = width + "px";
     historyItem.style.width = width + "px";
     historyItem.style.marginRight = "0px";
+    if (face) {
+      face.style.minWidth = "0";
+      face.style.maxWidth = "100%";
+    }
     try {
       anime.animate(historyItem, {
         width: 0,
         marginRight: -gap,
         opacity: [1, 0],
-        duration: 300,
+        duration: 280,
         ease: "outCubic"
       });
     } catch (err) {}
-    setTimeout(game, 310);
+    setTimeout(game, 290);
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -7435,7 +7441,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=83";
+  link.href = BASE + "/veilos.css?v=84";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7446,7 +7452,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=83";
+  script.src = BASE + "/veilos.js?v=84";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8643,7 +8649,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=83";
+    script.src = REPO_PATH + "anime.min.js?v=84";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
