@@ -3164,7 +3164,36 @@ function closeTab(value2) {
         anime.animate(plus, { scale: [0.82, 1], ease: veilSpring(0.46, 440) });
       } catch (err) {}
     }
-    setTimeout(game, 390);
+    const nodes = Array.from(host.querySelectorAll(".tab"));
+    const closeIndex = nodes.indexOf(historyItem);
+    let keep = host.querySelector(".tab.active");
+    if (!keep || keep === historyItem) {
+      keep = nodes[closeIndex + 1] || nodes[closeIndex - 1] || null;
+    }
+    if (keep) {
+      const keepIndex = nodes.indexOf(keep);
+      const endIndex = keepIndex > closeIndex ? keepIndex - 1 : keepIndex;
+      const hostRect = host.getBoundingClientRect();
+      let pill = host.querySelector(".tab-pill");
+      const fromRect = (pill || keep).getBoundingClientRect();
+      if (!pill) {
+        pill = document.createElement("span");
+        pill.className = "tab-pill";
+        host.insertBefore(pill, host.firstChild);
+        host.classList.add("has-pill");
+      }
+      pill.style.transformOrigin = "left center";
+      pill.style.left = fromRect.left - hostRect.left + host.scrollLeft + "px";
+      pill.style.width = fromRect.width + "px";
+      try {
+        anime.animate(pill, {
+          left: Math.max(0, endIndex) * (target + 3),
+          width: target,
+          ease: ease
+        });
+      } catch (err) {}
+    }
+    setTimeout(game, 480);
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -7445,7 +7474,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=78";
+  link.href = BASE + "/veilos.css?v=79";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7456,7 +7485,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=78";
+  script.src = BASE + "/veilos.js?v=79";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8653,7 +8682,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=78";
+    script.src = REPO_PATH + "anime.min.js?v=79";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
