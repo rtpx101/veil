@@ -69,7 +69,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .tab-pill{position:absolute;z-index:0;top:4px;height:32px;border-radius:8px;background:var(--panel);pointer-events:none;transform-origin:left center}
 .tabs.has-pill .tab.active{background:transparent}
 .tabs::-webkit-scrollbar{display:none}
-.tab{position:relative;z-index:1;height:32px;flex:1 1 0;min-width:72px;max-width:180px;display:flex;align-items:center;gap:6px;padding:0 26px 0 8px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:center center}
+.tab{position:relative;z-index:1;height:32px;flex:0 1 auto;width:auto;min-width:72px;max-width:180px;display:flex;align-items:center;gap:6px;padding:0 4px 0 8px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:center center}
 .tab:hover{background:var(--bg3);color:var(--text)}
 .tab.active{background:var(--panel)}
 .tab.active,.tab.active .tab-title{color:var(--text)}
@@ -77,8 +77,8 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .tab.opening,.tab.closing{animation:none}
 .tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .tab-icon img{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block}
-.tab-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.tab-close{position:absolute;right:4px;top:50%;width:20px;height:20px;margin-top:-10px;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
+.tab-title{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.tab-close{position:static;width:20px;height:20px;flex:0 0 20px;margin:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
 .tab-close:hover{background:var(--panel2);color:var(--text)}
 .new-tab{width:30px;height:30px;flex:0 0 30px;min-width:30px;border-radius:8px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-left:2px;flex-shrink:0;border:0}
 .new-tab:hover{background:var(--panel2)}
@@ -225,8 +225,8 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .time-battery-pct{font-variant-numeric:tabular-nums;color:var(--muted)}
 .time-battery-pct[hidden]{display:none !important}
 
-.menu{position:fixed;top:108px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:8000;display:block;opacity:0;visibility:hidden;pointer-events:none}
-.menu.open{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.menu{position:fixed;top:108px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:8000;display:block;opacity:0;visibility:hidden;pointer-events:none;transform-origin:top left}
+.menu.open{opacity:1;visibility:visible;pointer-events:auto}
 .menu.is-placed{right:auto !important}
 .menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
 .menu-item:hover{background:var(--panel2)}
@@ -866,8 +866,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .ent-empty strong{color:var(--text);font-size:18px;font-weight:720;letter-spacing:-.02em}
 .stage-body > .chat-page{height:100%}
 .admin-frame{width:100%;height:100%;min-height:100%;border:0;background:var(--bg);display:block}
-.veil-devgate .modal-actions{display:flex;align-items:stretch;gap:10px;margin-top:16px}
-.veil-devgate .modal-actions button{flex:1;width:auto;height:44px;margin:0;border-radius:12px;font-size:14px;font-weight:650}
+.veil-devgate .modal-actions{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;gap:10px;margin-top:16px}
+.veil-devgate .modal-actions button,.veil-devgate .primary-btn{width:100%;min-width:0;flex:none;height:44px;margin:0;border-radius:12px;font-size:14px;font-weight:650}
 #optionsBack{display:none}
 #settingsPanel.is-page #optionsBack{display:inline-flex}
 #settingsPanel.is-page,#settingsPanel.is-page.open{transition:none !important}
@@ -1055,7 +1055,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=81", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=82", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1541,7 +1541,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=81" defer></script>
-<script src="access-gate.js?v=81"></script>
+<script src="anime.min.js?v=82" defer></script>
+<script src="access-gate.js?v=82"></script>
 </body>
 </html>

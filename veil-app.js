@@ -2114,120 +2114,35 @@ function clearTabBox(el) {
   el.style.opacity = "";
   el.style.marginRight = "";
 }
-function syncTabPill(host, from) {
-  const active = host && host.querySelector(".tab.active");
-  if (!host || !active) return;
-  let pill = host.querySelector(".tab-pill");
-  if (!pill) {
-    pill = document.createElement("span");
-    pill.className = "tab-pill";
-    host.insertBefore(pill, host.firstChild);
-  }
-  host.classList.add("has-pill");
-  const hostRect = host.getBoundingClientRect();
-  const rect = active.getBoundingClientRect();
-  const left = rect.left - hostRect.left + host.scrollLeft;
-  pill.style.left = left + "px";
-  pill.style.width = rect.width + "px";
-  pill.style.transformOrigin = "left center";
-  if (from && window.anime && window.anime.animate && !motionOff()) {
-    const dx = from.left - rect.left;
-    const sx = Math.max(0.35, from.width / (rect.width || 1));
-    try {
-      window.anime.animate(pill, {
-        translateX: [dx, 0],
-        scaleX: [sx, 1],
-        ease: veilSpring(0.34, 620)
-      });
-    } catch (err) {}
-  }
+function syncTabPill(host) {
+  if (!host) return;
+  const pill = host.querySelector(".tab-pill");
+  if (pill) pill.remove();
+  host.classList.remove("has-pill");
 }
 function runTabStripMotion(host, before) {
   const anime = window.anime;
-  if (!host || !anime || !anime.animate || motionOff()) {
-    syncTabPill(host, null);
-    return;
-  }
-  const items = Array.from(host.querySelectorAll(".tab"));
-  const hostRect = host.getBoundingClientRect();
-  const finalRects = new Map();
-  items.forEach(el => {
-    const rect = el.getBoundingClientRect();
-    finalRects.set(el.dataset.tabId, {
-      width: rect.width,
-      left: rect.left - hostRect.left + host.scrollLeft
-    });
-  });
-  const ease = "outCubic";
-  const layoutMs = 380;
-  let moved = false;
-  host._tabSettled = false;
-  const finish = () => {
-    if (host._tabSettled) return;
-    host._tabSettled = true;
-    items.forEach(clearTabBox);
-    syncTabPill(host, null);
-  };
-  items.forEach(el => {
-    const prev = before.get(el.dataset.tabId);
-    const finalBox = finalRects.get(el.dataset.tabId);
-    const next = !prev;
-    const delta = prev && finalBox ? Math.abs(prev.width - finalBox.width) : 1;
-    if (!next && delta < 1.5) return;
-    moved = true;
+  syncTabPill(host);
+  if (!host || !anime || !anime.animate || motionOff()) return;
+  const fresh = Array.from(host.querySelectorAll(".tab")).filter(el => !before.get(el.dataset.tabId));
+  if (!fresh.length) return;
+  fresh.forEach(el => {
+    const target = el.getBoundingClientRect().width;
     el.style.flex = "0 0 auto";
     el.style.overflow = "hidden";
     el.style.minWidth = "0";
-    el.style.width = (prev ? prev.width : 0) + "px";
+    el.style.width = "0px";
     try {
-      anime.animate(el, {
-        width: finalBox ? finalBox.width : 0,
-        opacity: 1,
-        duration: layoutMs,
-        ease: ease
-      });
+      anime.animate(el, { width: target, duration: 320, ease: "outCubic" });
     } catch (err) {}
+    setTimeout(() => clearTabBox(el), 340);
   });
-  if (!moved) {
-    syncTabPill(host, tabMotionKind === "switch" ? before.get("__active") : null);
-    return;
-  }
-  const from = before.get("__active");
-  const active = host.querySelector(".tab.active");
-  const dest = active && finalRects.get(active.dataset.tabId);
-  if (from && dest) {
-    const startLeft = from.left - hostRect.left + host.scrollLeft;
-    let pill = host.querySelector(".tab-pill");
-    if (!pill) {
-      pill = document.createElement("span");
-      pill.className = "tab-pill";
-      host.insertBefore(pill, host.firstChild);
-    }
-    host.classList.add("has-pill");
-    pill.style.transformOrigin = "left center";
-    pill.style.left = startLeft + "px";
-    pill.style.width = from.width + "px";
-    try {
-      anime.animate(pill, {
-        left: dest.left,
-        width: dest.width,
-        duration: layoutMs,
-        ease: ease
-      });
-    } catch (err) {}
-  } else {
-    syncTabPill(host, null);
-  }
   const plus = host.querySelector(".new-tab");
   if (plus) {
     try {
-      anime.animate(plus, {
-        scale: [0.94, 1],
-        ease: veilSpring(0.4, 520)
-      });
+      anime.animate(plus, { scale: [0.94, 1], ease: veilSpring(0.35, 480) });
     } catch (err) {}
   }
-  setTimeout(finish, 420);
 }
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
@@ -3190,55 +3105,33 @@ function closeTab(value2) {
   };
   const host = document.getElementById("tabs");
   const anime = window.anime;
-  if (historyItem && host && anime && anime.animate && anime.spring && !motionOff()) {
+  if (historyItem && host && anime && anime.animate && !motionOff()) {
     const nodes = Array.from(host.querySelectorAll(".tab"));
     const closeIndex = nodes.indexOf(historyItem);
-    const starts = new Map();
-    nodes.forEach(node => starts.set(node, node.getBoundingClientRect().width));
     let keep = host.querySelector(".tab.active");
     if (!keep || keep === historyItem) keep = nodes[closeIndex + 1] || nodes[closeIndex - 1] || null;
-    historyItem.style.display = "none";
-    const hostRect = host.getBoundingClientRect();
-    const finals = new Map();
-    nodes.forEach(node => {
-      if (node === historyItem) return;
-      const rect = node.getBoundingClientRect();
-      finals.set(node, { width: rect.width, left: rect.left - hostRect.left + host.scrollLeft });
-    });
-    const keepBox = keep ? finals.get(keep) : null;
-    historyItem.style.display = "";
     if (historyItem.classList.contains("active")) {
       historyItem.classList.remove("active");
       if (keep) keep.classList.add("active");
     }
-    const ease = "outCubic";
-    nodes.forEach(node => {
-      node.style.flex = "0 0 auto";
-      node.style.overflow = "hidden";
-      node.style.minWidth = "0";
-      node.style.width = starts.get(node) + "px";
-      try {
-        if (node === historyItem) anime.animate(node, { width: 0, opacity: [1, 0], duration: 340, ease: ease });
-        else anime.animate(node, { width: finals.get(node).width, duration: 340, ease: ease });
-      } catch (err) {}
-    });
-    if (keep && keepBox) {
-      let pill = host.querySelector(".tab-pill");
-      const fromRect = (pill || keep).getBoundingClientRect();
-      if (!pill) {
-        pill = document.createElement("span");
-        pill.className = "tab-pill";
-        host.insertBefore(pill, host.firstChild);
-        host.classList.add("has-pill");
-      }
-      pill.style.transformOrigin = "left center";
-      pill.style.left = fromRect.left - hostRect.left + host.scrollLeft + "px";
-      pill.style.width = fromRect.width + "px";
-      try {
-        anime.animate(pill, { left: keepBox.left, width: keepBox.width, duration: 340, ease: ease });
-      } catch (err) {}
-    }
-    setTimeout(game, 360);
+    syncTabPill(host);
+    const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
+    const width = historyItem.getBoundingClientRect().width;
+    historyItem.style.flex = "0 0 auto";
+    historyItem.style.overflow = "hidden";
+    historyItem.style.minWidth = "0";
+    historyItem.style.width = width + "px";
+    historyItem.style.marginRight = "0px";
+    try {
+      anime.animate(historyItem, {
+        width: 0,
+        marginRight: -gap,
+        opacity: [1, 0],
+        duration: 300,
+        ease: "outCubic"
+      });
+    } catch (err) {}
+    setTimeout(game, 310);
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -6870,20 +6763,16 @@ on("menuBtn", value => {
   menu.style.right = "";
   const chrome = document.querySelector(".chrome");
   const below = chrome ? chrome.getBoundingClientRect().bottom : 88;
-  menu.style.top = Math.round(below + 14) + "px";
-  menu.style.opacity = "1";
+  menu.style.top = Math.round(below + 8) + "px";
+  menu.style.opacity = "0";
   menu.style.scale = "1";
   menu.style.transform = "none";
+  menu.style.visibility = "hidden";
   menu.classList.add("open");
-  if (window.anime && window.anime.animate && window.anime.spring && !motionOff()) {
-    try {
-      menu._veilMotion = window.anime.animate(menu, {
-        opacity: [0, 1],
-        scale: [0.96, 1],
-        ease: window.anime.spring({ bounce: 0.28, duration: 420 })
-      });
-    } catch (err) {}
-  }
+  const rect = menu.getBoundingClientRect();
+  menu.classList.remove("open");
+  menu.style.visibility = "";
+  presentMenu(menu, rect.left, rect.top, "top right");
 });
 on("menuRename", () => {
   closeMenu();
@@ -7381,14 +7270,50 @@ function hookFrameMenu(frameEl) {
     new MutationObserver(scan).observe(doc.documentElement || doc, { childList: true, subtree: true });
   } catch (err) {}
 }
-function openBrowserMenuAt(x, y, image, media) {
-  const menu = document.getElementById("mainMenu");
+function presentMenu(menu, left, top, origin) {
   if (!menu) return;
   menuGen++;
   if (menu._veilMotion && menu._veilMotion.cancel) {
     try { menu._veilMotion.cancel(); } catch (err) {}
     menu._veilMotion = null;
   }
+  menu.classList.add("is-placed");
+  menu.style.right = "auto";
+  menu.style.transform = "none";
+  menu.style.transformOrigin = origin || "top left";
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+  menu.style.opacity = "0";
+  menu.style.scale = "1";
+  menu.style.visibility = "hidden";
+  menu.classList.add("open");
+  const rect = menu.getBoundingClientRect();
+  let l = left;
+  let t = top;
+  if (rect.right > window.innerWidth - 8) l -= rect.right - window.innerWidth + 8;
+  if (rect.bottom > window.innerHeight - 8) t -= rect.bottom - window.innerHeight + 8;
+  if (rect.left < 8) l += 8 - rect.left;
+  if (rect.top < 8) t += 8 - rect.top;
+  menu.style.left = Math.max(8, l) + "px";
+  menu.style.top = Math.max(8, t) + "px";
+  menu.style.visibility = "visible";
+  if (window.anime && window.anime.animate && window.anime.spring && !motionOff()) {
+    try {
+      menu._veilMotion = window.anime.animate(menu, {
+        opacity: [0, 1],
+        scale: [0.97, 1],
+        ease: window.anime.spring({ bounce: 0.2, duration: 380 })
+      });
+    } catch (err) {
+      menu.style.opacity = "1";
+    }
+  } else {
+    menu.style.opacity = "1";
+  }
+}
+function openBrowserMenuAt(x, y, image, media) {
+  const menu = document.getElementById("mainMenu");
+  if (!menu) return;
   window.__veilMenuImage = image || null;
   window.__veilMenuAt = Date.now();
   updateDevtoolsMenuState();
@@ -7399,22 +7324,10 @@ function openBrowserMenuAt(x, y, image, media) {
     saveBtn.disabled = false;
     saveBtn.setAttribute("aria-disabled", "false");
   }
-  menu.classList.add("open", "is-placed");
-  menu.style.right = "auto";
   const desktop = document.body.classList.contains("veil-os");
   const host = document.getElementById("browser");
-  const box = desktop && host ? host.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
-  let left = x - (desktop ? box.left : 0);
-  let top = y - (desktop ? box.top : 0);
-  menu.style.left = Math.max(8, left) + "px";
-  menu.style.top = Math.max(8, top) + "px";
-  const rect = menu.getBoundingClientRect();
-  const limitRight = desktop ? box.right : window.innerWidth;
-  const limitBottom = desktop ? box.bottom : window.innerHeight;
-  if (rect.right > limitRight - 8) left -= rect.right - limitRight + 8;
-  if (rect.bottom > limitBottom - 8) top -= rect.bottom - limitBottom + 8;
-  menu.style.left = Math.max(8, left) + "px";
-  menu.style.top = Math.max(8, top) + "px";
+  const box = desktop && host ? host.getBoundingClientRect() : { left: 0, top: 0 };
+  presentMenu(menu, x - (desktop ? box.left : 0), y - (desktop ? box.top : 0), "top left");
 }
 async function savePickedImage(img, name) {
   if (!img || typeof window.veilOSAddImage !== "function") return false;
@@ -7519,7 +7432,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=81";
+  link.href = BASE + "/veilos.css?v=82";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7530,7 +7443,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=81";
+  script.src = BASE + "/veilos.js?v=82";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8727,7 +8640,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=81";
+    script.src = REPO_PATH + "anime.min.js?v=82";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8824,14 +8737,14 @@ if (!window.__veilNudge) {
     try {
       anime.animate(el, {
         scale: scale,
-        ease: anime.spring({ bounce: 0.42, duration: 560 })
+        ease: anime.spring({ bounce: 0.32, duration: 460 })
       });
     } catch (err) {}
   };
   document.addEventListener("pointerover", event => {
     const el = event.target.closest(nudgeSel);
     if (!el || el.contains(event.relatedTarget)) return;
-    springTo(el, 1.04);
+    springTo(el, 1.018);
   }, { passive: true });
   document.addEventListener("pointerout", event => {
     const el = event.target.closest(nudgeSel);
@@ -8841,12 +8754,12 @@ if (!window.__veilNudge) {
   document.addEventListener("pointerdown", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, 0.96);
+    springTo(el, 0.985);
   }, { passive: true });
   document.addEventListener("pointerup", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, el.matches(":hover") ? 1.04 : 1);
+    springTo(el, el.matches(":hover") ? 1.018 : 1);
   }, { passive: true });
 }
 function setVeilView(view) {
