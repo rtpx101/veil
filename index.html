@@ -157,8 +157,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .newtab-center{width:640px;max-width:640px;text-align:center;display:flex;flex-direction:column;align-items:center;box-sizing:border-box}
 .veil-mark{width:92px;height:92px;margin:0 auto 16px;border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .veil-mark img{width:56px;height:56px;object-fit:contain;display:block}
-.newtab-title{font-size:clamp(40px,6.5vw,58px);font-weight:700;letter-spacing:-2.2px;line-height:1;margin-bottom:8px}
-.newtab-sub{font-size:13px;color:var(--muted);margin-bottom:22px;letter-spacing:.04em}
+.newtab-title{font-size:clamp(40px,6.5vw,58px);font-weight:700;letter-spacing:-2.2px;line-height:1;margin-bottom:22px}
 .search-row{width:min(560px,100%);display:flex;align-items:stretch;gap:8px}
 .engine-select{height:50px;flex:0 0 auto;min-width:108px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(20,20,20,.85);color:var(--text);padding:0 12px;font-size:13px;cursor:pointer}
 .search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px;gap:10px}
@@ -871,10 +870,11 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .stage-back{width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .stage-back img{width:16px;height:16px;display:block;filter:invert(var(--page-icon-invert,1))}
 .stage-bar h1{font-size:18px;font-weight:720;letter-spacing:-.03em;margin:0}
-.stage-switch{margin-left:auto;display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg2);border:1px solid var(--border)}
+.stage-switch{position:relative;margin-left:auto;display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg2);border:1px solid var(--border)}
 .stage-switch[hidden]{display:none !important}
-.stage-switch button{height:32px;padding:0 12px;border-radius:9px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer}
-.stage-switch button.on{background:var(--panel);color:var(--text)}
+.stage-pill{position:absolute;top:3px;left:3px;height:32px;width:64px;border-radius:9px;background:var(--panel);z-index:0;pointer-events:none}
+.stage-switch button{position:relative;z-index:1;height:32px;padding:0 12px;border-radius:9px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer}
+.stage-switch button.on{background:transparent;color:var(--text)}
 .stage-body{flex:1;min-height:0;margin:14px 16px 16px;border-radius:22px;overflow:auto;border:1px solid var(--border);background:var(--bg)}
 .ent-pane{display:none;height:100%}
 .ent-pane.on{display:block}
@@ -1057,7 +1057,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=66", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=67", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1163,6 +1163,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     <button type="button" class="stage-back" id="stageBack" title="Back" aria-label="Back"><img src="image/backward.svg" alt=""></button>
     <h1 id="stageTitle">Entertainment</h1>
     <div class="stage-switch" id="stageSwitch">
+      <span class="stage-pill" id="stagePill" aria-hidden="true"></span>
       <button type="button" data-ent="games" class="on">Games</button>
       <button type="button" data-ent="music">Music</button>
       <button type="button" data-ent="more">More</button>
@@ -1542,7 +1543,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=66" defer></script>
-<script src="access-gate.js?v=66"></script>
+<script src="anime.min.js?v=67" defer></script>
+<script src="access-gate.js?v=67"></script>
 </body>
 </html>

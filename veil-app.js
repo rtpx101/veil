@@ -8,11 +8,14 @@ try { if (typeof window.__veilBind === "function") window.__veilBind(); } catch 
     var saved = this;
     if (saved && saved.classList && saved.isConnected && !saved.classList.contains("closing") && (saved.classList.contains("modal-overlay") || saved.classList.contains("cookie-overlay") || saved.classList.contains("signup-overlay") || saved.classList.contains("game-player-overlay"))) {
       saved.classList.add("closing");
-      setTimeout(function () {
-        try {
-          invite.call(saved);
-        } catch (err) {}
-      }, 200);
+      var box = saved.querySelector(".modal-box, .signup-card, .game-player") || saved;
+      box.style.animation = "none";
+      saved.style.animation = "none";
+      var finish = function () {
+        try { invite.call(saved); } catch (err) {}
+      };
+      if (typeof springClose === "function") springClose(box, finish);
+      else setTimeout(finish, 200);
       return;
     }
     return invite.call(saved);
@@ -2214,7 +2217,7 @@ function observeHomeScale(value) {
   window.addEventListener("resize", () => fitHomeScale(value));
 }
 function homepageHTML(value) {
-  return '<div class="newtab-page" style="--timebar-h:0px"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="newtab-sub">Search or enter a site.</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div><div class="quick-links"><button class="quick-link" type="button" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button><button class="quick-link" type="button" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button><button class="quick-link" type="button" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button><button class="quick-link" type="button" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button></div><div class="quick-links row2"><button class="quick-link quick-exit" type="button" data-dash-exit title="Exit to dashboard">Exit</button></div></div></div></div></div>';
+  return '<div class="newtab-page" style="--timebar-h:0px"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div><div class="quick-links"><button class="quick-link" type="button" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button><button class="quick-link" type="button" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button><button class="quick-link" type="button" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button><button class="quick-link" type="button" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button></div><div class="quick-links row2"><button class="quick-link quick-exit" type="button" data-dash-exit title="Exit to dashboard">Exit</button></div></div></div></div></div>';
 }
 const SETTINGS_INFO = {
   theme: {
@@ -2944,7 +2947,17 @@ function closeTab(value2) {
     showActiveOnly();
     renderChrome();
   };
-  if (historyItem) {
+  if (historyItem && window.anime && window.anime.spring && !motionOff()) {
+    historyItem.style.animation = "none";
+    try {
+      window.anime.animate(historyItem, {
+        opacity: [1, 0],
+        maxWidth: [historyItem.offsetWidth, 0],
+        ease: window.anime.spring({ bounce: 0.22, duration: 280 })
+      });
+    } catch (err) {}
+    setTimeout(game, 300);
+  } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
   } else {
@@ -3087,28 +3100,60 @@ function closePanels() {
   return closePanelsInner();
 }
 function closePanelsInner() {
-  document.getElementById("backdrop").classList.remove("open");
-  document.querySelectorAll(".panel").forEach(value => value.classList.remove("open"));
-  const settingsPanel = document.getElementById("settingsPanel");
-  if (settingsPanel) {
-    settingsPanel.classList.remove("is-browser-scope", "is-page");
-    if (document.body.dataset.veilView === "options") {
-      setVeilView(settingsReturn === "browser" ? "browser" : "dash");
+  const openPanels = Array.prototype.slice.call(document.querySelectorAll(".panel.open"));
+  const backdrop = document.getElementById("backdrop");
+  const finish = () => {
+    if (backdrop) backdrop.classList.remove("open");
+    document.querySelectorAll(".panel").forEach(value => {
+      value.classList.remove("open");
+      value.style.opacity = "";
+      value.style.scale = "";
+      value.style.transform = "";
+    });
+    const settingsPanel = document.getElementById("settingsPanel");
+    if (settingsPanel) {
+      settingsPanel.classList.remove("is-browser-scope", "is-page");
+      if (document.body.dataset.veilView === "options") {
+        setVeilView(settingsReturn === "browser" ? "browser" : "dash");
+      }
     }
+  };
+  if (!openPanels.length) {
+    finish();
+    return;
+  }
+  let left = openPanels.length;
+  openPanels.forEach(panel => {
+    springClose(panel, () => {
+      if (--left === 0) finish();
+    });
+  });
+  if (backdrop && backdrop.classList.contains("open")) {
+    springClose(backdrop, () => {
+      backdrop.style.opacity = "";
+      backdrop.style.scale = "";
+    });
   }
 }
 function closeMenu() {
   const menu = document.getElementById("mainMenu");
   if (!menu) return;
-  menu.classList.remove("open", "is-placed");
-  menu.style.left = "";
-  menu.style.top = "";
-  menu.style.right = "";
-  window.__veilMenuImage = null;
-  window.__veilMenuMedia = null;
-  window.__veilMenuAt = 0;
-  const saveMedia = document.getElementById("menuSaveMedia");
-  if (saveMedia) saveMedia.classList.remove("is-on");
+  const finish = () => {
+    menu.classList.remove("open", "is-placed");
+    menu.style.left = "";
+    menu.style.top = "";
+    menu.style.right = "";
+    menu.style.opacity = "";
+    menu.style.scale = "";
+    menu.style.transform = "";
+    window.__veilMenuImage = null;
+    window.__veilMenuMedia = null;
+    window.__veilMenuAt = 0;
+    const saveMedia = document.getElementById("menuSaveMedia");
+    if (saveMedia) saveMedia.classList.remove("is-on");
+  };
+  if (menu.classList.contains("open")) springClose(menu, finish);
+  else finish();
 }
 function safeColorValue(value, extra) {
   const extra2 = String(value || "").trim();
@@ -6964,7 +7009,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=66";
+  link.href = BASE + "/veilos.css?v=67";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6975,7 +7020,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=66";
+  script.src = BASE + "/veilos.js?v=67";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8147,7 +8192,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=66";
+    script.src = REPO_PATH + "anime.min.js?v=67";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8160,6 +8205,31 @@ function motionOff() {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   } catch (err) {
     return false;
+  }
+}
+function springClose(el, done) {
+  const finish = () => { try { if (done) done(); } catch (err) {} };
+  const anime = window.anime;
+  if (!el || motionOff() || !anime || !anime.animate || !anime.spring) {
+    finish();
+    return;
+  }
+  try {
+    const job = anime.animate(el, {
+      opacity: [1, 0],
+      scale: [1, 0.94],
+      ease: anime.spring({ bounce: 0.28, duration: 320 })
+    });
+    let settled = false;
+    const end = () => {
+      if (settled) return;
+      settled = true;
+      finish();
+    };
+    if (job && typeof job.then === "function") job.then(end);
+    setTimeout(end, 380);
+  } catch (err) {
+    finish();
   }
 }
 function fadeIn(el) {
@@ -8233,17 +8303,28 @@ function setVeilView(view) {
   }
 }
 function showDash() {
-  try { closeMenu(); } catch (err) {}
-  try { closeHistory(); } catch (err) {}
-  document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope", "is-page"));
-  const backdrop = document.getElementById("backdrop");
-  if (backdrop) backdrop.classList.remove("open");
-  const settingsPanel = document.getElementById("settingsPanel");
-  if (settingsPanel) {
-    const title = settingsPanel.querySelector(".panel-head > span");
-    if (title) title.textContent = "Settings";
-  }
-  setVeilView("dash");
+  const stage = document.getElementById("veilStage");
+  const fromStage = !!(stage && (stage.style.display === "flex" || document.body.dataset.veilView === "entertainment" || document.body.dataset.veilView === "chat" || document.body.dataset.veilView === "admin"));
+  const go = () => {
+    if (stage) {
+      stage.style.opacity = "";
+      stage.style.scale = "";
+      stage.style.transform = "";
+    }
+    try { closeMenu(); } catch (err) {}
+    try { closeHistory(); } catch (err) {}
+    document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope", "is-page"));
+    const backdrop = document.getElementById("backdrop");
+    if (backdrop) backdrop.classList.remove("open");
+    const settingsPanel = document.getElementById("settingsPanel");
+    if (settingsPanel) {
+      const title = settingsPanel.querySelector(".panel-head > span");
+      if (title) title.textContent = "Settings";
+    }
+    setVeilView("dash");
+  };
+  if (fromStage && stage) springClose(stage, go);
+  else go();
 }
 function showBrowser() {
   setVeilView("browser");
@@ -8272,6 +8353,34 @@ function showEntPane(name) {
     sw.querySelectorAll("[data-ent]").forEach(btn => {
       btn.classList.toggle("on", btn.getAttribute("data-ent") === name);
     });
+  }
+  const first = !showEntPane.seen;
+  showEntPane.seen = true;
+  requestAnimationFrame(() => moveStagePill(name, !first));
+}
+function moveStagePill(name, animate) {
+  const sw = document.getElementById("stageSwitch");
+  const pill = document.getElementById("stagePill");
+  if (!sw || !pill || sw.hidden) return;
+  const btn = sw.querySelector('[data-ent="' + name + '"]');
+  if (!btn) return;
+  const left = btn.offsetLeft;
+  const width = btn.offsetWidth;
+  const anime = window.anime;
+  if (!animate || !width || motionOff() || !anime || !anime.animate || !anime.spring) {
+    pill.style.left = left + "px";
+    pill.style.width = width + "px";
+    return;
+  }
+  try {
+    anime.animate(pill, {
+      left: left,
+      width: width,
+      ease: anime.spring({ bounce: 0.45, duration: 540 })
+    });
+  } catch (err) {
+    pill.style.left = left + "px";
+    pill.style.width = width + "px";
   }
 }
 function playStageIntro(root, selector) {
@@ -8378,11 +8487,20 @@ let settingsReturn = "dash";
 function leaveSettings(force) {
   const panel = document.getElementById("settingsPanel");
   const backTo = force === "browser" || force === "dash" ? force : settingsReturn === "browser" ? "browser" : "dash";
-  if (panel) panel.classList.remove("open", "is-page", "is-options", "is-browser-scope");
-  const backdrop = document.getElementById("backdrop");
-  if (backdrop) backdrop.classList.remove("open");
-  if (backTo === "browser") showBrowser();
-  else showDash();
+  const go = () => {
+    if (panel) {
+      panel.classList.remove("open", "is-page", "is-options", "is-browser-scope");
+      panel.style.opacity = "";
+      panel.style.scale = "";
+      panel.style.transform = "";
+    }
+    const backdrop = document.getElementById("backdrop");
+    if (backdrop) backdrop.classList.remove("open");
+    if (backTo === "browser") showBrowser();
+    else showDash();
+  };
+  if (panel && panel.classList.contains("open")) springClose(panel, go);
+  else go();
 }
 function openSettings(scope) {
   wallpaperScope = scope === "browser" ? "browser" : "home";
