@@ -1291,7 +1291,7 @@ function applyNewTabBackground() {
     session = (typeof window.veilOSFileUrl === "function" && window.veilOSFileUrl(session.slice("veil-file:".length))) || "";
   }
   const workerUrl = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1));
-  document.querySelectorAll(".newtab-page").forEach(value2 => {
+  document.querySelectorAll(".dash-wall").forEach(value2 => {
     stopHomeFrames(value2);
     value2.querySelectorAll(".newtab-media, .newtab-media-img, .newtab-raster").forEach(value => value.remove());
     value2.style.backgroundImage = "none";
@@ -2029,32 +2029,45 @@ function formatWelcomeClock(value2) {
   const query = value => String(value).padStart(2, "0");
   const res = query(value2.getMinutes());
   const req = query(value2.getSeconds());
-  const rec = query(value2.getMonth() + 1) + "/" + query(value2.getDate()) + "/" + value2.getFullYear();
   const row = settings && settings.timeFormat === "24";
   let count;
+  let ampm = "";
   if (row) {
     count = query(value2.getHours()) + ":" + res + ":" + req;
   } else {
     let token = value2.getHours();
-    const pM = token >= 12 ? "PM" : "AM";
+    ampm = token >= 12 ? "PM" : "AM";
     token = token % 12;
     if (token === 0) {
       token = 12;
     }
-    count = token + ":" + res + ":" + req + " " + pM;
+    count = token + ":" + res + ":" + req;
+  }
+  let date = "";
+  try {
+    date = value2.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    });
+  } catch (err) {
+    date = query(value2.getMonth() + 1) + "/" + query(value2.getDate()) + "/" + value2.getFullYear();
   }
   return {
     time: count,
-    date: rec
+    ampm: ampm,
+    date: date
   };
 }
 function welcomeHTML() {
   const guest = profile && profile.name ? profile.name : "guest";
   const {
     time: entry,
+    ampm: ampm,
     date: meta
   } = formatWelcomeClock(new Date());
-  return "<div class=\"welcome-bar\"><div class=\"welcome-line\">Welcome to Veil, " + escapeHTML(guest) + ".</div><div class=\"welcome-time\">It is currently <span data-welcome-time>" + entry + "</span> on <span data-welcome-date>" + meta + "</span>.</div></div>";
+  return "<div class=\"welcome-bar\"><div class=\"welcome-line\">Welcome to Veil, " + escapeHTML(guest) + "</div><div class=\"welcome-time\">It is <span data-welcome-time>" + escapeHTML(entry) + "</span><span data-welcome-ampm>" + escapeHTML(ampm ? " " + ampm : "") + "</span> on <span data-welcome-date>" + escapeHTML(meta) + "</span></div></div>";
 }
 function startWelcomeClock() {
   if (welcomeClockTimer) {
@@ -2063,14 +2076,23 @@ function startWelcomeClock() {
   const root = () => {
     const {
       time: game,
+      ampm: ampm,
       date: room
     } = formatWelcomeClock(new Date());
     document.querySelectorAll("[data-welcome-time]").forEach(value => {
       value.textContent = game;
     });
+    document.querySelectorAll("[data-welcome-ampm]").forEach(value => {
+      value.textContent = ampm ? " " + ampm : "";
+    });
     document.querySelectorAll("[data-welcome-date]").forEach(value => {
       value.textContent = room;
     });
+    const dashName = document.getElementById("dashName");
+    if (dashName) {
+      const guest = profile && profile.name ? profile.name : "guest";
+      if (dashName.textContent !== guest) dashName.textContent = guest;
+    }
   };
   root();
   welcomeClockTimer = setInterval(root, 1000);
@@ -2139,7 +2161,7 @@ function observeHomeScale(value) {
   window.addEventListener("resize", () => fitHomeScale(value));
 }
 function homepageHTML(value) {
-  return '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' + '<div class="newtab-stage">' + welcomeHTML() + '<div class="newtab-center">' + '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' + '<div class="newtab-title">Veil</div>' + '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' + '<div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span>' + '<input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' + '</div></div>' + '<div class="quick-links">' + '<button class="quick-link" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button>' + '<button class="quick-link" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button>' + '<button class="quick-link" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button>' + '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button>' + '</div>' + '<div class="quick-links row2">' + '<button class="quick-link" title="Games" data-games="1">' + imgIcon("games.svg") + '</button>' + '<button class="quick-link" title="Chat" data-chat="1">' + imgIcon("chat.svg") + '<span class="chat-alert" data-chat-alert></span></button>' + '<button class="quick-link soon" title="AI (soon)" data-soon="1">' + imgIcon("ai.svg") + '</button>' + '<button class="quick-link soon" title="Toolbox (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' + '</div>' + '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' + '<button class="launch-btn os-launch" type="button" data-open-desktop>Open Desktop</button>' + '</div></div></div>' + '<div class="time-bar" id="timeBar"><div class="time-dev">Site under development. Bugs may occur.</div>' + '<div class="time-cluster"><span class="time-batt"><span class="time-battery" hidden><img alt="" width="18" height="18"><span class="time-battery-pct"></span></span></span>' + '<span class="time-left">Time Remaining: …</span><span class="time-os"></span></div></div></div>';
+  return '<div class="newtab-page" style="--timebar-h:0px"><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="newtab-sub">Search or enter a site.</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div></div></div></div></div>';
 }
 const SETTINGS_INFO = {
   theme: {
@@ -2160,11 +2182,11 @@ const SETTINGS_INFO = {
   },
   time24: {
     title: "24-hour time",
-    body: "Shows the home-page clock as 24-hour time instead of AM/PM."
+    body: "Shows the dashboard clock as 24-hour time instead of AM/PM."
   },
   animations: {
     title: "Live wallpaper",
-    body: "Adds a moving background on the home page. Pick a Veil animation and set its speed, amount, size, and colors, or choose Custom URL for an image, GIF, WebP, or video. A speed slider appears for video, GIF, and WebP."
+    body: "Adds a moving background behind the dashboard. Pick a Veil animation and set its speed, amount, size, and colors, or choose Custom URL for an image, GIF, WebP, or video. A speed slider appears for video, GIF, and WebP."
   },
   screensaver: {
     title: "Screen saver",
@@ -2216,7 +2238,7 @@ const SETTINGS_INFO = {
   },
   username: {
     title: "Change username",
-    body: "Name shown in the home-page welcome message on this device."
+    body: "Name shown on the dashboard welcome on this device."
   },
   password: {
     title: "Change password",
@@ -3006,6 +3028,16 @@ function closePanels() {
 function closePanelsInner() {
   document.getElementById("backdrop").classList.remove("open");
   document.querySelectorAll(".panel").forEach(value => value.classList.remove("open"));
+  const settingsPanel = document.getElementById("settingsPanel");
+  if (settingsPanel) {
+    settingsPanel.classList.remove("is-browser-scope");
+    if (settingsPanel.classList.contains("is-options")) {
+      settingsPanel.classList.remove("is-options");
+      const title = settingsPanel.querySelector(".panel-head > span");
+      if (title) title.textContent = "Settings";
+      if (document.body.dataset.veilView === "options") setVeilView("dash");
+    }
+  }
 }
 function closeMenu() {
   const menu = document.getElementById("mainMenu");
@@ -3689,6 +3721,12 @@ function setSwitch(value, extra) {
 }
 function refreshHomeFxAll() {
   applyNewTabBackground();
+  const dashWall = document.getElementById("dashWall");
+  if (dashWall && document.body.dataset.veilView === "dash") {
+    setupHomeFx(dashWall);
+  } else if (dashWall) {
+    stopHomeFx(dashWall);
+  }
   document.querySelectorAll(".page").forEach(value2 => {
     const wrap = value2.dataset.pageId;
     const page = tabs.find(value => value.id === wrap);
@@ -4870,8 +4908,8 @@ on("veilRefreshBtn", refreshVeil);
 on("backBtn", goBack);
 on("forwardBtn", goForward);
 on("refreshBtn", reload);
-on("homeBtn", goHome);
-on("settingsOpenBtn", () => openPanel("settingsPanel"));
+on("homeBtn", () => showDash());
+on("settingsOpenBtn", () => openBrowserSettings());
 on("bookmarkBtn", toggleBookmark);
 document.getElementById("address").addEventListener("keydown", value => {
   if (value.key === "Enter") {
@@ -6652,6 +6690,11 @@ function hookFrameMenu(frameEl) {
   doc.addEventListener("contextmenu", event => {
     const target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
     if (target && target.closest && target.closest("input, textarea, select, [contenteditable='true']")) return;
+    const menu = document.getElementById("mainMenu");
+    if (menu && menu.classList.contains("open")) {
+      closeMenu();
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const spot = pointFromFrame(frameEl, event.clientX, event.clientY);
@@ -6789,11 +6832,16 @@ function openDesktop() {
     return;
   }
   window.__veilOsBooting = true;
+  try { closeMenu(); } catch (err) {}
+  try { closePanels(); } catch (err) {}
   try {
-    closeMenu();
-  } catch (err) {}
-  try {
-    closePanels();
+    const wall = document.getElementById("dashWall");
+    if (wall) {
+      stopHomeFx(wall);
+      wall.querySelectorAll("video").forEach(video => video.pause());
+    }
+    const stage = document.getElementById("veilStage");
+    if (stage) stage.querySelectorAll("video").forEach(video => video.pause());
   } catch (err) {}
   const bootStyle = document.createElement("style");
   bootStyle.id = "veilOsBootStyle";
@@ -6826,7 +6874,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=46";
+  link.href = BASE + "/veilos.css?v=60";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6837,7 +6885,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=46";
+  script.src = BASE + "/veilos.js?v=60";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -6865,6 +6913,12 @@ const openDesktopBtn = document.getElementById("openDesktopBtn");
 if (openDesktopBtn) {
   openDesktopBtn.onclick = () => openDesktop();
 }
+const dashDesktop = document.getElementById("dashDesktop");
+if (dashDesktop) dashDesktop.onclick = () => openDesktop();
+const dashLaunch = document.getElementById("dashLaunch");
+if (dashLaunch) dashLaunch.onclick = () => openLaunchModal();
+const optionsBack = document.getElementById("optionsBack");
+if (optionsBack) optionsBack.onclick = () => showDash();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
 if (searchEngineSelect) {
   searchEngineSelect.addEventListener("change", () => {
@@ -7444,8 +7498,15 @@ document.addEventListener("click", value => {
 document.addEventListener("contextmenu", value => {
   const browser = document.getElementById("browser");
   const target = value.target && value.target.nodeType === 1 ? value.target : value.target && value.target.parentElement;
+  const inOs = document.body.classList.contains("veil-os");
+  if (!inOs && document.body.dataset.veilView !== "browser") return;
   if (!browser || !target || !target.closest || !browser.contains(target)) return;
   if (target.closest("input, textarea, select, [contenteditable='true'], #mainMenu, .panel, .modal-overlay")) return;
+  const menu = document.getElementById("mainMenu");
+  if (menu && menu.classList.contains("open")) {
+    closeMenu();
+    return;
+  }
   value.preventDefault();
   value.stopPropagation();
   openBrowserMenuAt(value.clientX, value.clientY, null, mediaAtPoint(document, value.clientX, value.clientY, target, value) || mediaOnPage());
@@ -7894,6 +7955,7 @@ function updateAccessTimeBar() {
     }
   });
   paintBattery();
+  paintDashStatus();
 }
 setInterval(updateAccessTimeBar, 1000);
 window.addEventListener("veil-session-meta", updateAccessTimeBar);
@@ -7907,6 +7969,254 @@ window.addEventListener("veil-access-revoked", function () {
     }
   } catch (err) {}
 });
+function paintDashStatus() {
+  const left = document.querySelector("[data-dash-left]");
+  const os = document.querySelector("[data-dash-os]");
+  if (left || os) {
+    const node = window.VeilAccess && window.VeilAccess.getMeta && window.VeilAccess.getMeta() || null;
+    if (left) {
+      const raw = formatAccessLeft(node);
+      left.textContent = raw === "Unlimited" || raw === "—" || raw === "Expired" ? raw : raw + " left";
+    }
+    if (os) os.textContent = detectOSName();
+  }
+}
+let animeLoad = null;
+let dashIntroPlayed = false;
+function ensureAnime() {
+  if (window.anime && window.anime.animate) return Promise.resolve(window.anime);
+  if (animeLoad) return animeLoad;
+  const existing = document.querySelector('script[src*="anime.min.js"]');
+  if (existing && !window.anime) {
+    animeLoad = new Promise(resolve => {
+      const done = () => resolve(window.anime && window.anime.animate ? window.anime : null);
+      existing.addEventListener("load", done, { once: true });
+      existing.addEventListener("error", () => resolve(null), { once: true });
+      setTimeout(done, 4000);
+    });
+    return animeLoad;
+  }
+  animeLoad = new Promise(resolve => {
+    const script = document.createElement("script");
+    script.src = REPO_PATH + "anime.min.js?v=60";
+    script.async = true;
+    script.onload = () => resolve(window.anime || null);
+    script.onerror = () => resolve(null);
+    document.body.appendChild(script);
+  });
+  return animeLoad;
+}
+function motionOff() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch (err) {
+    return false;
+  }
+}
+function fadeIn(el) {
+  if (!el || motionOff() || !window.anime || !window.anime.animate) return;
+  try {
+    window.anime.animate(el, {
+      opacity: [0, 1],
+      duration: 220,
+      ease: "outCubic"
+    });
+  } catch (err) {}
+}
+function playDashIntro() {
+  if (dashIntroPlayed || motionOff()) {
+    dashIntroPlayed = true;
+    return;
+  }
+  const run = anime => {
+    if (!anime || !anime.animate || dashIntroPlayed) return;
+    dashIntroPlayed = true;
+    try {
+      anime.animate(".dash-top, .dash-foot", {
+        opacity: [0, 1],
+        translateY: [8, 0],
+        duration: 320,
+        ease: "outCubic"
+      });
+      anime.animate(".dash-tile", {
+        opacity: [0, 1],
+        translateY: [12, 0],
+        delay: anime.stagger(45),
+        duration: 360,
+        ease: "outCubic"
+      });
+    } catch (err) {}
+  };
+  if (window.anime) run(window.anime);
+  else ensureAnime().then(run);
+}
+function setVeilView(view) {
+  document.body.dataset.veilView = view;
+  const browser = document.getElementById("browser");
+  const dash = document.getElementById("veilDash");
+  const stage = document.getElementById("veilStage");
+  if (browser && !document.body.classList.contains("veil-os")) browser.style.display = view === "browser" ? "flex" : "none";
+  if (dash) dash.style.display = view === "dash" ? "flex" : "none";
+  if (stage) stage.style.display = view === "entertainment" || view === "chat" ? "flex" : "none";
+  const wall = document.getElementById("dashWall");
+  if (view === "dash") {
+    try { paintDashStatus(); } catch (err) {}
+    try { startWelcomeClock(); } catch (err) {}
+    try { applyNewTabBackground(); } catch (err) {}
+    try { if (wall) setupHomeFx(wall); } catch (err) {}
+    try {
+      if (wall) wall.querySelectorAll("video").forEach(video => video.play().catch(() => {}));
+    } catch (err) {}
+    try { playDashIntro(); } catch (err) {}
+  } else if (wall) {
+    try { stopHomeFx(wall); } catch (err) {}
+    try { wall.querySelectorAll("video").forEach(video => video.pause()); } catch (err) {}
+  }
+  if (view !== "entertainment") {
+    try {
+      const stage = document.getElementById("veilStage");
+      if (stage) stage.querySelectorAll("video").forEach(video => video.pause());
+    } catch (err) {}
+  }
+}
+function showDash() {
+  try { closeMenu(); } catch (err) {}
+  try { closeHistory(); } catch (err) {}
+  document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope"));
+  const backdrop = document.getElementById("backdrop");
+  if (backdrop) backdrop.classList.remove("open");
+  const settingsPanel = document.getElementById("settingsPanel");
+  if (settingsPanel) {
+    const title = settingsPanel.querySelector(".panel-head > span");
+    if (title) title.textContent = "Settings";
+  }
+  setVeilView("dash");
+}
+function showBrowser() {
+  setVeilView("browser");
+  try { renderChrome(); } catch (err) {}
+  requestAnimationFrame(() => {
+    try {
+      document.querySelectorAll(".page").forEach(page => {
+        if (page.querySelector(".newtab-page")) fitHomeScale(page);
+      });
+    } catch (err) {}
+  });
+  fadeIn(document.getElementById("browser"));
+}
+function showEntPane(name) {
+  const body = document.getElementById("stageBody");
+  if (!body) return;
+  body.querySelectorAll(".ent-pane").forEach(pane => {
+    pane.classList.toggle("on", pane.getAttribute("data-pane") === name);
+  });
+  const sw = document.getElementById("stageSwitch");
+  if (sw) {
+    sw.querySelectorAll("[data-ent]").forEach(btn => {
+      btn.classList.toggle("on", btn.getAttribute("data-ent") === name);
+    });
+  }
+}
+function showEntertainment() {
+  const stage = document.getElementById("veilStage");
+  const title = document.getElementById("stageTitle");
+  const sw = document.getElementById("stageSwitch");
+  const body = document.getElementById("stageBody");
+  if (title) title.textContent = "Entertainment";
+  if (sw) sw.hidden = false;
+  if (body && !body.querySelector("#gamesRoot")) {
+    body.innerHTML = '<div class="ent-pane on" data-pane="games"><div class="games-page" id="gamesRoot"></div></div><div class="ent-pane" data-pane="music"><div class="ent-empty"><strong>Music</strong><span>Nothing here yet.</span></div></div><div class="ent-pane" data-pane="more"><div class="ent-empty"><strong>More</strong><span>Nothing here yet.</span></div></div>';
+    try { renderGamesPage(body.querySelector("#gamesRoot")); } catch (err) {}
+  }
+  showEntPane("games");
+  setVeilView("entertainment");
+  fadeIn(stage);
+}
+function showChat() {
+  const title = document.getElementById("stageTitle");
+  const sw = document.getElementById("stageSwitch");
+  const body = document.getElementById("stageBody");
+  if (title) title.textContent = "Chat";
+  if (sw) sw.hidden = true;
+  if (body) {
+    body.innerHTML = '<div class="chat-page" id="chatRoot"></div>';
+    try { renderChatPage(body.querySelector("#chatRoot")); } catch (err) {}
+    try { bootChatLink(); } catch (err) {}
+  }
+  setVeilView("chat");
+  fadeIn(document.getElementById("veilStage"));
+}
+function openBrowserSettings() {
+  if (document.body.classList.contains("veil-os") && typeof window.veilOSOpenApp === "function") {
+    closeMenu();
+    window.veilOSOpenApp("settings");
+    return;
+  }
+  const panel = document.getElementById("settingsPanel");
+  if (!panel) return;
+  panel.classList.add("is-browser-scope");
+  panel.classList.remove("is-options");
+  const title = panel.querySelector(".panel-head > span");
+  if (title) title.textContent = "Settings";
+  const active = panel.querySelector(".settings-tab.active");
+  const token = active && active.getAttribute("data-settings-tab");
+  if (token !== "custom" && token !== "browser") {
+    const custom = panel.querySelector('[data-settings-tab="custom"]');
+    if (custom) custom.click();
+  }
+  openPanel("settingsPanel");
+}
+function showOptions() {
+  closeMenu();
+  const panel = document.getElementById("settingsPanel");
+  if (!panel) return;
+  panel.classList.remove("is-browser-scope");
+  panel.classList.add("open", "is-options");
+  const title = panel.querySelector(".panel-head > span");
+  if (title) title.textContent = "Options";
+  const backdrop = document.getElementById("backdrop");
+  if (backdrop) backdrop.classList.remove("open");
+  setVeilView("options");
+  try {
+    fillWispSelect();
+    startLivePings();
+  } catch (err) {}
+  try {
+    fillChatSettings();
+    fillDesktopSettings();
+  } catch (err) {}
+  fadeIn(panel);
+}
+function wireDash() {
+  const dash = document.getElementById("veilDash");
+  if (dash && !dash.dataset.wired) {
+    dash.dataset.wired = "1";
+    dash.addEventListener("click", event => {
+      const tile = event.target.closest("[data-dash]");
+      if (!tile || tile.disabled || tile.classList.contains("dash-soon")) return;
+      const which = tile.getAttribute("data-dash");
+      if (which === "browser") showBrowser();
+      else if (which === "entertainment") showEntertainment();
+      else if (which === "chat") showChat();
+      else if (which === "options") showOptions();
+    });
+  }
+  const back = document.getElementById("stageBack");
+  if (back && !back.dataset.wired) {
+    back.dataset.wired = "1";
+    back.onclick = () => showDash();
+  }
+  const sw = document.getElementById("stageSwitch");
+  if (sw && !sw.dataset.wired) {
+    sw.dataset.wired = "1";
+    sw.addEventListener("click", event => {
+      const btn = event.target.closest("[data-ent]");
+      if (!btn) return;
+      showEntPane(btn.getAttribute("data-ent"));
+    });
+  }
+}
+wireDash();
 let __veilBootPromise = null;
 function bootVeilApp() {
   if (__veilBootPromise) return __veilBootPromise;
@@ -7918,7 +8228,7 @@ async function bootVeilAppInner() {
     document.body.classList.remove("gate-lock");
     const browser = document.getElementById("browser") || document.getElementById("app");
     if (browser) {
-      browser.style.display = "";
+      browser.style.display = "none";
     }
     const accessGate = document.getElementById("accessGate");
     if (accessGate) {
@@ -7974,6 +8284,7 @@ async function bootVeilAppInner() {
       } catch (err) {}
       if (/^https?:\/\//i.test(kind)) {
         navigate(kind);
+        window.__veilOpenLink = true;
       }
     }
   } catch (err2) {
@@ -8068,6 +8379,11 @@ async function bootVeilAppInner() {
   try {
     highlightTheme();
   } catch (err) {}
+  try {
+    await ensureAnime();
+  } catch (err) {}
+  if (window.__veilOpenLink) setVeilView("browser");
+  else setVeilView("dash");
   setTimeout(function () {
     showCookieConsent().catch(function (err) {
       console.warn("cookie consent", err);
@@ -8656,6 +8972,9 @@ async function renderGamesPage(value3) {
     gamesPopularTimer = setInterval(() => {
       if (!value3.isConnected) {
         clearInterval(gamesPopularTimer);
+        return;
+      }
+      if (document.body.dataset.veilView !== "entertainment" && !value3.closest("#browser")) {
         return;
       }
       if (bits) {

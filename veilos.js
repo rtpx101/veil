@@ -2454,6 +2454,9 @@
     if (ctxEl && ctxEl.parentNode) ctxEl.parentNode.removeChild(ctxEl);
     ctxEl = null;
     document.body.classList.remove("veil-os");
+    try {
+      if (document.body.dataset.veilView === "dash" && typeof setVeilView === "function") setVeilView("dash");
+    } catch (err) {}
     wins = {};
     focused = null;
     deskEl = null;
