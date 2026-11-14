@@ -2220,9 +2220,10 @@ function renderTabs() {
       const active = tabs2.querySelector(".tab.active");
       if (active && anime && anime.animate && !motionOff()) {
         try {
+          active.style.transformOrigin = "center";
           anime.animate(active, {
-            translateY: [5, 0],
-            ease: veilSpring(0.5, 380)
+            scale: [0.9, 1],
+            ease: veilSpring(0.42, 420)
           });
         } catch (err) {}
       }
@@ -7414,7 +7415,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=76";
+  link.href = BASE + "/veilos.css?v=77";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7425,7 +7426,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=76";
+  script.src = BASE + "/veilos.js?v=77";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8622,7 +8623,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=76";
+    script.src = REPO_PATH + "anime.min.js?v=77";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
