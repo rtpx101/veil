@@ -898,13 +898,16 @@ function migrateSettings() {
     settings.saverMinutes = 0;
   }
   settings.saverMinutes = Number(settings.saverMinutes) || 0;
-  if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.saverStyle)) {
+  if (settings.animStyle === "rain" || settings.animStyle === "waves" || settings.animStyle === "pulse") settings.animStyle = "ripples";
+  if (settings.brAnimStyle === "rain") settings.brAnimStyle = "ripples";
+  if (settings.saverStyle === "rain") settings.saverStyle = "ripples";
+  if (!["orbs", "stars", "constellation", "ripples", "drift", "custom"].includes(settings.saverStyle)) {
     settings.saverStyle = "orbs";
   }
-  if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.animStyle)) {
+  if (!["orbs", "stars", "constellation", "ripples", "drift", "custom"].includes(settings.animStyle)) {
     settings.animStyle = "orbs";
   }
-  if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.brAnimStyle)) {
+  if (!["orbs", "stars", "constellation", "ripples", "drift", "custom"].includes(settings.brAnimStyle)) {
     settings.brAnimStyle = "orbs";
   }
   if (typeof settings.brBackgroundUrl !== "string") {
@@ -3530,6 +3533,11 @@ function stopHomeFx(value) {
   if (key && key.ro) {
     key.ro.disconnect();
   }
+  if (key && key.anims) {
+    key.anims.forEach(run => {
+      try { if (run && run.cancel) run.cancel(); } catch (err) {}
+    });
+  }
   homeFxLoops.delete(value);
 }
 function setupHomeFx(value3, extra2) {
@@ -3577,9 +3585,7 @@ function setupHomeFx(value3, extra2) {
   };
   item2();
   let orbs = fxStyle;
-  if (orbs === "waves" || orbs === "pulse") {
-    orbs = "rain";
-  }
+  if (orbs === "waves" || orbs === "pulse" || orbs === "rain") orbs = "ripples";
   const raw = Math.max(0.25, Math.min(2.5, Number(fxSpeed) || 1));
   const found2 = Math.max(0.4, Math.min(2.5, Number(fxSize) || 1));
   let next2 = Number(fxCount);
@@ -3595,7 +3601,53 @@ function setupHomeFx(value3, extra2) {
   }
   list2.shooters = [];
   list2.clouds = [];
-  if (orbs === "rain") {
+  list2.blobs = [];
+  list2.anims = [];
+  if (orbs === "ripples" || orbs === "drift") {
+    const countBlobs = orbs === "ripples" ? Math.max(4, Math.min(14, Math.round(next2 / 2))) : Math.max(3, Math.min(8, Math.round(next2 / 3)));
+    const pace = Math.max(0.35, raw);
+    for (let i = 0; i < countBlobs; i++) {
+      const blob = {
+        x: Math.random(),
+        y: Math.random(),
+        s: orbs === "ripples" ? 0.02 : 0.12 + Math.random() * 0.16,
+        o: orbs === "ripples" ? 0 : 0.16
+      };
+      list2.blobs.push(blob);
+      const again = () => {
+        if (homeFxLoops.get(value3) !== list2) return;
+        const anime = window.anime;
+        if (!anime || !anime.animate) return;
+        let run;
+        if (orbs === "ripples") {
+          blob.x = 0.08 + Math.random() * 0.84;
+          blob.y = 0.08 + Math.random() * 0.84;
+          blob.s = 0.02;
+          blob.o = 0.5;
+          run = anime.animate(blob, {
+            s: (0.28 + Math.random() * 0.22) * found2,
+            o: 0,
+            duration: (1600 + Math.random() * 1200) / pace,
+            delay: Math.random() * 400,
+            ease: "outCubic",
+            onComplete: again
+          });
+        } else {
+          run = anime.animate(blob, {
+            x: 0.08 + Math.random() * 0.84,
+            y: 0.08 + Math.random() * 0.84,
+            s: (0.14 + Math.random() * 0.2) * found2,
+            o: 0.1 + Math.random() * 0.22,
+            duration: (3800 + Math.random() * 2600) / pace,
+            ease: "inOutSine",
+            onComplete: again
+          });
+        }
+        list2.anims.push(run);
+      };
+      setTimeout(again, i * 180);
+    }
+  } else if (false && orbs === "rain") {
     for (let delay = 0; delay < next2; delay++) {
       const html = delay % 3;
       const cls = html === 0 ? 0.45 : html === 1 ? 0.75 : 1;
@@ -3665,6 +3717,31 @@ function setupHomeFx(value3, extra2) {
     err2.clearRect(0, 0, row, count);
     const entry = hexToRgb(animColor("a"));
     const meta = hexToRgb(animColor("b"));
+    if (orbs === "ripples" || orbs === "drift") {
+      (list2.blobs || []).forEach((blob, extra) => {
+        const style = extra % 2 ? entry : meta;
+        const cx = blob.x * row;
+        const cy = blob.y * count;
+        const rad = Math.max(2, blob.s * Math.min(row, count));
+        if (orbs === "ripples") {
+          err2.strokeStyle = "rgba(" + style.r + "," + style.g + "," + style.b + "," + Math.max(0, blob.o) * 0.85 + ")";
+          err2.lineWidth = Math.max(1.25, found2 * index);
+          err2.beginPath();
+          err2.arc(cx, cy, rad, 0, Math.PI * 2);
+          err2.stroke();
+        } else {
+          const grad = err2.createRadialGradient(cx, cy, 0, cx, cy, rad);
+          grad.addColorStop(0, "rgba(" + style.r + "," + style.g + "," + style.b + "," + Math.max(0, blob.o) + ")");
+          grad.addColorStop(1, "rgba(" + style.r + "," + style.g + "," + style.b + ",0)");
+          err2.fillStyle = grad;
+          err2.beginPath();
+          err2.arc(cx, cy, rad, 0, Math.PI * 2);
+          err2.fill();
+        }
+      });
+      list2.raf = requestAnimationFrame(box);
+      return;
+    }
     if (orbs === "rain") {
       const message = err2.createLinearGradient(0, 0, 0, count);
       message.addColorStop(0, "rgba(" + entry.r + "," + entry.g + "," + entry.b + ",0.08)");
@@ -4190,7 +4267,7 @@ function syncSaverFields() {
     saverDelay2.value = settings.saverDelay || "";
   }
   const saverStyle = document.getElementById("saverStyle");
-  const nodes = ["orbs", "stars", "constellation", "rain", "custom"];
+  const nodes = ["orbs", "stars", "constellation", "ripples", "drift", "custom"];
   if (saverStyle) {
     saverStyle.value = nodes.includes(settings.saverStyle) ? settings.saverStyle : "orbs";
   }
@@ -4510,7 +4587,7 @@ function highlightTheme() {
         animSizeVal.textContent = Number(wpGet("animSize") || 1).toFixed(2) + "x";
       }
     }
-    const wrap = ["orbs", "stars", "constellation", "rain", "custom"];
+    const wrap = ["orbs", "stars", "constellation", "ripples", "drift", "custom"];
     if (animStyle2) {
       animStyle2.value = wrap.includes(wpGet("animStyle")) ? wpGet("animStyle") : "orbs";
     }
@@ -7173,7 +7250,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=71";
+  link.href = BASE + "/veilos.css?v=72";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7184,7 +7261,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=71";
+  script.src = BASE + "/veilos.js?v=72";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8359,7 +8436,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=71";
+    script.src = REPO_PATH + "anime.min.js?v=72";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8616,8 +8693,8 @@ function moveSettingsPill(animate) {
   if (!tabs || !pill) return;
   const btn = tabs.querySelector(".settings-tab.active");
   if (!btn || btn.offsetWidth < 2) return;
-  const left = btn.offsetLeft;
-  const width = btn.offsetWidth;
+  const left = btn.getBoundingClientRect().left - tabs.getBoundingClientRect().left;
+  const width = btn.getBoundingClientRect().width;
   const anime = window.anime;
   if (!animate || motionOff() || !anime || !anime.animate || !anime.spring) {
     pill.style.left = left + "px";

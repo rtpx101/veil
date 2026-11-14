@@ -100,7 +100,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .range-track input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:var(--border);border:0}
 .range-track input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:transparent}
 .range-knob{position:absolute;top:50%;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);pointer-events:none;transform:translateY(-50%)}
-.setting-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.setting-actions{display:flex;flex-wrap:wrap;align-items:center;gap:22px;margin-top:16px}
 .setting-actions .primary-btn,.setting-actions .secondary-btn{width:auto;min-width:112px;margin:0;height:40px;padding:0 16px}
 .bind-chip{min-width:96px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:650}
 .range-val{min-width:28px;text-align:right;font-size:13px;color:var(--muted)}
@@ -244,7 +244,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
 .panel-body{padding:20px;overflow-y:auto}
 .settings-tabs{position:relative;display:flex;align-items:stretch;flex-shrink:0;gap:2px;overflow:hidden}
-.settings-pill{position:absolute;left:0;bottom:8px;height:2px;width:48px;border-radius:2px;background:var(--accent);pointer-events:none;z-index:1}
+.settings-pill{position:absolute;left:0;bottom:0;height:2px;width:48px;border-radius:2px;background:var(--accent);pointer-events:none;z-index:1}
 .settings-tab{position:relative;z-index:2;flex:0 0 auto;height:40px;padding:0 12px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer;border:0;border-radius:10px;white-space:nowrap}
 .settings-tab:hover{color:var(--text)}
 .settings-tab.active{color:var(--text)}
@@ -870,10 +870,20 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
   border:0;border-radius:0;background:var(--bg);transform:none;box-shadow:none;
   z-index:30;
 }
-#settingsPanel.is-page.open .panel-head{margin:16px 16px 0;padding:0 14px;height:72px;gap:14px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
-#settingsPanel.is-page.open .settings-tabs{margin:0 0 0 auto;width:auto;height:100%;border:0;border-radius:0;background:transparent;padding:0}
+#settingsPanel.is-page.open .panel-head{position:relative;justify-content:flex-start;margin:16px 16px 0;padding:0 14px;height:72px;gap:14px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
+#settingsPanel.is-page.open .settings-tabs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;width:auto;height:auto;align-items:flex-end;padding:0 2px 5px;border:0;border-radius:0;background:transparent}
 #settingsPanel.is-page.open .panel-body{flex:1;min-height:0;width:auto;max-width:none;margin:14px 16px 16px;padding:22px 26px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
-#settingsPanel.is-page.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#settingsPanel.is-page.open .setting-section .input-row,
+#settingsPanel.is-page.open .setting-section > select.text-input,
+#settingsPanel.is-page.open .setting-section > .text-input,
+#settingsPanel.is-page.open .setting-section .switch-row,
+#settingsPanel.is-page.open .setting-section > .primary-btn,
+#settingsPanel.is-page.open .setting-section > .secondary-btn,
+#settingsPanel.is-page.open .setting-actions,
+#settingsPanel.is-page.open .range-row,
+#settingsPanel.is-page.open .custom-card,
+#settingsPanel.is-page.open .hint,
+#settingsPanel.is-page.open .preset-grid{max-width:640px;grid-template-columns:repeat(3,minmax(0,1fr))}
 #settingsPanel.is-page [data-close-panel]{display:none}
 @media (max-width:760px){
   .veil-dash{padding:10px;gap:10px}
@@ -1033,7 +1043,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=71", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=72", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1241,7 +1251,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
             <option value="orbs">Floating orbs</option>
             <option value="stars">Twinkling stars</option>
             <option value="constellation">Constellation</option>
-            <option value="rain">Rain & storms</option>
+            <option value="ripples">Ripples</option>
+            <option value="drift">Soft drift</option>
             <option value="custom">Custom URL</option>
           </select>
         </div>
@@ -1278,7 +1289,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
             <option value="orbs">Floating orbs</option>
             <option value="stars">Twinkling stars</option>
             <option value="constellation">Constellation</option>
-            <option value="rain">Rain & storms</option>
+            <option value="ripples">Ripples</option>
+            <option value="drift">Soft drift</option>
             <option value="custom">Custom URL</option>
           </select>
         </div>
@@ -1516,7 +1528,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=71" defer></script>
-<script src="access-gate.js?v=71"></script>
+<script src="anime.min.js?v=72" defer></script>
+<script src="access-gate.js?v=72"></script>
 </body>
 </html>
