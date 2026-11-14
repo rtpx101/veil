@@ -2093,8 +2093,13 @@ function snapshotTabs(host) {
 function desiredTabWidth(host, count) {
   if (!host) return 140;
   const plus = host.querySelector(".new-tab");
-  const plusW = plus ? plus.offsetWidth : 30;
-  const avail = host.clientWidth - plusW - 3 * Math.max(0, count);
+  const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
+  let plusW = 30;
+  if (plus) {
+    const box = getComputedStyle(plus);
+    plusW = plus.offsetWidth + (parseFloat(box.marginLeft) || 0) + (parseFloat(box.marginRight) || 0);
+  }
+  const avail = host.clientWidth - plusW - gap * Math.max(0, count);
   const width = avail / Math.max(1, count);
   return Math.max(72, Math.min(180, width));
 }
@@ -2104,7 +2109,9 @@ function clearTabBox(el) {
   el.style.flex = "";
   el.style.overflow = "";
   el.style.minWidth = "";
+  el.style.maxWidth = "";
   el.style.opacity = "";
+  el.style.marginRight = "";
 }
 function syncTabPill(host, from) {
   const active = host && host.querySelector(".tab.active");
@@ -2141,7 +2148,15 @@ function runTabStripMotion(host, before) {
     return;
   }
   const items = Array.from(host.querySelectorAll(".tab"));
-  const target = desiredTabWidth(host, items.length);
+  const hostRect = host.getBoundingClientRect();
+  const finalRects = new Map();
+  items.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    finalRects.set(el.dataset.tabId, {
+      width: rect.width,
+      left: rect.left - hostRect.left + host.scrollLeft
+    });
+  });
   const ease = veilSpring(0.32, 400);
   let moved = false;
   host._tabSettled = false;
@@ -2153,21 +2168,20 @@ function runTabStripMotion(host, before) {
   };
   items.forEach(el => {
     const prev = before.get(el.dataset.tabId);
+    const finalBox = finalRects.get(el.dataset.tabId);
     const next = !prev;
-    const delta = prev ? Math.abs(prev.width - target) : target;
+    const delta = prev && finalBox ? Math.abs(prev.width - finalBox.width) : 1;
     if (!next && delta < 1.5) return;
     moved = true;
     el.style.flex = "0 0 auto";
     el.style.overflow = "hidden";
     el.style.minWidth = "0";
+    el.style.maxWidth = "none";
     el.style.width = (prev ? prev.width : 0) + "px";
     try {
-      anime.animate(el, next ? {
-        width: target,
-        opacity: [0, 1],
-        ease: ease
-      } : {
-        width: target,
+      anime.animate(el, {
+        width: finalBox ? finalBox.width : 0,
+        opacity: 1,
         ease: ease
       });
     } catch (err) {}
@@ -2178,11 +2192,9 @@ function runTabStripMotion(host, before) {
   }
   const from = before.get("__active");
   const active = host.querySelector(".tab.active");
-  if (from && active) {
-    const index = items.indexOf(active);
-    const hostRect = host.getBoundingClientRect();
+  const dest = active && finalRects.get(active.dataset.tabId);
+  if (from && dest) {
     const startLeft = from.left - hostRect.left + host.scrollLeft;
-    const endLeft = Math.max(0, index) * (target + 3);
     let pill = host.querySelector(".tab-pill");
     if (!pill) {
       pill = document.createElement("span");
@@ -2195,8 +2207,8 @@ function runTabStripMotion(host, before) {
     pill.style.width = from.width + "px";
     try {
       anime.animate(pill, {
-        left: endLeft,
-        width: target,
+        left: dest.left,
+        width: dest.width,
         ease: ease
       });
     } catch (err) {}
@@ -3170,6 +3182,11 @@ function closeTab(value2) {
     if (!keep || keep === historyItem) {
       keep = nodes[closeIndex + 1] || nodes[closeIndex - 1] || null;
     }
+    if (historyItem.classList.contains("active")) {
+      historyItem.classList.remove("active");
+      if (keep) keep.classList.add("active");
+    }
+    const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
     if (keep) {
       const keepIndex = nodes.indexOf(keep);
       const endIndex = keepIndex > closeIndex ? keepIndex - 1 : keepIndex;
@@ -3187,12 +3204,19 @@ function closeTab(value2) {
       pill.style.width = fromRect.width + "px";
       try {
         anime.animate(pill, {
-          left: Math.max(0, endIndex) * (target + 3),
+          left: Math.max(0, endIndex) * (target + gap),
           width: target,
           ease: ease
         });
       } catch (err) {}
     }
+    host.querySelectorAll(".tab").forEach(node => {
+      if (node !== historyItem) return;
+      node.style.marginRight = "0px";
+      try {
+        anime.animate(node, { marginRight: -gap, ease: ease });
+      } catch (err) {}
+    });
     setTimeout(game, 480);
   } else if (historyItem) {
     historyItem.classList.add("closing");
@@ -7474,7 +7498,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=79";
+  link.href = BASE + "/veilos.css?v=80";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7485,7 +7509,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=79";
+  script.src = BASE + "/veilos.js?v=80";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8682,7 +8706,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=79";
+    script.src = REPO_PATH + "anime.min.js?v=80";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);

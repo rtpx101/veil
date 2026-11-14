@@ -71,7 +71,9 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .tabs::-webkit-scrollbar{display:none}
 .tab{position:relative;z-index:1;height:32px;flex:1 1 0;min-width:72px;max-width:180px;display:flex;align-items:center;gap:6px;padding:0 4px 0 8px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center}
 .tab:hover{background:var(--bg3);color:var(--text)}
-.tab.active{background:var(--panel);color:var(--text)}
+.tab.active{background:var(--panel)}
+.tab.active,.tab.active .tab-title{color:var(--text)}
+.tab:not(.active) .tab-title{color:var(--muted)}
 .tab.opening,.tab.closing{animation:none}
 .tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .tab-icon img{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block}
@@ -1052,7 +1054,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=79", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=80", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1538,7 +1540,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=79" defer></script>
-<script src="access-gate.js?v=79"></script>
+<script src="anime.min.js?v=80" defer></script>
+<script src="access-gate.js?v=80"></script>
 </body>
 </html>
