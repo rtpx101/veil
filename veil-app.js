@@ -680,6 +680,9 @@ const DEFAULT_SETTINGS = {
   wispId: "va1",
   customServers: [],
   lockUnload: false,
+  lockKey: "",
+  lockCode: "",
+  sleepLock: 0,
   confirmLeave: false,
   animEnabled: false,
   animStyle: "orbs",
@@ -743,6 +746,7 @@ let tabs = [];
 let activeTabId = null;
 let tabCounter = 0;
 let bindingPanic = false;
+let bindingLock = false;
 const COOKIE = {
   consent: false,
   set(value, extra, other = 365) {
@@ -2267,6 +2271,10 @@ const SETTINGS_INFO = {
   pagelock: {
     title: "Page lock",
     body: "When you lock Veil, also close open pages so others cannot see what you were viewing."
+  },
+  lockveil: {
+    title: "Lock Veil",
+    body: "Locks Veil behind your password. Bind a key the same way as the panic key. Sleep lock watches for the computer going to sleep, like closing a laptop, and locks Veil if it was asleep longer than the time you pick. Off leaves it alone."
   },
   confirmleave: {
     title: "Close Prevention",
@@ -4266,18 +4274,22 @@ function paintProfilePreview() {
   profilePreview.src = profileAvatarSrc();
   profilePreview.classList.toggle("is-ph", !profile || !profile.avatar);
 }
-function lockVeil(resume) {
+function lockVeil(resume, opts) {
+  const quiet = !!(opts && opts.quiet);
   closeMenu();
+  if (document.querySelector(".lock-overlay")) return;
   if (!profile.password) {
     try { localStorage.removeItem("veil_page_locked"); } catch (err) {}
-    if (!resume) alert("Set a password on first-run sign up before locking.");
+    if (!resume && !quiet) alert("Set a password on first-run sign up before locking.");
     return;
   }
-  if (!resume && settings.lockUnload) {
+  if (!resume && settings.lockUnload && !quiet) {
     const box = confirm("Lock and unload open pages? Unsaved page state may be lost.");
     if (!box) {
       return;
     }
+  }
+  if (!resume && settings.lockUnload) {
     tabs.forEach(value => {
       if (value.engineFrame) {
         try {
@@ -4412,6 +4424,12 @@ function highlightTheme() {
     setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
     setSwitch(document.getElementById("animEnabledSwitch"), !!wpGet("animEnabled"));
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
+    const sleepLock = document.getElementById("sleepLock");
+    const sleepLockVal = document.getElementById("sleepLockVal");
+    if (sleepLock && document.activeElement !== sleepLock) sleepLock.value = String(Number(settings.sleepLock) || 0);
+    if (sleepLockVal) sleepLockVal.textContent = sleepLockLabel(settings.sleepLock);
+    const lockKeyInput = document.getElementById("lockKey");
+    if (lockKeyInput && !bindingLock) lockKeyInput.value = settings.lockKey ? "Bound: " + settings.lockKey : "Not bound";
     setSwitch(document.getElementById("closeOriginSwitch"), !!settings.closeOriginOnBlank);
     setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
@@ -4739,7 +4757,75 @@ document.getElementById("unbindPanic").onclick = () => {
   save();
   loadPanicInputs();
 };
+const SLEEP_LABELS = ["Off", "15s", "30s", "1m", "5m", "15m"];
+const SLEEP_MS = [0, 15000, 30000, 60000, 300000, 900000];
+function sleepLockLabel(value) {
+  return SLEEP_LABELS[Number(value) || 0] || "Off";
+}
+let sleepHiddenAt = 0;
+function noteSleepAway() {
+  if (!sleepHiddenAt) sleepHiddenAt = Date.now();
+}
+function noteSleepBack() {
+  const step = SLEEP_MS[Number(settings.sleepLock) || 0] || 0;
+  const start = sleepHiddenAt;
+  sleepHiddenAt = 0;
+  if (!step || !start) return;
+  if (Date.now() - start >= step) lockVeil(false, { quiet: true });
+}
+function armSleepLock() {
+  if (window.__veilSleep) return;
+  window.__veilSleep = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) noteSleepAway();
+    else noteSleepBack();
+  });
+  window.addEventListener("pagehide", noteSleepAway);
+  window.addEventListener("pageshow", noteSleepBack);
+  document.addEventListener("freeze", noteSleepAway);
+  document.addEventListener("resume", noteSleepBack);
+}
+try { armSleepLock(); } catch (err) {}
+const bindLock = document.getElementById("bindLock");
+const unbindLock = document.getElementById("unbindLock");
+const sleepLockInput = document.getElementById("sleepLock");
+const lockNowBtn = document.getElementById("lockNowBtn");
+if (bindLock) bindLock.onclick = () => {
+  bindingLock = true;
+  const field = document.getElementById("lockKey");
+  if (field) {
+    field.value = "Press any key...";
+    field.focus();
+  }
+};
+if (unbindLock) unbindLock.onclick = () => {
+  settings.lockKey = "";
+  settings.lockCode = "";
+  save();
+  highlightTheme();
+};
+if (lockNowBtn) lockNowBtn.onclick = () => lockVeil();
+if (sleepLockInput) sleepLockInput.addEventListener("input", () => {
+  settings.sleepLock = Number(sleepLockInput.value) || 0;
+  const label = document.getElementById("sleepLockVal");
+  if (label) label.textContent = sleepLockLabel(settings.sleepLock);
+  save();
+});
 document.addEventListener("keydown", value => {
+  if (bindingLock) {
+    value.preventDefault();
+    value.stopPropagation();
+    bindingLock = false;
+    if (value.key === "Escape") {
+      highlightTheme();
+      return;
+    }
+    settings.lockKey = value.key.length === 1 ? value.key.toUpperCase() : value.key;
+    settings.lockCode = value.code;
+    save();
+    highlightTheme();
+    return;
+  }
   if (bindingPanic) {
     value.preventDefault();
     value.stopPropagation();
@@ -4753,6 +4839,11 @@ document.addEventListener("keydown", value => {
     panic.url = document.getElementById("panicUrl").value.trim() || DEFAULT_PANIC.url;
     save();
     loadPanicInputs();
+    return;
+  }
+  if (!isTypingTarget(value.target) && settings.lockCode && (value.code === settings.lockCode || value.key === settings.lockKey)) {
+    value.preventDefault();
+    lockVeil();
     return;
   }
   if (!panic.code) {
@@ -7060,7 +7151,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=69";
+  link.href = BASE + "/veilos.css?v=70";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7071,7 +7162,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=69";
+  script.src = BASE + "/veilos.js?v=70";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7103,6 +7194,8 @@ const dashDesktop = document.getElementById("dashDesktop");
 if (dashDesktop) dashDesktop.onclick = () => openDesktop();
 const dashLaunch = document.getElementById("dashLaunch");
 if (dashLaunch) dashLaunch.onclick = () => openLaunchModal();
+const dashLock = document.getElementById("dashLock");
+if (dashLock) dashLock.onclick = () => lockVeil();
 const optionsBack = document.getElementById("optionsBack");
 if (optionsBack) optionsBack.onclick = () => leaveSettings();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
@@ -8243,7 +8336,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=69";
+    script.src = REPO_PATH + "anime.min.js?v=70";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8341,7 +8434,7 @@ if (!window.__veilNudge) {
   document.addEventListener("pointerover", event => {
     const el = event.target.closest(nudgeSel);
     if (!el || el.contains(event.relatedTarget)) return;
-    springTo(el, 1.04);
+    springTo(el, 1.02);
   }, { passive: true });
   document.addEventListener("pointerout", event => {
     const el = event.target.closest(nudgeSel);
@@ -8356,7 +8449,7 @@ if (!window.__veilNudge) {
   document.addEventListener("pointerup", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, el.matches(":hover") ? 1.04 : 1);
+    springTo(el, el.matches(":hover") ? 1.02 : 1);
   }, { passive: true });
 }
 function setVeilView(view) {

@@ -814,11 +814,11 @@ body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-tile.dash-soon img,.dash-tile.dash-soon .dash-label,.dash-tile.dash-soon .dash-note{opacity:.42}
 .dash-note{font-size:11px;font-weight:650;letter-spacing:.04em;color:var(--muted)}
 @media (hover:hover){
-  .dash-tile:not(.dash-soon):hover{transform:translateY(-2px);border-color:var(--accent)}
+  .dash-tile:not(.dash-soon):hover{border-color:var(--accent)}
 }
-.dash-tile:not(.dash-soon):active{transform:scale(.985)}
 .dash-tile:focus-visible,.dash-ico:focus-visible,.stage-back:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
 .dash-foot{justify-content:space-between}
+.dash-end{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 .dash-ico{width:46px;height:46px;flex:0 0 46px;border-radius:14px;background:var(--bg2);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .dash-ico img{width:22px;height:22px;object-fit:contain;display:block;filter:invert(var(--page-icon-invert,1))}
 @media (hover:hover){.dash-ico:hover{border-color:var(--accent)}}
@@ -1023,7 +1023,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=69", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=70", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1121,7 +1121,10 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
       <span class="dash-sep dash-sep-os" aria-hidden="true">·</span>
       <span class="dash-os" data-dash-os></span>
     </div>
-    <button type="button" class="dash-ico" id="dashLaunch" title="Launch options" aria-label="Launch options"><img src="image/launch.svg" alt=""></button>
+    <div class="dash-end">
+      <button type="button" class="dash-ico" id="dashLock" title="Lock Veil" aria-label="Lock Veil"><img src="image/lock.svg" alt=""></button>
+      <button type="button" class="dash-ico" id="dashLaunch" title="Launch options" aria-label="Launch options"><img src="image/launch.svg" alt=""></button>
+    </div>
   </footer>
 </div>
 <div id="veilStage" class="veil-stage">
@@ -1179,7 +1182,6 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
   <button class="menu-item" id="menuSaveImage"><span class="menu-icon"><img src="image/picture.svg" alt=""></span>Save image</button>
   <button class="menu-item" id="menuSaveMedia"><span class="menu-icon"><img src="image/video.svg" alt=""></span><span data-label>Save video</span></button>
   <div class="menu-separator"></div>
-  <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
@@ -1335,7 +1337,15 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
         <button type="button" class="switch" id="closeOriginSwitch" role="switch" aria-checked="false"></button>
       </div>
     </section>
-        <section class="setting-section">
+    <section class="setting-section">
+      <div class="setting-title">Lock Veil <button type="button" class="info-btn" data-info="lockveil" title="About this option" aria-label="About Lock Veil"><img src="image/info.svg" alt=""></button></div>
+      <button class="primary-btn" id="lockNowBtn" type="button">Lock now</button>
+      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="lockKey" placeholder="Click Bind, then press a key" readonly></div>
+      <button class="primary-btn" id="bindLock" type="button">Bind key</button>
+      <button class="secondary-btn" id="unbindLock" type="button">Unbind</button>
+      <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Sleep lock</span><input type="range" id="sleepLock" min="0" max="5" step="1" value="0"><span class="range-val" id="sleepLockVal">Off</span></div>
+    </section>
+    <section class="setting-section">
       <div class="setting-title">Page lock <button type="button" class="info-btn" data-info="pagelock" title="About this option" aria-label="About Page lock"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Unload pages when locking</span>
@@ -1509,7 +1519,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=69" defer></script>
-<script src="access-gate.js?v=69"></script>
+<script src="anime.min.js?v=70" defer></script>
+<script src="access-gate.js?v=70"></script>
 </body>
 </html>
