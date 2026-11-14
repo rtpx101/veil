@@ -2073,6 +2073,7 @@ function armFrameErrorWatch(raw, tab) {
     if (n > 40) clearInterval(timer);
   }, 500);
 }
+let tabJiggleId = "";
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
   const src = tabs.map(value => "<div class=\"tab " + (value.id === activeTabId ? "active " : "") + (value.animOpen ? "opening" : "") + "\" data-tab-id=\"" + value.id + "\"><div class=\"tab-icon\"><img src=\"" + escapeHTML(value.favicon || FAVI) + "\" alt=\"\">" + (value.isChat ? "<span class=\"chat-alert\" data-chat-alert></span>" : "") + "</div><div class=\"tab-title\">" + escapeHTML(value.title) + "</div><button class=\"tab-close\" data-close=\"" + value.id + "\" aria-label=\"Close\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div>").join("");
@@ -2099,6 +2100,30 @@ function renderTabs() {
   requestAnimationFrame(() => {
     tabs2.scrollLeft = tabs2.scrollWidth;
   });
+  const anime = window.anime;
+  if (anime && anime.animate && anime.spring && !motionOff()) {
+    tabs2.querySelectorAll(".tab.opening").forEach(el => {
+      try {
+        anime.animate(el, {
+          opacity: [0, 1],
+          scale: [0.9, 1],
+          ease: anime.spring({ bounce: 0.32, duration: 460 })
+        });
+      } catch (err) {}
+    });
+    if (tabJiggleId) {
+      const el = tabs2.querySelector(".tab[data-tab-id=\"" + tabJiggleId + "\"]");
+      if (el && !el.classList.contains("opening")) {
+        try {
+          anime.animate(el, {
+            scale: [0.94, 1],
+            ease: anime.spring({ bounce: 0.34, duration: 420 })
+          });
+        } catch (err) {}
+      }
+    }
+  }
+  tabJiggleId = "";
   try {
     paintChatAlerts();
   } catch (err) {}
@@ -2515,6 +2540,7 @@ function showActiveOnly() {
   });
 }
 function switchTab(value) {
+  tabJiggleId = value;
   activeTabId = value;
   const base = getTab(value);
   if (base) {
@@ -2978,8 +3004,8 @@ function closeTab(value2) {
     try {
       window.anime.animate(historyItem, {
         opacity: [1, 0],
-        maxWidth: [historyItem.offsetWidth, 0],
-        ease: window.anime.spring({ bounce: 0.22, duration: 280 })
+        scale: [1, 0.88],
+        ease: window.anime.spring({ bounce: 0.22, duration: 320 })
       });
     } catch (err) {}
     setTimeout(game, 300);
@@ -3165,10 +3191,13 @@ function closePanelsInner() {
     });
   }
 }
+let menuGen = 0;
 function closeMenu() {
   const menu = document.getElementById("mainMenu");
   if (!menu) return;
+  const gen = ++menuGen;
   const finish = () => {
+    if (gen !== menuGen) return;
     menu.classList.remove("open", "is-placed");
     menu.style.left = "";
     menu.style.top = "";
@@ -6597,14 +6626,31 @@ on("menuBtn", value => {
   }
   window.__veilMenuImage = null;
   window.__veilMenuMedia = null;
+  window.__veilMenuAt = Date.now();
   updateDevtoolsMenuState();
   syncSaveMedia(null);
-  if (menu) {
-    menu.classList.remove("is-placed");
-    menu.style.left = "";
-    menu.style.top = "";
-    menu.style.right = "";
-    menu.classList.add("open");
+  if (!menu) return;
+  menuGen++;
+  if (menu._veilMotion && menu._veilMotion.cancel) {
+    try { menu._veilMotion.cancel(); } catch (err) {}
+    menu._veilMotion = null;
+  }
+  menu.classList.remove("is-placed");
+  menu.style.left = "";
+  menu.style.top = "";
+  menu.style.right = "";
+  menu.style.opacity = "1";
+  menu.style.scale = "1";
+  menu.style.transform = "none";
+  menu.classList.add("open");
+  if (window.anime && window.anime.animate && window.anime.spring && !motionOff()) {
+    try {
+      menu._veilMotion = window.anime.animate(menu, {
+        opacity: [0, 1],
+        scale: [0.96, 1],
+        ease: window.anime.spring({ bounce: 0.28, duration: 420 })
+      });
+    } catch (err) {}
   }
 });
 on("menuRename", () => {
@@ -7106,6 +7152,11 @@ function hookFrameMenu(frameEl) {
 function openBrowserMenuAt(x, y, image, media) {
   const menu = document.getElementById("mainMenu");
   if (!menu) return;
+  menuGen++;
+  if (menu._veilMotion && menu._veilMotion.cancel) {
+    try { menu._veilMotion.cancel(); } catch (err) {}
+    menu._veilMotion = null;
+  }
   window.__veilMenuImage = image || null;
   window.__veilMenuAt = Date.now();
   updateDevtoolsMenuState();
@@ -7236,7 +7287,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=74";
+  link.href = BASE + "/veilos.css?v=75";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7247,7 +7298,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=74";
+  script.src = BASE + "/veilos.js?v=75";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8444,7 +8495,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=74";
+    script.src = REPO_PATH + "anime.min.js?v=75";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8462,6 +8513,10 @@ function motionOff() {
 function springClose(el, done) {
   const finish = () => { try { if (done) done(); } catch (err) {} };
   const anime = window.anime;
+  if (el && el._veilMotion && el._veilMotion.cancel) {
+    try { el._veilMotion.cancel(); } catch (err) {}
+    el._veilMotion = null;
+  }
   if (!el || motionOff() || !anime || !anime.animate || !anime.spring) {
     finish();
     return;
@@ -8472,10 +8527,12 @@ function springClose(el, done) {
       scale: [1, 0.94],
       ease: anime.spring({ bounce: 0.28, duration: 320 })
     });
+    el._veilMotion = job;
     let settled = false;
     const end = () => {
       if (settled) return;
       settled = true;
+      if (el._veilMotion === job) el._veilMotion = null;
       finish();
     };
     if (job && typeof job.then === "function") job.then(end);
