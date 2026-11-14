@@ -2238,8 +2238,8 @@ const SETTINGS_INFO = {
     body: "Shows the dashboard clock as 24-hour time instead of AM/PM."
   },
   animations: {
-    title: "Home wallpaper",
-    body: "Moving background behind the dashboard only. The browser new tab uses Browser wallpaper instead."
+    title: "Live wallpaper",
+    body: "The same controls, kept separate. Opened from the dashboard, this is the dashboard wallpaper. Opened from the browser, this is the new-tab wallpaper."
   },
   browserbg: {
     title: "Browser wallpaper",
@@ -3147,7 +3147,7 @@ function loadColorInputs() {
     }
     const backgroundUrl = document.getElementById("backgroundUrl");
     if (backgroundUrl) {
-      backgroundUrl.value = settings.backgroundUrl || "";
+      backgroundUrl.value = wpGet("backgroundUrl") || "";
     }
   } catch (err) {
     console.warn("loadColorInputs", err);
@@ -4295,6 +4295,28 @@ function lockVeil(resume) {
     }
   });
 }
+let wallpaperScope = "home";
+function wpKey(name) {
+  if (wallpaperScope !== "browser") return name;
+  const map = {
+    animEnabled: "brAnimEnabled",
+    animStyle: "brAnimStyle",
+    animSpeed: "brAnimSpeed",
+    animCount: "brAnimCount",
+    animSize: "brAnimSize",
+    animColorA: "brAnimColorA",
+    animColorB: "brAnimColorB",
+    animMediaSpeed: "brAnimMediaSpeed",
+    backgroundUrl: "brBackgroundUrl"
+  };
+  return map[name] || name;
+}
+function wpGet(name) {
+  return settings[wpKey(name)];
+}
+function wpSet(name, value) {
+  settings[wpKey(name)] = value;
+}
 function highlightTheme() {
   try {
     if (!settings.transport || settings.transport !== "epoxy" && settings.transport !== "libcurl") {
@@ -4322,14 +4344,14 @@ function highlightTheme() {
       launchModeSelect2.value = settings.launchMode === "auto" ? "auto" : "manual";
     }
     setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
-    setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
+    setSwitch(document.getElementById("animEnabledSwitch"), !!wpGet("animEnabled"));
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
     setSwitch(document.getElementById("closeOriginSwitch"), !!settings.closeOriginOnBlank);
     setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
     const animOpts = document.getElementById("animOpts");
     if (animOpts) {
-      animOpts.classList.toggle("enabled", !!settings.animEnabled);
+      animOpts.classList.toggle("enabled", !!wpGet("animEnabled"));
     }
     const maxLoadedTabs = document.getElementById("maxLoadedTabs");
     const maxLoadedTabsVal = document.getElementById("maxLoadedTabsVal");
@@ -4348,46 +4370,46 @@ function highlightTheme() {
     }
     const animStyle2 = document.getElementById("animStyle");
     if (animStyle2) {
-      animStyle2.value = settings.animStyle || "orbs";
+      animStyle2.value = wpGet("animStyle") || "orbs";
     }
     const animSpeed2 = document.getElementById("animSpeed");
     const animSpeedVal = document.getElementById("animSpeedVal");
     if (animSpeed2) {
-      animSpeed2.value = String(settings.animSpeed || 1);
+      animSpeed2.value = String(wpGet("animSpeed") || 1);
       if (animSpeedVal) {
-        animSpeedVal.textContent = Number(settings.animSpeed || 1).toFixed(2) + "x";
+        animSpeedVal.textContent = Number(wpGet("animSpeed") || 1).toFixed(2) + "x";
       }
     }
     const animColorA = document.getElementById("animColorA");
     const animColorB = document.getElementById("animColorB");
     if (animColorA) {
-      animColorA.value = safeColorValue(settings.animColorA, "#7aa2ff");
+      animColorA.value = safeColorValue(wpGet("animColorA"), "#7aa2ff");
     }
     if (animColorB) {
-      animColorB.value = safeColorValue(settings.animColorB, "#b88cff");
+      animColorB.value = safeColorValue(wpGet("animColorB"), "#b88cff");
     }
     const animCount2 = document.getElementById("animCount");
     const animCountVal = document.getElementById("animCountVal");
     if (animCount2) {
-      animCount2.value = String(settings.animCount || 18);
+      animCount2.value = String(wpGet("animCount") || 18);
       if (animCountVal) {
-        animCountVal.textContent = String(settings.animCount || 18);
+        animCountVal.textContent = String(wpGet("animCount") || 18);
       }
     }
     const animSize2 = document.getElementById("animSize");
     const animSizeVal = document.getElementById("animSizeVal");
     if (animSize2) {
-      animSize2.value = String(settings.animSize || 1);
+      animSize2.value = String(wpGet("animSize") || 1);
       if (animSizeVal) {
-        animSizeVal.textContent = Number(settings.animSize || 1).toFixed(2) + "x";
+        animSizeVal.textContent = Number(wpGet("animSize") || 1).toFixed(2) + "x";
       }
     }
     const wrap = ["orbs", "stars", "constellation", "rain", "custom"];
     if (animStyle2) {
-      animStyle2.value = wrap.includes(settings.animStyle) ? settings.animStyle : "orbs";
+      animStyle2.value = wrap.includes(wpGet("animStyle")) ? wpGet("animStyle") : "orbs";
     }
-    const page = settings.animStyle === "custom";
-    const tab = page && isTimedMedia(settings.backgroundUrl || "");
+    const page = wpGet("animStyle") === "custom";
+    const tab = page && isTimedMedia(wpGet("backgroundUrl") || "");
     const animUrlRow = document.getElementById("animUrlRow");
     const animTuneRows = document.getElementById("animTuneRows");
     const animColorRows = document.getElementById("animColorRows");
@@ -4406,55 +4428,17 @@ function highlightTheme() {
     }
     const backgroundUrl = document.getElementById("backgroundUrl");
     if (backgroundUrl && document.activeElement !== backgroundUrl) {
-      backgroundUrl.value = settings.backgroundUrl || "";
+      backgroundUrl.value = wpGet("backgroundUrl") || "";
     }
     const animMediaSpeed = document.getElementById("animMediaSpeed");
     const animMediaSpeedVal = document.getElementById("animMediaSpeedVal");
     if (animMediaSpeed && document.activeElement !== animMediaSpeed) {
-      animMediaSpeed.value = String(settings.animMediaSpeed || 1);
+      animMediaSpeed.value = String(wpGet("animMediaSpeed") || 1);
     }
     if (animMediaSpeedVal) {
-      animMediaSpeedVal.textContent = Number(settings.animMediaSpeed || 1).toFixed(2) + "x";
+      animMediaSpeedVal.textContent = Number(wpGet("animMediaSpeed") || 1).toFixed(2) + "x";
     }
     syncSaverFields();
-    const brOn = document.getElementById("brAnimEnabledSwitch");
-    if (brOn) setSwitch(brOn, !!settings.brAnimEnabled);
-    const brOpts = document.getElementById("brAnimOpts");
-    if (brOpts) brOpts.classList.toggle("enabled", !!settings.brAnimEnabled);
-    const brStyle = document.getElementById("brAnimStyle");
-    if (brStyle) brStyle.value = ["orbs", "stars", "constellation", "rain", "custom"].includes(settings.brAnimStyle) ? settings.brAnimStyle : "orbs";
-    const brCustom = settings.brAnimStyle === "custom";
-    const brMedia = brCustom && isTimedMedia(settings.brBackgroundUrl || "");
-    const brUrlRow = document.getElementById("brAnimUrlRow");
-    const brTuneRows = document.getElementById("brAnimTuneRows");
-    const brColorRows = document.getElementById("brAnimColorRows");
-    const brMediaRow = document.getElementById("brAnimMediaSpeedRow");
-    if (brUrlRow) brUrlRow.style.display = brCustom ? "" : "none";
-    if (brTuneRows) brTuneRows.style.display = brCustom ? "none" : "";
-    if (brColorRows) brColorRows.style.display = brCustom ? "none" : "";
-    if (brMediaRow) brMediaRow.style.display = brMedia ? "" : "none";
-    const brUrl = document.getElementById("brBackgroundUrl");
-    if (brUrl && document.activeElement !== brUrl) brUrl.value = settings.brBackgroundUrl || "";
-    const brA = document.getElementById("brAnimColorA");
-    const brB = document.getElementById("brAnimColorB");
-    if (brA) brA.value = safeColorValue(settings.brAnimColorA, "#7aa2ff");
-    if (brB) brB.value = safeColorValue(settings.brAnimColorB, "#b88cff");
-    const brSpeed = document.getElementById("brAnimSpeed");
-    const brSpeedVal = document.getElementById("brAnimSpeedVal");
-    if (brSpeed && document.activeElement !== brSpeed) brSpeed.value = String(settings.brAnimSpeed || 1);
-    if (brSpeedVal) brSpeedVal.textContent = Number(settings.brAnimSpeed || 1).toFixed(2) + "x";
-    const brCount = document.getElementById("brAnimCount");
-    const brCountVal = document.getElementById("brAnimCountVal");
-    if (brCount && document.activeElement !== brCount) brCount.value = String(settings.brAnimCount || 18);
-    if (brCountVal) brCountVal.textContent = String(settings.brAnimCount || 18);
-    const brSize = document.getElementById("brAnimSize");
-    const brSizeVal = document.getElementById("brAnimSizeVal");
-    if (brSize && document.activeElement !== brSize) brSize.value = String(settings.brAnimSize || 1);
-    if (brSizeVal) brSizeVal.textContent = Number(settings.brAnimSize || 1).toFixed(2) + "x";
-    const brMediaSpeed = document.getElementById("brAnimMediaSpeed");
-    const brMediaSpeedVal = document.getElementById("brAnimMediaSpeedVal");
-    if (brMediaSpeed && document.activeElement !== brMediaSpeed) brMediaSpeed.value = String(settings.brAnimMediaSpeed || 1);
-    if (brMediaSpeedVal) brMediaSpeedVal.textContent = Number(settings.brAnimMediaSpeed || 1).toFixed(2) + "x";
     paintProfilePreview();
   } catch (err) {
     console.warn("highlightTheme", err);
@@ -4557,7 +4541,7 @@ function applyCustomColors() {
 function applyBackground() {
   const backgroundUrl = document.getElementById("backgroundUrl");
   if (backgroundUrl) {
-    settings.backgroundUrl = backgroundUrl.value.trim();
+    wpSet("backgroundUrl", backgroundUrl.value.trim());
   }
   save();
   highlightTheme();
@@ -5007,7 +4991,6 @@ on("veilRefreshBtn", refreshVeil);
 on("backBtn", goBack);
 on("forwardBtn", goForward);
 on("refreshBtn", reload);
-on("dashBackBtn", () => showDash());
 on("homeBtn", () => showDash());
 on("settingsOpenBtn", () => showOptions());
 on("bookmarkBtn", toggleBookmark);
@@ -6984,7 +6967,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=62";
+  link.href = BASE + "/veilos.css?v=63";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6995,7 +6978,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=62";
+  script.src = BASE + "/veilos.js?v=63";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7052,12 +7035,12 @@ if (launchModeSelect) {
 }
 on("animEnabledSwitch", () => {
   if (!COOKIE.consent) {
-    settings.animEnabled = false;
+    wpSet("animEnabled", false);
     highlightTheme();
     refreshHomeFxAll();
     return;
   }
-  settings.animEnabled = !settings.animEnabled;
+  wpSet("animEnabled", !wpGet("animEnabled"));
   save();
   highlightTheme();
   refreshHomeFxAll();
@@ -7144,7 +7127,7 @@ document.querySelectorAll("[data-settings-tab]").forEach(value2 => {
 const animStyle = document.getElementById("animStyle");
 if (animStyle) {
   animStyle.addEventListener("change", () => {
-    settings.animStyle = animStyle.value || "orbs";
+    wpSet("animStyle", animStyle.value || "orbs");
     save();
     highlightTheme();
     refreshHomeFxAll();
@@ -7319,14 +7302,14 @@ setInterval(() => {
 const animSpeed = document.getElementById("animSpeed");
 if (animSpeed) {
   animSpeed.addEventListener("input", () => {
-    settings.animSpeed = Number(animSpeed.value) || 1;
+    wpSet("animSpeed", Number(animSpeed.value) || 1);
     const animSpeedVal = document.getElementById("animSpeedVal");
     if (animSpeedVal) {
-      animSpeedVal.textContent = Number(settings.animSpeed).toFixed(2) + "x";
+      animSpeedVal.textContent = Number(wpGet("animSpeed")).toFixed(2) + "x";
     }
   });
   animSpeed.addEventListener("change", () => {
-    settings.animSpeed = Number(animSpeed.value) || 1;
+    wpSet("animSpeed", Number(animSpeed.value) || 1);
     save();
     refreshHomeFxAll();
   });
@@ -7334,14 +7317,14 @@ if (animSpeed) {
 const animCount = document.getElementById("animCount");
 if (animCount) {
   animCount.addEventListener("input", () => {
-    settings.animCount = Number(animCount.value) || 18;
+    wpSet("animCount", Number(animCount.value) || 18);
     const animCountVal = document.getElementById("animCountVal");
     if (animCountVal) {
-      animCountVal.textContent = String(settings.animCount);
+      animCountVal.textContent = String(wpGet("animCount"));
     }
   });
   animCount.addEventListener("change", () => {
-    settings.animCount = Math.max(4, Math.min(80, Number(animCount.value) || 18));
+    wpSet("animCount", Math.max(4, Math.min(80, Number(animCount.value) || 18)));
     save();
     refreshHomeFxAll();
   });
@@ -7349,14 +7332,14 @@ if (animCount) {
 const animSize = document.getElementById("animSize");
 if (animSize) {
   animSize.addEventListener("input", () => {
-    settings.animSize = Number(animSize.value) || 1;
+    wpSet("animSize", Number(animSize.value) || 1);
     const animSizeVal = document.getElementById("animSizeVal");
     if (animSizeVal) {
-      animSizeVal.textContent = Number(settings.animSize).toFixed(2) + "x";
+      animSizeVal.textContent = Number(wpGet("animSize")).toFixed(2) + "x";
     }
   });
   animSize.addEventListener("change", () => {
-    settings.animSize = Number(animSize.value) || 1;
+    wpSet("animSize", Number(animSize.value) || 1);
     save();
     refreshHomeFxAll();
   });
@@ -7367,11 +7350,11 @@ if (animSize) {
     return;
   }
   old.addEventListener("input", () => {
-    settings[value] = old.value;
+    wpSet(value, old.value);
     refreshHomeFxAll();
   });
   old.addEventListener("change", () => {
-    settings[value] = old.value;
+    wpSet(value, old.value);
     save();
     refreshHomeFxAll();
   });
@@ -7551,7 +7534,7 @@ let bgUrlTimer = null;
 const backgroundUrlEl = document.getElementById("backgroundUrl");
 if (backgroundUrlEl) {
   backgroundUrlEl.addEventListener("input", () => {
-    settings.backgroundUrl = backgroundUrlEl.value.trim();
+    wpSet("backgroundUrl", backgroundUrlEl.value.trim());
     save();
     if (bgUrlTimer) {
       clearTimeout(bgUrlTimer);
@@ -7570,7 +7553,7 @@ if (animMediaSpeedEl) {
       cloak2 = 1;
     }
     cloak2 = Math.max(0.25, Math.min(3, cloak2));
-    settings.animMediaSpeed = cloak2;
+    wpSet("animMediaSpeed", cloak2);
     const animMediaSpeedVal = document.getElementById("animMediaSpeedVal");
     if (animMediaSpeedVal) {
       animMediaSpeedVal.textContent = cloak2.toFixed(2) + "x";
@@ -7578,18 +7561,18 @@ if (animMediaSpeedEl) {
   };
   animMediaSpeedEl.addEventListener("input", () => {
     paintMedia();
-    document.querySelectorAll(".newtab-page video.newtab-media").forEach(value => {
+    document.querySelectorAll(wallpaperScope === "browser" ? ".newtab-page video.newtab-media" : ".dash-wall video.newtab-media").forEach(value => {
       try {
-        value.playbackRate = settings.animMediaSpeed;
+        value.playbackRate = Number(wpGet("animMediaSpeed")) || 1;
       } catch (err) {}
     });
   });
   animMediaSpeedEl.addEventListener("change", () => {
     paintMedia();
     save();
-    document.querySelectorAll(".newtab-page video.newtab-media").forEach(value => {
+    document.querySelectorAll(wallpaperScope === "browser" ? ".newtab-page video.newtab-media" : ".dash-wall video.newtab-media").forEach(value => {
       try {
-        value.playbackRate = settings.animMediaSpeed;
+        value.playbackRate = Number(wpGet("animMediaSpeed")) || 1;
       } catch (err) {}
     });
   });
@@ -8167,7 +8150,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=62";
+    script.src = REPO_PATH + "anime.min.js?v=63";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8201,32 +8184,20 @@ function playDashIntro() {
     if (!anime || !anime.animate || dashIntroPlayed) return;
     dashIntroPlayed = true;
     try {
-      anime.animate(".dash-top, .dash-foot", {
+      anime.animate(".dash-top, .dash-foot, .dash-tile", {
         opacity: [0, 1],
-        scale: [0.98, 1],
-        duration: 320,
+        delay: anime.stagger(36),
+        duration: 420,
         ease: "outCubic"
       });
-      const tiles = anime.animate(".dash-tile:not(.dash-soon)", {
-        opacity: [0, 1],
-        scale: [0.96, 1],
-        delay: anime.stagger(45),
-        duration: 360,
-        ease: "outCubic"
-      });
-      const soon = anime.animate(".dash-tile.dash-soon", {
-        opacity: [0, 0.38],
-        scale: [0.96, 1],
-        delay: anime.stagger(45),
-        duration: 360,
-        ease: "outCubic"
-      });
-      Promise.all([tiles, soon].filter(Boolean).map(item => item && item.then ? item : Promise.resolve())).then(() => {
-        document.querySelectorAll(".dash-tile, .dash-top, .dash-foot").forEach(el => {
+      setTimeout(() => {
+        document.querySelectorAll(".dash-top, .dash-foot, .dash-tile").forEach(el => {
           el.style.opacity = "";
           el.style.transform = "";
+          el.style.scale = "";
+          el.style.translate = "";
         });
-      });
+      }, 700);
     } catch (err) {}
   };
   if (window.anime) run(window.anime);
@@ -8306,18 +8277,22 @@ function playStageIntro(root, selector) {
     const nodes = root.querySelectorAll(selector);
     if (!nodes.length) return;
     try {
-      anime.animate(nodes, {
+      const job = anime.animate(nodes, {
         opacity: [0, 1],
-        scale: [0.98, 1],
-        delay: anime.stagger(46),
-        duration: 420,
+        delay: anime.stagger(42),
+        duration: 380,
         ease: "outCubic"
-      }).then(() => {
+      });
+      const clear = () => {
         nodes.forEach(el => {
           el.style.opacity = "";
           el.style.transform = "";
+          el.style.scale = "";
+          el.style.translate = "";
         });
-      });
+      };
+      if (job && job.then) job.then(clear);
+      setTimeout(clear, 800);
     } catch (err) {}
   });
 }
@@ -8328,6 +8303,9 @@ function confirmDevArea(next) {
   nodes.className = "modal-overlay veil-devgate";
   nodes.innerHTML = "<div class=\"modal-box\" role=\"dialog\" aria-modal=\"true\"><h2>Veil</h2><p>This part of Veil is still under development, so bugs may occur. Continue?</p><div class=\"modal-actions\"><button type=\"button\" class=\"modal-cancel\" data-dev-return>Return</button><button type=\"button\" class=\"primary-btn\" data-dev-go>Continue</button></div></div>";
   document.body.appendChild(nodes);
+  if (window.anime && window.anime.animate && !motionOff()) {
+    try { window.anime.animate(nodes, { opacity: [0, 1], duration: 180, ease: "outCubic" }); } catch (err) {}
+  }
   nodes.querySelector("[data-dev-return]").onclick = () => {
     nodes.remove();
     showDash();
@@ -8375,7 +8353,7 @@ function openBrowserSettings() {
     window.veilOSOpenApp("settings");
     return;
   }
-  showOptions();
+  openSettings("browser");
 }
 function showAdmin() {
   closeMenu();
@@ -8392,26 +8370,26 @@ function showAdmin() {
   setVeilView("admin");
   fadeIn(document.getElementById("veilStage"));
 }
-function showOptions() {
+function openSettings(scope) {
+  wallpaperScope = scope === "browser" ? "browser" : "home";
   closeMenu();
   const panel = document.getElementById("settingsPanel");
   if (!panel) return;
-  panel.classList.remove("is-browser-scope");
-  panel.classList.add("open", "is-options");
+  panel.classList.remove("is-browser-scope", "is-options");
   const title = panel.querySelector(".panel-head > span");
-  if (title) title.textContent = "Options";
-  const backdrop = document.getElementById("backdrop");
-  if (backdrop) backdrop.classList.remove("open");
-  setVeilView("options");
+  if (title) title.textContent = "Settings";
+  try { highlightTheme(); } catch (err) {}
+  openPanel("settingsPanel");
   try {
     fillWispSelect();
     startLivePings();
-  } catch (err) {}
-  try {
     fillChatSettings();
     fillDesktopSettings();
   } catch (err) {}
   fadeIn(panel);
+}
+function showOptions() {
+  openSettings("home");
 }
 function wireDash() {
   const dash = document.getElementById("veilDash");
