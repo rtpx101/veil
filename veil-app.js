@@ -2148,7 +2148,7 @@ function renderTabs() {
   const tabs2 = document.getElementById("tabs");
   const before = snapshotTabs(tabs2);
   const kind = tabMotionKind;
-  const src = tabs.map(value => "<div class=\"tab " + (value.id === activeTabId ? "active " : "") + (value.animOpen ? "opening" : "") + "\" data-tab-id=\"" + value.id + "\"><div class=\"tab-icon\"><img src=\"" + escapeHTML(value.favicon || FAVI) + "\" alt=\"\">" + (value.isChat ? "<span class=\"chat-alert\" data-chat-alert></span>" : "") + "</div><div class=\"tab-title\">" + escapeHTML(value.title) + "</div><button class=\"tab-close\" data-close=\"" + value.id + "\" aria-label=\"Close\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div>").join("");
+  const src = tabs.map(value => "<div class=\"tab " + (value.id === activeTabId ? "active " : "") + (value.animOpen ? "opening" : "") + "\" data-tab-id=\"" + value.id + "\"><div class=\"tab-face\"><div class=\"tab-icon\"><img src=\"" + escapeHTML(value.favicon || FAVI) + "\" alt=\"\">" + (value.isChat ? "<span class=\"chat-alert\" data-chat-alert></span>" : "") + "</div><div class=\"tab-title\">" + escapeHTML(value.title) + "</div><button class=\"tab-close\" data-close=\"" + value.id + "\" aria-label=\"Close\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div></div>").join("");
   tabs2.innerHTML = src + "<button class=\"new-tab\" id=\"newTabBtn\" type=\"button\" aria-label=\"New tab\"><img src=\"" + IMG + "plus.svg\" alt=\"\"></button>";
   tabs.forEach(value => {
     value.animOpen = false;
@@ -2176,14 +2176,17 @@ function renderTabs() {
   if (kind === "open" || kind === "switch") {
     if (kind === "open") runTabStripMotion(tabs2, before);
     else {
-      syncTabPill(tabs2, before.get("__active"));
-      const active = tabs2.querySelector(".tab.active");
+      syncTabPill(tabs2);
+      const active = tabs2.querySelector(".tab.active .tab-icon");
+      if (active) {
+        active.style.scale = "";
+        active.style.transform = "";
+      }
       if (active && anime && anime.animate && !motionOff()) {
         try {
-          active.style.transformOrigin = "center";
           anime.animate(active, {
-            scale: [0.92, 1],
-            ease: veilSpring(0.5, 680)
+            scale: [0.84, 1],
+            ease: veilSpring(0.4, 460)
           });
         } catch (err) {}
       }
@@ -7432,7 +7435,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=82";
+  link.href = BASE + "/veilos.css?v=83";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7443,7 +7446,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=82";
+  script.src = BASE + "/veilos.js?v=83";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8640,7 +8643,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=82";
+    script.src = REPO_PATH + "anime.min.js?v=83";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
