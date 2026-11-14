@@ -2075,6 +2075,7 @@ function armFrameErrorWatch(raw, tab) {
 }
 let tabJiggleId = "";
 let tabMotionKind = "";
+let veilShownPage = "";
 function veilSpring(bounce, duration) {
   const anime = window.anime;
   if (anime && anime.spring) return anime.spring({ bounce: bounce, duration: duration });
@@ -2136,7 +2137,7 @@ function syncTabPill(host, from) {
       window.anime.animate(pill, {
         translateX: [dx, 0],
         scaleX: [sx, 1],
-        ease: veilSpring(0.38, 420)
+        ease: veilSpring(0.34, 620)
       });
     } catch (err) {}
   }
@@ -2157,7 +2158,8 @@ function runTabStripMotion(host, before) {
       left: rect.left - hostRect.left + host.scrollLeft
     });
   });
-  const ease = veilSpring(0.32, 400);
+  const ease = "outCubic";
+  const layoutMs = 380;
   let moved = false;
   host._tabSettled = false;
   const finish = () => {
@@ -2176,12 +2178,12 @@ function runTabStripMotion(host, before) {
     el.style.flex = "0 0 auto";
     el.style.overflow = "hidden";
     el.style.minWidth = "0";
-    el.style.maxWidth = "none";
     el.style.width = (prev ? prev.width : 0) + "px";
     try {
       anime.animate(el, {
         width: finalBox ? finalBox.width : 0,
         opacity: 1,
+        duration: layoutMs,
         ease: ease
       });
     } catch (err) {}
@@ -2209,6 +2211,7 @@ function runTabStripMotion(host, before) {
       anime.animate(pill, {
         left: dest.left,
         width: dest.width,
+        duration: layoutMs,
         ease: ease
       });
     } catch (err) {}
@@ -2219,12 +2222,12 @@ function runTabStripMotion(host, before) {
   if (plus) {
     try {
       anime.animate(plus, {
-        scale: [0.82, 1],
-        ease: veilSpring(0.46, 440)
+        scale: [0.94, 1],
+        ease: veilSpring(0.4, 520)
       });
     } catch (err) {}
   }
-  setTimeout(finish, 480);
+  setTimeout(finish, 420);
 }
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
@@ -2264,8 +2267,8 @@ function renderTabs() {
         try {
           active.style.transformOrigin = "center";
           anime.animate(active, {
-            scale: [0.9, 1],
-            ease: veilSpring(0.42, 420)
+            scale: [0.92, 1],
+            ease: veilSpring(0.5, 680)
           });
         } catch (err) {}
       }
@@ -2657,6 +2660,8 @@ function showActiveOnly() {
   if (!viewport) {
     return;
   }
+  const veilPageFade = veilShownPage && veilShownPage !== activeTabId;
+  veilShownPage = activeTabId;
   const saved = maxLoaded();
   const fresh = tabs.slice().sort((value, extra) => {
     if (value.id === activeTabId) {
@@ -2674,8 +2679,38 @@ function showActiveOnly() {
       return;
     }
     const workerUrl = value.id === activeTabId;
+    const wasOn = session.classList.contains("active") || session.style.display === "block";
     session.classList.toggle("active", workerUrl);
-    session.style.display = workerUrl ? "block" : "none";
+    if (workerUrl) {
+      session.style.display = "block";
+      session.style.pointerEvents = "";
+      if (veilPageFade && window.anime && window.anime.animate && !motionOff()) {
+        try {
+          window.anime.animate(session, { opacity: [0, 1], duration: 280, ease: "outCubic" });
+        } catch (err) {
+          session.style.opacity = "";
+        }
+      } else {
+        session.style.opacity = "";
+      }
+    } else if (veilPageFade && wasOn && window.anime && window.anime.animate && !motionOff()) {
+      session.classList.remove("active");
+      session.style.display = "block";
+      session.style.pointerEvents = "none";
+      const hide = () => {
+        if (session.dataset.pageId === String(activeTabId)) return;
+        session.style.display = "none";
+        session.style.opacity = "";
+        session.style.pointerEvents = "";
+      };
+      try {
+        window.anime.animate(session, { opacity: [1, 0], duration: 240, ease: "outCubic" });
+      } catch (err) {}
+      setTimeout(hide, 250);
+    } else {
+      session.style.display = "none";
+      session.style.opacity = "";
+    }
     if (!set.has(value.id) && value.engineFrame) {
       try {
         const force = value.engineFrame.element || value.engineFrame.frame;
@@ -3156,41 +3191,38 @@ function closeTab(value2) {
   const host = document.getElementById("tabs");
   const anime = window.anime;
   if (historyItem && host && anime && anime.animate && anime.spring && !motionOff()) {
-    const countAfter = Math.max(1, host.querySelectorAll(".tab").length - 1);
-    const target = desiredTabWidth(host, countAfter);
-    const ease = veilSpring(0.32, 400);
-    host.querySelectorAll(".tab").forEach(node => {
-      const width = node.getBoundingClientRect().width;
-      node.style.flex = "0 0 auto";
-      node.style.overflow = "hidden";
-      node.style.minWidth = "0";
-      node.style.width = width + "px";
-      try {
-        if (node === historyItem) anime.animate(node, { width: 0, opacity: [1, 0], ease: ease });
-        else anime.animate(node, { width: target, ease: ease });
-      } catch (err) {}
-    });
-    const plus = host.querySelector(".new-tab");
-    if (plus) {
-      try {
-        anime.animate(plus, { scale: [0.82, 1], ease: veilSpring(0.46, 440) });
-      } catch (err) {}
-    }
     const nodes = Array.from(host.querySelectorAll(".tab"));
     const closeIndex = nodes.indexOf(historyItem);
+    const starts = new Map();
+    nodes.forEach(node => starts.set(node, node.getBoundingClientRect().width));
     let keep = host.querySelector(".tab.active");
-    if (!keep || keep === historyItem) {
-      keep = nodes[closeIndex + 1] || nodes[closeIndex - 1] || null;
-    }
+    if (!keep || keep === historyItem) keep = nodes[closeIndex + 1] || nodes[closeIndex - 1] || null;
+    historyItem.style.display = "none";
+    const hostRect = host.getBoundingClientRect();
+    const finals = new Map();
+    nodes.forEach(node => {
+      if (node === historyItem) return;
+      const rect = node.getBoundingClientRect();
+      finals.set(node, { width: rect.width, left: rect.left - hostRect.left + host.scrollLeft });
+    });
+    const keepBox = keep ? finals.get(keep) : null;
+    historyItem.style.display = "";
     if (historyItem.classList.contains("active")) {
       historyItem.classList.remove("active");
       if (keep) keep.classList.add("active");
     }
-    const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
-    if (keep) {
-      const keepIndex = nodes.indexOf(keep);
-      const endIndex = keepIndex > closeIndex ? keepIndex - 1 : keepIndex;
-      const hostRect = host.getBoundingClientRect();
+    const ease = "outCubic";
+    nodes.forEach(node => {
+      node.style.flex = "0 0 auto";
+      node.style.overflow = "hidden";
+      node.style.minWidth = "0";
+      node.style.width = starts.get(node) + "px";
+      try {
+        if (node === historyItem) anime.animate(node, { width: 0, opacity: [1, 0], duration: 340, ease: ease });
+        else anime.animate(node, { width: finals.get(node).width, duration: 340, ease: ease });
+      } catch (err) {}
+    });
+    if (keep && keepBox) {
       let pill = host.querySelector(".tab-pill");
       const fromRect = (pill || keep).getBoundingClientRect();
       if (!pill) {
@@ -3203,21 +3235,10 @@ function closeTab(value2) {
       pill.style.left = fromRect.left - hostRect.left + host.scrollLeft + "px";
       pill.style.width = fromRect.width + "px";
       try {
-        anime.animate(pill, {
-          left: Math.max(0, endIndex) * (target + gap),
-          width: target,
-          ease: ease
-        });
+        anime.animate(pill, { left: keepBox.left, width: keepBox.width, duration: 340, ease: ease });
       } catch (err) {}
     }
-    host.querySelectorAll(".tab").forEach(node => {
-      if (node !== historyItem) return;
-      node.style.marginRight = "0px";
-      try {
-        anime.animate(node, { marginRight: -gap, ease: ease });
-      } catch (err) {}
-    });
-    setTimeout(game, 480);
+    setTimeout(game, 360);
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -7498,7 +7519,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=80";
+  link.href = BASE + "/veilos.css?v=81";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7509,7 +7530,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=80";
+  script.src = BASE + "/veilos.js?v=81";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8706,7 +8727,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=80";
+    script.src = REPO_PATH + "anime.min.js?v=81";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8803,14 +8824,14 @@ if (!window.__veilNudge) {
     try {
       anime.animate(el, {
         scale: scale,
-        ease: anime.spring({ bounce: 0.12, duration: 360 })
+        ease: anime.spring({ bounce: 0.42, duration: 560 })
       });
     } catch (err) {}
   };
   document.addEventListener("pointerover", event => {
     const el = event.target.closest(nudgeSel);
     if (!el || el.contains(event.relatedTarget)) return;
-    springTo(el, 1.012);
+    springTo(el, 1.04);
   }, { passive: true });
   document.addEventListener("pointerout", event => {
     const el = event.target.closest(nudgeSel);
@@ -8820,12 +8841,12 @@ if (!window.__veilNudge) {
   document.addEventListener("pointerdown", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, 0.992);
+    springTo(el, 0.96);
   }, { passive: true });
   document.addEventListener("pointerup", event => {
     const el = event.target.closest(nudgeSel);
     if (!el) return;
-    springTo(el, el.matches(":hover") ? 1.012 : 1);
+    springTo(el, el.matches(":hover") ? 1.04 : 1);
   }, { passive: true });
 }
 function setVeilView(view) {
@@ -8950,8 +8971,19 @@ function showBrowser() {
 function showEntPane(name) {
   const body = document.getElementById("stageBody");
   if (!body) return;
-  body.querySelectorAll(".ent-pane").forEach(pane => {
-    pane.classList.toggle("on", pane.getAttribute("data-pane") === name);
+  const panes = Array.from(body.querySelectorAll(".ent-pane"));
+  const next = body.querySelector('.ent-pane[data-pane="' + name + '"]');
+  const prev = body.querySelector(".ent-pane.on");
+  const order = ["games", "music", "more"];
+  const dir = order.indexOf(name) >= order.indexOf(prev && prev.getAttribute("data-pane")) ? 1 : -1;
+  panes.forEach(pane => {
+    const on = pane === next;
+    pane.classList.toggle("on", on);
+    if (!on && pane !== prev) {
+      pane.style.opacity = "";
+      pane.style.translate = "";
+      pane.style.visibility = "";
+    }
   });
   const sw = document.getElementById("stageSwitch");
   if (sw) {
@@ -8959,8 +8991,38 @@ function showEntPane(name) {
       btn.classList.toggle("on", btn.getAttribute("data-ent") === name);
     });
   }
+  const anime = window.anime;
   const first = !showEntPane.seen;
   showEntPane.seen = true;
+  if (!first && prev && next && prev !== next && anime && anime.animate && !motionOff()) {
+    prev.classList.remove("on");
+    next.classList.add("on");
+    prev.style.visibility = "visible";
+    prev.style.pointerEvents = "none";
+    next.style.visibility = "visible";
+    try {
+      anime.animate(prev, {
+        opacity: [1, 0],
+        translateX: [0, dir * -36],
+        duration: 320,
+        ease: "outCubic"
+      });
+      anime.animate(next, {
+        opacity: [0, 1],
+        translateX: [dir * 42, 0],
+        ease: anime.spring ? anime.spring({ bounce: 0.28, duration: 560 }) : "outCubic"
+      });
+    } catch (err) {}
+    setTimeout(() => {
+      prev.style.opacity = "";
+      prev.style.translate = "";
+      prev.style.visibility = "";
+      prev.style.pointerEvents = "";
+      next.style.opacity = "";
+      next.style.translate = "";
+      next.style.visibility = "";
+    }, 580);
+  }
   requestAnimationFrame(() => moveStagePill(name, !first));
 }
 function moveSettingsPill(animate) {
