@@ -92,8 +92,17 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .modal-cancel,.modal-go{height:34px;padding:0 14px;border-radius:8px;cursor:pointer;font-size:13px}
 .modal-cancel{background:var(--panel2);color:var(--text)}
 .modal-go{background:var(--accent);color:var(--accentText);font-weight:600}
-.range-row{display:flex;align-items:center;gap:12px;margin:8px 0}
-.range-row input[type=range]{flex:1}
+.range-row{display:flex;align-items:center;gap:12px;margin:8px 0;max-width:460px}
+.range-track{position:relative;flex:1 1 240px;max-width:260px;height:28px;display:flex;align-items:center}
+.range-track input[type=range]{width:100%;margin:0;background:transparent;-webkit-appearance:none;appearance:none;height:28px}
+.range-track input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:var(--border)}
+.range-track input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:transparent;border:0}
+.range-track input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:var(--border);border:0}
+.range-track input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:transparent}
+.range-knob{position:absolute;top:50%;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);pointer-events:none;transform:translateY(-50%)}
+.setting-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.setting-actions .primary-btn,.setting-actions .secondary-btn{width:auto;min-width:112px;margin:0;height:40px;padding:0 16px}
+.bind-chip{min-width:96px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:650}
 .range-val{min-width:28px;text-align:right;font-size:13px;color:var(--muted)}
 
 .toolbar{height:46px;display:flex;align-items:center;gap:4px;padding:6px 8px;background:var(--panel)}
@@ -185,16 +194,16 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .signup-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px}
 .signup-card .signup-go{width:100%;height:44px;margin-top:20px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;font-size:14px;cursor:pointer}
 .signup-card .signup-err{color:var(--danger);font-size:12px;margin-top:10px;min-height:16px}
-.lock-overlay{position:fixed;inset:0;z-index:400000;background:#070708;display:flex;align-items:center;justify-content:center;padding:24px;animation:veilFade .4s ease}
-.lock-screen{width:min(420px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
-.lock-avatar-frame{width:112px;height:112px;border-radius:50%;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:#141414;box-shadow:0 18px 50px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+.lock-overlay{position:fixed;inset:0;z-index:400000;background:var(--bg,#100c10);display:flex;align-items:center;justify-content:center;padding:28px}
+.lock-screen{width:min(360px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
+.lock-clock{font-size:clamp(64px,9vw,92px);font-weight:680;letter-spacing:-.055em;font-variant-numeric:tabular-nums;line-height:.95}
+.lock-date{margin-top:8px;margin-bottom:28px;font-size:14px;color:var(--muted)}
+.lock-avatar-frame{width:84px;height:84px;border-radius:50%;overflow:hidden;border:1px solid var(--border);background:var(--panel);display:flex;align-items:center;justify-content:center}
 .lock-avatar{width:100%;height:100%;object-fit:cover;border:0;border-radius:0;display:block}
 .lock-avatar.is-ph{transform:scale(1.08)}
-.lock-name{margin-top:16px;font-size:22px;font-weight:650;letter-spacing:-.02em}
-.lock-clock{margin-top:10px;font-size:44px;font-weight:620;letter-spacing:-.04em;font-variant-numeric:tabular-nums;line-height:1}
-.lock-date{margin-top:6px;margin-bottom:22px;font-size:13px;color:var(--muted)}
-.lock-screen input{width:100%;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px;margin-bottom:10px;text-align:center}
-.lock-screen .lock-go{width:100%;height:44px;border-radius:12px;background:var(--accent);color:var(--accentText);font-weight:650;cursor:pointer}
+.lock-name{margin-top:14px;margin-bottom:22px;font-size:18px;font-weight:650;letter-spacing:-.02em}
+.lock-screen input{width:100%;height:46px;border-radius:14px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 14px;margin-bottom:12px;text-align:center;font-size:15px}
+.lock-screen .lock-go{width:100%;height:46px;border-radius:14px;background:var(--accent);color:var(--accentText);font-weight:650;cursor:pointer;font-size:15px}
 .lock-screen .lock-err{color:var(--danger);font-size:12px;min-height:18px;margin-bottom:8px}
 
 .time-bar{position:absolute;left:0;right:0;bottom:0;height:var(--timebar-h,56px);padding:16px 18px 6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;text-align:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:5;box-sizing:border-box}
@@ -234,10 +243,11 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 
 .close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
 .panel-body{padding:20px;overflow-y:auto}
-.settings-tabs{display:flex;align-items:stretch;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--panel);padding:0 6px;overflow-x:auto;scrollbar-width:none}
-.settings-tab{flex:0 0 auto;min-width:72px;height:40px;padding:0 10px;background:transparent;color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.01em;cursor:pointer;border:0;border-bottom:2px solid transparent;border-radius:0;white-space:nowrap}
+.settings-tabs{position:relative;display:flex;align-items:stretch;flex-shrink:0;gap:2px;overflow:hidden}
+.settings-pill{position:absolute;left:0;bottom:8px;height:2px;width:48px;border-radius:2px;background:var(--accent);pointer-events:none;z-index:1}
+.settings-tab{position:relative;z-index:2;flex:0 0 auto;height:40px;padding:0 12px;background:transparent;color:var(--muted);font-size:13px;font-weight:650;cursor:pointer;border:0;border-radius:10px;white-space:nowrap}
 .settings-tab:hover{color:var(--text)}
-.settings-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.settings-tab.active{color:var(--text)}
 .settings-tab[data-settings-tab="desktop"]{display:none}
 body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 .settings-page{display:none}
@@ -833,8 +843,8 @@ body[data-veil-view="dash"] .veil-dash{display:flex}
 .veil-stage{position:fixed;inset:0;z-index:20;display:none;flex-direction:column;background:var(--bg);color:var(--text)}
 body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .veil-stage,body[data-veil-view="admin"] .veil-stage{display:flex}
 .stage-bar{flex:0 0 auto;display:flex;align-items:center;gap:12px;min-height:64px;margin:16px 16px 0;padding:10px 14px;border-radius:22px;background:var(--panel);border:1px solid var(--border)}
-.stage-back{width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
-.stage-back img{width:16px;height:16px;display:block;filter:invert(var(--page-icon-invert,1))}
+.stage-back,#settingsPanel.is-page #optionsBack{width:48px;height:48px;flex:0 0 48px;border-radius:14px;background:var(--bg2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.stage-back img,#settingsPanel.is-page #optionsBack img{width:18px;height:18px;display:block;filter:invert(var(--page-icon-invert,1))}
 .stage-bar h1{font-size:18px;font-weight:720;letter-spacing:-.03em;margin:0}
 .stage-switch{position:relative;margin-left:auto;display:flex;gap:4px;padding:3px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);overflow:hidden}
 .stage-switch[hidden]{display:none !important}
@@ -860,9 +870,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
   border:0;border-radius:0;background:var(--bg);transform:none;box-shadow:none;
   z-index:30;
 }
-#settingsPanel.is-page.open .panel-head{margin:16px 16px 0;padding:0 14px;height:64px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
-#settingsPanel.is-page.open .settings-tabs{margin:14px auto 0;width:min(760px,calc(100% - 32px));border:1px solid var(--border);border-radius:22px;background:var(--panel);padding:0 8px}
-#settingsPanel.is-page.open .panel-body{flex:1;min-height:0;width:min(760px,calc(100% - 32px));max-width:760px;margin:14px auto 16px;padding:22px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
+#settingsPanel.is-page.open .panel-head{margin:16px 16px 0;padding:0 14px;height:72px;gap:14px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
+#settingsPanel.is-page.open .settings-tabs{margin:0 0 0 auto;width:auto;height:100%;border:0;border-radius:0;background:transparent;padding:0}
+#settingsPanel.is-page.open .panel-body{flex:1;min-height:0;width:auto;max-width:none;margin:14px 16px 16px;padding:22px 26px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
 #settingsPanel.is-page.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 #settingsPanel.is-page [data-close-panel]{display:none}
 @media (max-width:760px){
@@ -1023,7 +1033,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=70", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=71", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1187,15 +1197,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 <div class="backdrop" id="backdrop"></div>
 
 <aside class="panel" id="settingsPanel">
-  <div class="panel-head"><button type="button" class="close-panel" id="optionsBack" title="Back"><img src="image/backward.svg" alt=""></button><span>Options</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
-  <div class="settings-tabs" role="tablist">
-    <button type="button" class="settings-tab active" data-settings-tab="custom" role="tab">Customization</button>
-    <button type="button" class="settings-tab" data-settings-tab="privacy" role="tab">Privacy</button>
-    <button type="button" class="settings-tab" data-settings-tab="browser" role="tab">Browser</button>
-    <button type="button" class="settings-tab" data-settings-tab="account" role="tab">Account</button>
-    <button type="button" class="settings-tab" data-settings-tab="chat" role="tab">Chat</button>
-    <button type="button" class="settings-tab" data-settings-tab="desktop" role="tab">Desktop</button>
-  </div>
+  <div class="panel-head"><button type="button" class="close-panel" id="optionsBack" title="Back"><img src="image/backward.svg" alt=""></button><span>Options</span><div class="settings-tabs" id="settingsTabs" role="tablist"><span class="settings-pill" id="settingsPill" aria-hidden="true"></span><button type="button" class="settings-tab active" data-settings-tab="custom" role="tab">Customization</button><button type="button" class="settings-tab" data-settings-tab="privacy" role="tab">Privacy</button><button type="button" class="settings-tab" data-settings-tab="browser" role="tab">Browser</button><button type="button" class="settings-tab" data-settings-tab="account" role="tab">Account</button><button type="button" class="settings-tab" data-settings-tab="chat" role="tab">Chat</button><button type="button" class="settings-tab" data-settings-tab="desktop" role="tab">Desktop</button></div></div>
   <div class="panel-body">
     <div class="settings-page active" data-settings-page="custom">
     <section class="setting-section">
@@ -1321,10 +1323,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     </section>
     <section class="setting-section">
       <div class="setting-title">Panic key <button type="button" class="info-btn" data-info="panic" title="About this option" aria-label="About Panic key"><img src="image/info.svg" alt=""></button></div>
-      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
       <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
-      <button class="primary-btn" id="bindPanic" type="button">Bind key</button>
-      <button class="secondary-btn" id="unbindPanic" type="button">Unbind</button>
+      <div class="setting-actions"><span class="bind-chip" id="panicKey">Not bound</span><button class="primary-btn" id="bindPanic" type="button">Bind key</button><button class="secondary-btn" id="unbindPanic" type="button">Unbind</button></div>
     </section>
     <section class="setting-section">
       <div class="setting-title">About:blank launch <button type="button" class="info-btn" data-info="aboutblank" title="About this option" aria-label="About About:blank launch"><img src="image/info.svg" alt=""></button></div>
@@ -1339,11 +1339,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     </section>
     <section class="setting-section">
       <div class="setting-title">Lock Veil <button type="button" class="info-btn" data-info="lockveil" title="About this option" aria-label="About Lock Veil"><img src="image/info.svg" alt=""></button></div>
-      <button class="primary-btn" id="lockNowBtn" type="button">Lock now</button>
-      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="lockKey" placeholder="Click Bind, then press a key" readonly></div>
-      <button class="primary-btn" id="bindLock" type="button">Bind key</button>
-      <button class="secondary-btn" id="unbindLock" type="button">Unbind</button>
-      <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Sleep lock</span><input type="range" id="sleepLock" min="0" max="5" step="1" value="0"><span class="range-val" id="sleepLockVal">Off</span></div>
+      <div class="setting-actions"><button class="primary-btn" id="lockNowBtn" type="button">Lock now</button><span class="bind-chip" id="lockKey">Not bound</span><button class="primary-btn" id="bindLock" type="button">Bind key</button><button class="secondary-btn" id="unbindLock" type="button">Unbind</button></div>
+      <div class="input-row"><label class="input-label">Sleep lock</label><input class="text-input" id="sleepLockDelay" placeholder="Off, or 30s, 5m, 1h;30m" autocomplete="off" spellcheck="false"></div>
     </section>
     <section class="setting-section">
       <div class="setting-title">Page lock <button type="button" class="info-btn" data-info="pagelock" title="About this option" aria-label="About Page lock"><img src="image/info.svg" alt=""></button></div>
@@ -1519,7 +1516,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=70" defer></script>
-<script src="access-gate.js?v=70"></script>
+<script src="anime.min.js?v=71" defer></script>
+<script src="access-gate.js?v=71"></script>
 </body>
 </html>

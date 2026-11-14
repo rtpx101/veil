@@ -14,8 +14,14 @@ try { if (typeof window.__veilBind === "function") window.__veilBind(); } catch 
       var finish = function () {
         try { invite.call(saved); } catch (err) {}
       };
-      if (typeof springClose === "function") springClose(box, finish);
-      else setTimeout(finish, 200);
+      if (typeof springClose === "function") {
+        springClose(box, finish);
+        try {
+          if (window.anime && window.anime.animate) {
+            window.anime.animate(saved, { opacity: [1, 0], duration: 320, ease: "outCubic" });
+          }
+        } catch (err) {}
+      } else setTimeout(finish, 200);
       return;
     }
     return invite.call(saved);
@@ -682,7 +688,7 @@ const DEFAULT_SETTINGS = {
   lockUnload: false,
   lockKey: "",
   lockCode: "",
-  sleepLock: 0,
+  sleepLock: "",
   confirmLeave: false,
   animEnabled: false,
   animStyle: "orbs",
@@ -924,6 +930,10 @@ function migrateSettings() {
   if (settings.colorMode !== "dark") {
     settings.colorMode = "dark";
   }
+  if (typeof settings.sleepLock === "number") {
+    settings.sleepLock = ["", "15s", "30s", "1m", "5m", "15m"][settings.sleepLock] || "";
+  }
+  if (typeof settings.sleepLock !== "string") settings.sleepLock = "";
   if (typeof settings.saverDelay !== "string") {
     settings.saverDelay = "";
   }
@@ -2274,7 +2284,7 @@ const SETTINGS_INFO = {
   },
   lockveil: {
     title: "Lock Veil",
-    body: "Locks Veil behind your password. Bind a key the same way as the panic key. Sleep lock watches for the computer going to sleep, like closing a laptop, and locks Veil if it was asleep longer than the time you pick. Off leaves it alone."
+    body: "Locks Veil behind your password. Bind a key the same way as the panic key. Sleep lock uses the same time format as the screen saver: 30s, 5m, 1h, or 1h;30m. Leave it blank or type off and Veil will not lock when the computer sleeps."
   },
   confirmleave: {
     title: "Close Prevention",
@@ -3222,9 +3232,7 @@ function loadCloakInputs() {
 function loadPanicInputs() {
   try {
     const panicKey = document.getElementById("panicKey");
-    if (panicKey) {
-      panicKey.value = panic.key ? "Bound: " + panic.key : "Not bound";
-    }
+    if (panicKey) panicKey.textContent = panic.key ? panic.key : "Not bound";
     const panicUrl = document.getElementById("panicUrl");
     if (panicUrl) {
       panicUrl.value = panic.url || "";
@@ -4313,8 +4321,29 @@ function lockVeil(resume, opts) {
     time: copy,
     date: base
   } = formatWelcomeClock(new Date());
-  old.innerHTML = "<div class=\"lock-screen\"><div class=\"lock-avatar-frame\"><img class=\"lock-avatar" + (profile && profile.avatar ? "" : " is-ph") + "\" alt=\"\" src=\"" + escapeHTML(profileAvatarSrc()) + "\"></div><div class=\"lock-name\">" + escapeHTML(profile.name || "guest") + "</div><div class=\"lock-clock\" id=\"lockClock\">" + escapeHTML(copy) + "</div><div class=\"lock-date\" id=\"lockDate\">" + escapeHTML(base) + "</div><div class=\"lock-err\" id=\"lockErr\"></div><input id=\"lockPass\" type=\"password\" placeholder=\"Password\" autocomplete=\"current-password\"><button type=\"button\" class=\"lock-go\" id=\"lockGo\">Unlock</button></div>";
+  old.innerHTML = "<div class=\"lock-screen\"><div class=\"lock-clock\" id=\"lockClock\">" + escapeHTML(copy) + "</div><div class=\"lock-date\" id=\"lockDate\">" + escapeHTML(base) + "</div><div class=\"lock-avatar-frame\"><img class=\"lock-avatar" + (profile && profile.avatar ? "" : " is-ph") + "\" alt=\"\" src=\"" + escapeHTML(profileAvatarSrc()) + "\"></div><div class=\"lock-name\">" + escapeHTML(profile.name || "guest") + "</div><div class=\"lock-err\" id=\"lockErr\"></div><input id=\"lockPass\" type=\"password\" placeholder=\"Password\" autocomplete=\"current-password\"><button type=\"button\" class=\"lock-go\" id=\"lockGo\">Unlock</button></div>";
   document.body.appendChild(old);
+  old.style.opacity = "0";
+  const card = old.querySelector(".lock-screen");
+  if (card) card.style.opacity = "0";
+  if (window.anime && window.anime.animate && !motionOff()) {
+    try {
+      window.anime.animate(old, { opacity: [0, 1], duration: 360, ease: "outCubic" });
+      if (card && window.anime.spring) {
+        window.anime.animate(card, {
+          opacity: [0, 1],
+          scale: [0.97, 1],
+          ease: window.anime.spring({ bounce: 0.28, duration: 520 })
+        });
+      }
+    } catch (err) {
+      old.style.opacity = "";
+      if (card) card.style.opacity = "";
+    }
+  } else {
+    old.style.opacity = "";
+    if (card) card.style.opacity = "";
+  }
   const full = () => {
     const flag = formatWelcomeClock(new Date());
     const lockClock = old.querySelector("#lockClock");
@@ -4328,17 +4357,8 @@ function lockVeil(resume, opts) {
   };
   old._clock = setInterval(full, 1000);
   const short2 = () => {
-    if (old._clock) {
-      clearInterval(old._clock);
-    }
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
+    if (old._clock) clearInterval(old._clock);
   };
-  const line2 = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
-  if (line2) {
-    line2.call(document.documentElement).catch(() => {});
-  }
   const lockPass = old.querySelector("#lockPass");
   const lockErr = old.querySelector("#lockErr");
   lockPass.focus();
@@ -4346,7 +4366,11 @@ function lockVeil(resume, opts) {
     if (lockPass.value === profile.password) {
       try { localStorage.removeItem("veil_page_locked"); } catch (err) {}
       short2();
-      old.remove();
+      const gone = () => { try { old.remove(); } catch (err) {} };
+      if (window.anime && window.anime.animate && !motionOff()) {
+        try { window.anime.animate(old, { opacity: [1, 0], duration: 280, ease: "outCubic" }); } catch (err) {}
+        setTimeout(gone, 300);
+      } else gone();
       if (settings.lockUnload) {
         const item = getActiveTab();
         if (item && !item.newTab && item.url) {
@@ -4424,12 +4448,10 @@ function highlightTheme() {
     setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
     setSwitch(document.getElementById("animEnabledSwitch"), !!wpGet("animEnabled"));
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
-    const sleepLock = document.getElementById("sleepLock");
-    const sleepLockVal = document.getElementById("sleepLockVal");
-    if (sleepLock && document.activeElement !== sleepLock) sleepLock.value = String(Number(settings.sleepLock) || 0);
-    if (sleepLockVal) sleepLockVal.textContent = sleepLockLabel(settings.sleepLock);
+    const sleepField = document.getElementById("sleepLockDelay");
+    if (sleepField && document.activeElement !== sleepField) sleepField.value = settings.sleepLock || "";
     const lockKeyInput = document.getElementById("lockKey");
-    if (lockKeyInput && !bindingLock) lockKeyInput.value = settings.lockKey ? "Bound: " + settings.lockKey : "Not bound";
+    if (lockKeyInput && !bindingLock) lockKeyInput.textContent = settings.lockKey ? settings.lockKey : "Not bound";
     setSwitch(document.getElementById("closeOriginSwitch"), !!settings.closeOriginOnBlank);
     setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
@@ -4745,8 +4767,8 @@ function isTypingTarget(value) {
 }
 document.getElementById("bindPanic").onclick = () => {
   bindingPanic = true;
-  document.getElementById("panicKey").value = "Press any key...";
-  document.getElementById("panicKey").focus();
+  const chip = document.getElementById("panicKey");
+  if (chip) chip.textContent = "Press a key...";
 };
 document.getElementById("unbindPanic").onclick = () => {
   panic = {
@@ -4758,16 +4780,15 @@ document.getElementById("unbindPanic").onclick = () => {
   loadPanicInputs();
 };
 const SLEEP_LABELS = ["Off", "15s", "30s", "1m", "5m", "15m"];
-const SLEEP_MS = [0, 15000, 30000, 60000, 300000, 900000];
-function sleepLockLabel(value) {
-  return SLEEP_LABELS[Number(value) || 0] || "Off";
+function sleepWaitMs() {
+  return parseVeilDuration(settings.sleepLock);
 }
 let sleepHiddenAt = 0;
 function noteSleepAway() {
   if (!sleepHiddenAt) sleepHiddenAt = Date.now();
 }
 function noteSleepBack() {
-  const step = SLEEP_MS[Number(settings.sleepLock) || 0] || 0;
+  const step = sleepWaitMs();
   const start = sleepHiddenAt;
   sleepHiddenAt = 0;
   if (!step || !start) return;
@@ -4788,15 +4809,12 @@ function armSleepLock() {
 try { armSleepLock(); } catch (err) {}
 const bindLock = document.getElementById("bindLock");
 const unbindLock = document.getElementById("unbindLock");
-const sleepLockInput = document.getElementById("sleepLock");
+const sleepLockInput = document.getElementById("sleepLockDelay");
 const lockNowBtn = document.getElementById("lockNowBtn");
 if (bindLock) bindLock.onclick = () => {
   bindingLock = true;
   const field = document.getElementById("lockKey");
-  if (field) {
-    field.value = "Press any key...";
-    field.focus();
-  }
+  if (field) field.textContent = "Press a key...";
 };
 if (unbindLock) unbindLock.onclick = () => {
   settings.lockKey = "";
@@ -4805,12 +4823,16 @@ if (unbindLock) unbindLock.onclick = () => {
   highlightTheme();
 };
 if (lockNowBtn) lockNowBtn.onclick = () => lockVeil();
-if (sleepLockInput) sleepLockInput.addEventListener("input", () => {
-  settings.sleepLock = Number(sleepLockInput.value) || 0;
-  const label = document.getElementById("sleepLockVal");
-  if (label) label.textContent = sleepLockLabel(settings.sleepLock);
-  save();
-});
+if (sleepLockInput) {
+  const commitSleep = () => {
+    const raw = sleepLockInput.value.trim();
+    settings.sleepLock = parseVeilDuration(raw) > 0 ? raw : "";
+    if (document.activeElement !== sleepLockInput) sleepLockInput.value = settings.sleepLock;
+    save();
+  };
+  sleepLockInput.addEventListener("change", commitSleep);
+  sleepLockInput.addEventListener("blur", commitSleep);
+}
 document.addEventListener("keydown", value => {
   if (bindingLock) {
     value.preventDefault();
@@ -7151,7 +7173,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=70";
+  link.href = BASE + "/veilos.css?v=71";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7162,7 +7184,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=70";
+  script.src = BASE + "/veilos.js?v=71";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7307,6 +7329,7 @@ document.querySelectorAll("[data-settings-tab]").forEach(value2 => {
     document.querySelectorAll("[data-settings-page]").forEach(value => {
       value.classList.toggle("active", value.getAttribute("data-settings-page") === token);
     });
+    moveSettingsPill(true);
     if (token === "desktop") fillDesktopSettings();
   });
 });
@@ -8336,7 +8359,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=70";
+    script.src = REPO_PATH + "anime.min.js?v=71";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8587,6 +8610,66 @@ function showEntPane(name) {
   showEntPane.seen = true;
   requestAnimationFrame(() => moveStagePill(name, !first));
 }
+function moveSettingsPill(animate) {
+  const tabs = document.getElementById("settingsTabs");
+  const pill = document.getElementById("settingsPill");
+  if (!tabs || !pill) return;
+  const btn = tabs.querySelector(".settings-tab.active");
+  if (!btn || btn.offsetWidth < 2) return;
+  const left = btn.offsetLeft;
+  const width = btn.offsetWidth;
+  const anime = window.anime;
+  if (!animate || motionOff() || !anime || !anime.animate || !anime.spring) {
+    pill.style.left = left + "px";
+    pill.style.width = width + "px";
+    return;
+  }
+  try {
+    anime.animate(pill, {
+      left: left,
+      width: width,
+      ease: anime.spring({ bounce: 0.32, duration: 480 })
+    });
+  } catch (err) {
+    pill.style.left = left + "px";
+    pill.style.width = width + "px";
+  }
+}
+function dressRanges() {
+  document.querySelectorAll("#settingsPanel input[type=range]").forEach(input => {
+    if (input.closest(".range-track")) return;
+    const track = document.createElement("span");
+    track.className = "range-track";
+    input.parentNode.insertBefore(track, input);
+    track.appendChild(input);
+    const knob = document.createElement("i");
+    knob.className = "range-knob";
+    track.appendChild(knob);
+    const place = animate => {
+      const min = Number(input.min);
+      const max = Number(input.max);
+      const span = (Number.isFinite(max) ? max : 100) - (Number.isFinite(min) ? min : 0) || 1;
+      const pct = ((Number(input.value) || 0) - (Number.isFinite(min) ? min : 0)) / span;
+      const left = Math.max(0, Math.min(1, pct)) * 100;
+      const anime = window.anime;
+      if (!animate || motionOff() || !anime || !anime.animate || !anime.spring) {
+        knob.style.left = left + "%";
+        return;
+      }
+      try {
+        anime.animate(knob, {
+          left: left + "%",
+          ease: anime.spring({ bounce: 0.34, duration: 460 })
+        });
+      } catch (err) {
+        knob.style.left = left + "%";
+      }
+    };
+    place(false);
+    input.addEventListener("input", () => place(true));
+  });
+}
+try { dressRanges(); } catch (err) {}
 function moveStagePill(name, animate) {
   const sw = document.getElementById("stageSwitch");
   const pill = document.getElementById("stagePill");
@@ -8761,6 +8844,7 @@ function openSettings(scope) {
   if (back) back.title = settingsReturn === "browser" ? "Back to browser" : "Back to dashboard";
   try { highlightTheme(); } catch (err) {}
   setVeilView("options");
+  requestAnimationFrame(() => moveSettingsPill(false));
   try {
     fillWispSelect();
     startLivePings();
