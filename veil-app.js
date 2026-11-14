@@ -2141,23 +2141,35 @@ function syncTabPill(host, from) {
     host.insertBefore(pill, host.firstChild);
   }
   host.classList.add("has-pill");
+  if (host._pillMotion && host._pillMotion.cancel) {
+    try { host._pillMotion.cancel(); } catch (err) {}
+    host._pillMotion = null;
+  }
   const hostRect = host.getBoundingClientRect();
   const rect = active.getBoundingClientRect();
   const left = rect.left - hostRect.left + host.scrollLeft;
+  pill.style.transform = "none";
+  pill.style.scale = "1";
+  pill.style.transformOrigin = "left center";
+  const anime = window.anime;
+  if (from && anime && anime.animate && !motionOff()) {
+    pill.style.left = from.left - hostRect.left + host.scrollLeft + "px";
+    pill.style.width = from.width + "px";
+    try {
+      host._pillMotion = anime.animate(pill, {
+        left: left,
+        width: rect.width,
+        duration: 420,
+        ease: "outCubic"
+      });
+    } catch (err) {
+      pill.style.left = left + "px";
+      pill.style.width = rect.width + "px";
+    }
+    return;
+  }
   pill.style.left = left + "px";
   pill.style.width = rect.width + "px";
-  pill.style.transformOrigin = "left center";
-  if (from && window.anime && window.anime.animate && !motionOff()) {
-    const dx = from.left - rect.left;
-    const sx = Math.max(0.35, from.width / (rect.width || 1));
-    try {
-      window.anime.animate(pill, {
-        translateX: [dx, 0],
-        scaleX: [sx, 1],
-        ease: veilSpring(0.34, 620)
-      });
-    } catch (err) {}
-  }
 }
 function runTabStripMotion(host, before) {
   const anime = window.anime;
@@ -2167,11 +2179,17 @@ function runTabStripMotion(host, before) {
   }
   const fresh = Array.from(host.querySelectorAll(".tab")).filter(el => !before.get(el.dataset.tabId));
   if (!fresh.length) {
-    syncTabPill(host, tabMotionKind === "switch" ? before.get("__active") : null);
+    syncTabPill(host, before.get("__active"));
     return;
   }
+  const hostRect = host.getBoundingClientRect();
+  const finals = new Map();
+  host.querySelectorAll(".tab").forEach(el => {
+    const rect = el.getBoundingClientRect();
+    finals.set(el, { width: rect.width, left: rect.left - hostRect.left + host.scrollLeft });
+  });
   fresh.forEach(el => {
-    const target = el.getBoundingClientRect().width;
+    const target = finals.get(el).width;
     freezeTabFace(el);
     el.style.boxSizing = "border-box";
     el.style.flex = "0 0 auto";
@@ -2180,19 +2198,18 @@ function runTabStripMotion(host, before) {
     el.style.maxWidth = target + "px";
     el.style.width = "0px";
     try {
-      anime.animate(el, { width: target, duration: 340, ease: "outCubic" });
+      anime.animate(el, { width: target, opacity: [0.4, 1], duration: 420, ease: "outCubic" });
     } catch (err) {}
     setTimeout(() => {
       clearTabFace(el);
       clearTabBox(el);
       syncTabPill(host, null);
-    }, 360);
+    }, 440);
   });
-  const from = before.get("__active");
   const active = host.querySelector(".tab.active");
-  if (from && active) {
-    const hostRect = host.getBoundingClientRect();
-    const rect = active.getBoundingClientRect();
+  const dest = active && finals.get(active);
+  const from = before.get("__active");
+  if (dest) {
     let pill = host.querySelector(".tab-pill");
     if (!pill) {
       pill = document.createElement("span");
@@ -2200,29 +2217,56 @@ function runTabStripMotion(host, before) {
       host.insertBefore(pill, host.firstChild);
     }
     host.classList.add("has-pill");
-    pill.style.transformOrigin = "left center";
-    pill.style.left = from.left - hostRect.left + host.scrollLeft + "px";
-    pill.style.width = from.width + "px";
+    if (host._pillMotion && host._pillMotion.cancel) {
+      try { host._pillMotion.cancel(); } catch (err) {}
+    }
+    pill.style.transform = "none";
+    pill.style.left = (from ? from.left - hostRect.left + host.scrollLeft : dest.left) + "px";
+    pill.style.width = (from ? from.width : 0) + "px";
     try {
-      anime.animate(pill, {
-        left: rect.left - hostRect.left + host.scrollLeft,
-        width: rect.width,
-        duration: 340,
+      host._pillMotion = anime.animate(pill, {
+        left: dest.left,
+        width: dest.width,
+        duration: 420,
         ease: "outCubic"
       });
     } catch (err) {}
   }
   const plus = host.querySelector(".new-tab");
   if (plus) {
-    try {
-      anime.animate(plus, { scale: [0.9, 1], ease: veilSpring(0.42, 520) });
-    } catch (err) {}
+    try { anime.animate(plus, { scale: [0.92, 1], ease: veilSpring(0.35, 480) }); } catch (err) {}
   }
 }
 function renderTabs() {
   const tabs2 = document.getElementById("tabs");
   const before = snapshotTabs(tabs2);
   const kind = tabMotionKind;
+  const existing = Array.from(tabs2.querySelectorAll(".tab"));
+  const same = existing.length === tabs.length && existing.every((el, index) => el.dataset.tabId === tabs[index].id);
+  if (same && kind !== "open") {
+    existing.forEach(el => {
+      const tab = tabs.find(item => item.id === el.dataset.tabId);
+      el.classList.toggle("active", el.dataset.tabId === activeTabId);
+      const title = el.querySelector(".tab-title");
+      if (tab && title && title.textContent !== (tab.title || "")) title.textContent = tab.title || "";
+      const img = el.querySelector(".tab-icon img");
+      if (tab && img && tab.favicon && img.getAttribute("src") !== tab.favicon) img.src = tab.favicon;
+    });
+    if (kind === "switch") {
+      syncTabPill(tabs2, before.get("__active"));
+      const icon = tabs2.querySelector(".tab.active .tab-icon");
+      const anime = window.anime;
+      if (icon && anime && anime.animate && !motionOff()) {
+        try { anime.animate(icon, { scale: [0.82, 1], ease: veilSpring(0.42, 480) }); } catch (err) {}
+      }
+    } else {
+      syncTabPill(tabs2, null);
+    }
+    tabMotionKind = "";
+    tabJiggleId = "";
+    try { paintChatAlerts(); } catch (err) {}
+    return;
+  }
   const src = tabs.map(value => "<div class=\"tab " + (value.id === activeTabId ? "active " : "") + (value.animOpen ? "opening" : "") + "\" data-tab-id=\"" + value.id + "\"><div class=\"tab-face\"><div class=\"tab-icon\"><img src=\"" + escapeHTML(value.favicon || FAVI) + "\" alt=\"\">" + (value.isChat ? "<span class=\"chat-alert\" data-chat-alert></span>" : "") + "</div><div class=\"tab-title\">" + escapeHTML(value.title) + "</div><button class=\"tab-close\" data-close=\"" + value.id + "\" aria-label=\"Close\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div></div>").join("");
   tabs2.innerHTML = src + "<button class=\"new-tab\" id=\"newTabBtn\" type=\"button\" aria-label=\"New tab\"><img src=\"" + IMG + "plus.svg\" alt=\"\"></button>";
   tabs.forEach(value => {
@@ -2244,25 +2288,11 @@ function renderTabs() {
   if (newTabBtn) {
     newTabBtn.onclick = () => createTab(true);
   }
-  requestAnimationFrame(() => {
-    tabs2.scrollLeft = tabs2.scrollWidth;
-  });
-  const anime = window.anime;
-  if (kind === "open" || kind === "switch") {
-    if (kind === "open") runTabStripMotion(tabs2, before);
-    else {
-      syncTabPill(tabs2, before.get("__active"));
-      const active = tabs2.querySelector(".tab.active");
-      if (active && anime && anime.animate && !motionOff()) {
-        try {
-          active.style.transformOrigin = "center";
-          anime.animate(active, {
-            scale: [0.94, 1],
-            ease: veilSpring(0.48, 620)
-          });
-        } catch (err) {}
-      }
-    }
+  if (kind === "open") {
+    requestAnimationFrame(() => {
+      tabs2.scrollLeft = tabs2.scrollWidth;
+    });
+    runTabStripMotion(tabs2, before);
   } else {
     syncTabPill(tabs2, null);
   }
@@ -3143,7 +3173,8 @@ function createTab(value = true) {
   };
   tabs.push(cloak2);
   activeTabId = cloak2.id;
-  tabMotionKind = "open";
+  tabMotionKind = window.__veilSkipTabMotion ? "" : "open";
+  window.__veilSkipTabMotion = false;
   ensurePage(cloak2);
   showActiveOnly();
   renderChrome();
@@ -3155,6 +3186,7 @@ function closeTab(value2) {
   }
   const historyItem = document.querySelector("[data-tab-id=\"" + value2 + "\"]");
   const game = () => {
+    try { if (historyItem && historyItem.parentNode) historyItem.remove(); } catch (err) {}
     const response = tabs[bookmark];
     if (response && response.engineFrame) {
       try {
@@ -3168,6 +3200,7 @@ function closeTab(value2) {
     tabs.splice(bookmark, 1);
     prunePages();
     if (!tabs.length) {
+      window.__veilSkipTabMotion = true;
       createTab(true);
       return;
     }
@@ -3180,7 +3213,7 @@ function closeTab(value2) {
   };
   const host = document.getElementById("tabs");
   const anime = window.anime;
-  if (historyItem && host && anime && anime.animate && !motionOff()) {
+  if (historyItem && host && anime && anime.animate && !motionOff() && host.querySelectorAll(".tab").length > 1) {
     const nodes = Array.from(host.querySelectorAll(".tab"));
     const closeIndex = nodes.indexOf(historyItem);
     let keep = host.querySelector(".tab.active");
@@ -3190,8 +3223,11 @@ function closeTab(value2) {
       if (keep) keep.classList.add("active");
     }
     const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
+    const hostRect = host.getBoundingClientRect();
     const box = historyItem.getBoundingClientRect();
-    const from = { left: box.left, width: box.width };
+    const keepBox = keep ? keep.getBoundingClientRect() : null;
+    let destLeft = keepBox ? keepBox.left - hostRect.left + host.scrollLeft : 0;
+    if (keepBox && keepBox.left > box.left) destLeft -= box.width + gap;
     freezeTabFace(historyItem);
     historyItem.style.boxSizing = "border-box";
     historyItem.style.flex = "0 0 auto";
@@ -3199,22 +3235,45 @@ function closeTab(value2) {
     historyItem.style.minWidth = "0px";
     historyItem.style.maxWidth = box.width + "px";
     historyItem.style.width = box.width + "px";
-    historyItem.style.marginRight = "0px";
-    if (keep) syncTabPill(host, from);
+    historyItem.style.marginRight = -gap + "px";
+    let pill = host.querySelector(".tab-pill");
+    if (keep && keepBox) {
+      if (!pill) {
+        pill = document.createElement("span");
+        pill.className = "tab-pill";
+        host.insertBefore(pill, host.firstChild);
+      }
+      host.classList.add("has-pill");
+      if (host._pillMotion && host._pillMotion.cancel) {
+        try { host._pillMotion.cancel(); } catch (err) {}
+      }
+      pill.style.transform = "none";
+      pill.style.left = box.left - hostRect.left + host.scrollLeft + "px";
+      pill.style.width = box.width + "px";
+      try {
+        host._pillMotion = anime.animate(pill, {
+          left: destLeft,
+          width: keepBox.width,
+          duration: 420,
+          ease: "outCubic"
+        });
+      } catch (err) {}
+    }
     try {
       anime.animate(historyItem, {
         width: 0,
-        marginRight: -gap,
         opacity: [1, 0],
-        duration: 320,
+        duration: 420,
         ease: "outCubic"
       });
     } catch (err) {}
     const plus = host.querySelector(".new-tab");
     if (plus) {
-      try { anime.animate(plus, { scale: [0.92, 1], ease: veilSpring(0.4, 480) }); } catch (err) {}
+      try { anime.animate(plus, { scale: [0.94, 1], ease: veilSpring(0.32, 460) }); } catch (err) {}
     }
-    setTimeout(game, 340);
+    setTimeout(game, 440);
+  } else if (historyItem && host && host.querySelectorAll(".tab").length <= 1) {
+    game();
   } else if (historyItem) {
     historyItem.classList.add("closing");
     setTimeout(game, 160);
@@ -7515,7 +7574,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=85";
+  link.href = BASE + "/veilos.css?v=86";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7526,7 +7585,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=85";
+  script.src = BASE + "/veilos.js?v=86";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8723,7 +8782,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=85";
+    script.src = REPO_PATH + "anime.min.js?v=86";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
