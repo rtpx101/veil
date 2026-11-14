@@ -696,8 +696,8 @@ const DEFAULT_SETTINGS = {
   animCount: 18,
   animSize: 1,
   animMediaSpeed: 1,
-  animColorA: "#7aa2ff",
-  animColorB: "#b88cff",
+  animColorA: "#ffffff",
+  animColorB: "#e6e6e6",
   brAnimEnabled: false,
   brAnimStyle: "orbs",
   brBackgroundUrl: "",
@@ -705,8 +705,8 @@ const DEFAULT_SETTINGS = {
   brAnimCount: 18,
   brAnimSize: 1,
   brAnimMediaSpeed: 1,
-  brAnimColorA: "#7aa2ff",
-  brAnimColorB: "#b88cff",
+  brAnimColorA: "#ffffff",
+  brAnimColorB: "#e6e6e6",
   timeFormat: "12",
   transportMigratedV2: true,
   transportMigratedV3: false,
@@ -715,8 +715,8 @@ const DEFAULT_SETTINGS = {
   saverEnabled: false,
   saverStyle: "orbs",
   saverUrl: "",
-  saverColorA: "#7aa2ff",
-  saverColorB: "#b88cff",
+  saverColorA: "#ffffff",
+  saverColorB: "#e6e6e6",
   saverSpeed: 1,
   saverCount: 18,
   saverSize: 1,
@@ -898,16 +898,17 @@ function migrateSettings() {
     settings.saverMinutes = 0;
   }
   settings.saverMinutes = Number(settings.saverMinutes) || 0;
-  if (settings.animStyle === "rain" || settings.animStyle === "waves" || settings.animStyle === "pulse") settings.animStyle = "ripples";
-  if (settings.brAnimStyle === "rain") settings.brAnimStyle = "ripples";
-  if (settings.saverStyle === "rain") settings.saverStyle = "ripples";
-  if (!["orbs", "stars", "constellation", "ripples", "drift", "custom"].includes(settings.saverStyle)) {
+  ["animStyle", "brAnimStyle", "saverStyle"].forEach(key => {
+    if (["ripples", "drift", "rain", "waves", "pulse"].includes(settings[key])) settings[key] = "sakura";
+  });
+  const wallOk = ["orbs", "stars", "constellation", "sakura", "snow", "fall", "custom"];
+  if (!wallOk.includes(settings.saverStyle)) {
     settings.saverStyle = "orbs";
   }
-  if (!["orbs", "stars", "constellation", "ripples", "drift", "custom"].includes(settings.animStyle)) {
+  if (!wallOk.includes(settings.animStyle)) {
     settings.animStyle = "orbs";
   }
-  if (!["orbs", "stars", "constellation", "ripples", "drift", "custom"].includes(settings.brAnimStyle)) {
+  if (!wallOk.includes(settings.brAnimStyle)) {
     settings.brAnimStyle = "orbs";
   }
   if (typeof settings.brBackgroundUrl !== "string") {
@@ -947,11 +948,15 @@ function migrateSettings() {
     settings.saverEnabled = !!parseVeilDuration(settings.saverDelay);
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(settings.saverColorA || "")) {
-    settings.saverColorA = "#7aa2ff";
+    settings.saverColorA = "#ffffff";
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(settings.saverColorB || "")) {
-    settings.saverColorB = "#b88cff";
+    settings.saverColorB = "#e6e6e6";
   }
+  ["animColorA", "animColorB", "brAnimColorA", "brAnimColorB", "saverColorA", "saverColorB"].forEach(key => {
+    const hex = String(settings[key] || "").toLowerCase();
+    if (hex === "#7aa2ff" || hex === "#b88cff") settings[key] = key.endsWith("B") ? "#e6e6e6" : "#ffffff";
+  });
   if (!Number.isFinite(Number(settings.saverSpeed))) {
     settings.saverSpeed = 1;
   }
@@ -3533,9 +3538,10 @@ function stopHomeFx(value) {
   if (key && key.ro) {
     key.ro.disconnect();
   }
-  if (key && key.anims) {
-    key.anims.forEach(run => {
-      try { if (run && run.cancel) run.cancel(); } catch (err) {}
+  if (key && key.leaves) {
+    key.leaves.forEach(leaf => {
+      try { if (leaf.fall && leaf.fall.cancel) leaf.fall.cancel(); } catch (err) {}
+      try { if (leaf.swayAnim && leaf.swayAnim.cancel) leaf.swayAnim.cancel(); } catch (err) {}
     });
   }
   homeFxLoops.delete(value);
@@ -3585,7 +3591,7 @@ function setupHomeFx(value3, extra2) {
   };
   item2();
   let orbs = fxStyle;
-  if (orbs === "waves" || orbs === "pulse" || orbs === "rain") orbs = "ripples";
+  if (orbs === "waves" || orbs === "pulse" || orbs === "rain" || orbs === "ripples" || orbs === "drift") orbs = "sakura";
   const raw = Math.max(0.25, Math.min(2.5, Number(fxSpeed) || 1));
   const found2 = Math.max(0.4, Math.min(2.5, Number(fxSize) || 1));
   let next2 = Number(fxCount);
@@ -3601,51 +3607,46 @@ function setupHomeFx(value3, extra2) {
   }
   list2.shooters = [];
   list2.clouds = [];
-  list2.blobs = [];
+  list2.leaves = [];
   list2.anims = [];
-  if (orbs === "ripples" || orbs === "drift") {
-    const countBlobs = orbs === "ripples" ? Math.max(4, Math.min(14, Math.round(next2 / 2))) : Math.max(3, Math.min(8, Math.round(next2 / 3)));
+  if (orbs === "sakura" || orbs === "snow" || orbs === "fall") {
+    const leafCount = orbs === "snow" ? Math.max(8, Math.min(28, Math.round(next2 * 1.2))) : Math.max(6, Math.min(16, Math.round(next2 * 0.7)));
     const pace = Math.max(0.35, raw);
-    for (let i = 0; i < countBlobs; i++) {
-      const blob = {
-        x: Math.random(),
-        y: Math.random(),
-        s: orbs === "ripples" ? 0.02 : 0.12 + Math.random() * 0.16,
-        o: orbs === "ripples" ? 0 : 0.16
-      };
-      list2.blobs.push(blob);
-      const again = () => {
-        if (homeFxLoops.get(value3) !== list2) return;
-        const anime = window.anime;
-        if (!anime || !anime.animate) return;
-        let run;
-        if (orbs === "ripples") {
-          blob.x = 0.08 + Math.random() * 0.84;
-          blob.y = 0.08 + Math.random() * 0.84;
-          blob.s = 0.02;
-          blob.o = 0.5;
-          run = anime.animate(blob, {
-            s: (0.28 + Math.random() * 0.22) * found2,
-            o: 0,
-            duration: (1600 + Math.random() * 1200) / pace,
-            delay: Math.random() * 400,
-            ease: "outCubic",
-            onComplete: again
-          });
-        } else {
-          run = anime.animate(blob, {
-            x: 0.08 + Math.random() * 0.84,
-            y: 0.08 + Math.random() * 0.84,
-            s: (0.14 + Math.random() * 0.2) * found2,
-            o: 0.1 + Math.random() * 0.22,
-            duration: (3800 + Math.random() * 2600) / pace,
-            ease: "inOutSine",
-            onComplete: again
-          });
-        }
-        list2.anims.push(run);
-      };
-      setTimeout(again, i * 180);
+    const armLeaf = blob => {
+      if (homeFxLoops.get(value3) !== list2) return;
+      const anime = window.anime;
+      blob.y = -0.08 - Math.random() * 0.25;
+      blob.baseX = Math.random();
+      blob.x = blob.baseX;
+      blob.sway = 0;
+      blob.rot = Math.random() * Math.PI * 2;
+      blob.s = orbs === "snow" ? 0.004 + Math.random() * 0.006 : 0.012 + Math.random() * 0.012;
+      blob.spin = (Math.random() > 0.5 ? 1 : -1) * (0.6 + Math.random() * 1.1);
+      if (!anime || !anime.animate) return;
+      try {
+        if (blob.fall && blob.fall.cancel) blob.fall.cancel();
+        if (blob.swayAnim && blob.swayAnim.cancel) blob.swayAnim.cancel();
+      } catch (err) {}
+      blob.fall = anime.animate(blob, {
+        y: 1.12,
+        rot: blob.rot + blob.spin,
+        duration: (12000 + Math.random() * 8000) / pace,
+        ease: "linear",
+        onComplete: () => armLeaf(blob)
+      });
+      blob.swayAnim = anime.animate(blob, {
+        sway: blob.sway > 0 ? -0.07 : 0.07,
+        duration: (3400 + Math.random() * 1800) / pace,
+        ease: "inOutSine",
+        loop: true,
+        alternate: true
+      });
+    };
+    for (let i = 0; i < leafCount; i++) {
+      const blob = { y: Math.random(), baseX: Math.random(), x: 0, sway: 0, rot: 0, s: 0.01, spin: 1, tone: i % 2 };
+      blob.x = blob.baseX;
+      list2.leaves.push(blob);
+      setTimeout(() => armLeaf(blob), i * 280);
     }
   } else if (false && orbs === "rain") {
     for (let delay = 0; delay < next2; delay++) {
@@ -3702,8 +3703,8 @@ function setupHomeFx(value3, extra2) {
     list2.flash = 0.55 + Math.random() * 0.35;
   };
   function animColor(value) {
-    if (value === "a") return fxColorA || "#7aa2ff";
-    return fxColorB || "#b88cff";
+    if (value === "a") return fxColorA || "#ffffff";
+    return fxColorB || "#e6e6e6";
   }
   const box = () => {
     if (!el && !fxEnabled) {
@@ -3717,27 +3718,30 @@ function setupHomeFx(value3, extra2) {
     err2.clearRect(0, 0, row, count);
     const entry = hexToRgb(animColor("a"));
     const meta = hexToRgb(animColor("b"));
-    if (orbs === "ripples" || orbs === "drift") {
-      (list2.blobs || []).forEach((blob, extra) => {
-        const style = extra % 2 ? entry : meta;
-        const cx = blob.x * row;
-        const cy = blob.y * count;
-        const rad = Math.max(2, blob.s * Math.min(row, count));
-        if (orbs === "ripples") {
-          err2.strokeStyle = "rgba(" + style.r + "," + style.g + "," + style.b + "," + Math.max(0, blob.o) * 0.85 + ")";
-          err2.lineWidth = Math.max(1.25, found2 * index);
-          err2.beginPath();
-          err2.arc(cx, cy, rad, 0, Math.PI * 2);
-          err2.stroke();
+    if (orbs === "sakura" || orbs === "snow" || orbs === "fall") {
+      (list2.leaves || []).forEach(leaf => {
+        const style = leaf.tone ? meta : entry;
+        const x = (leaf.baseX + (leaf.sway || 0)) * row;
+        const y = leaf.y * count;
+        const len = Math.max(3, leaf.s * Math.min(row, count) * found2);
+        err2.save();
+        err2.translate(x, y);
+        err2.rotate(leaf.rot || 0);
+        err2.fillStyle = "rgba(" + style.r + "," + style.g + "," + style.b + ",0.9)";
+        err2.beginPath();
+        if (orbs === "snow") {
+          err2.arc(0, 0, len * 0.55, 0, Math.PI * 2);
+        } else if (orbs === "fall") {
+          err2.moveTo(0, -len);
+          err2.bezierCurveTo(len * 0.8, -len * 0.1, len * 0.45, len * 0.55, 0, len * 0.95);
+          err2.bezierCurveTo(-len * 0.45, len * 0.55, -len * 0.8, -len * 0.1, 0, -len);
         } else {
-          const grad = err2.createRadialGradient(cx, cy, 0, cx, cy, rad);
-          grad.addColorStop(0, "rgba(" + style.r + "," + style.g + "," + style.b + "," + Math.max(0, blob.o) + ")");
-          grad.addColorStop(1, "rgba(" + style.r + "," + style.g + "," + style.b + ",0)");
-          err2.fillStyle = grad;
-          err2.beginPath();
-          err2.arc(cx, cy, rad, 0, Math.PI * 2);
-          err2.fill();
+          err2.moveTo(0, -len * 0.8);
+          err2.bezierCurveTo(len, -len * 0.25, len * 0.75, len * 0.4, 0, len * 0.65);
+          err2.bezierCurveTo(-len * 0.75, len * 0.4, -len, -len * 0.25, 0, -len * 0.8);
         }
+        err2.fill();
+        err2.restore();
       });
       list2.raf = requestAnimationFrame(box);
       return;
@@ -4267,7 +4271,7 @@ function syncSaverFields() {
     saverDelay2.value = settings.saverDelay || "";
   }
   const saverStyle = document.getElementById("saverStyle");
-  const nodes = ["orbs", "stars", "constellation", "ripples", "drift", "custom"];
+  const nodes = ["orbs", "stars", "constellation", "sakura", "snow", "fall", "custom"];
   if (saverStyle) {
     saverStyle.value = nodes.includes(settings.saverStyle) ? settings.saverStyle : "orbs";
   }
@@ -4310,10 +4314,10 @@ function syncSaverFields() {
   const saverColorA = document.getElementById("saverColorA");
   const saverColorB = document.getElementById("saverColorB");
   if (saverColorA && document.activeElement !== saverColorA) {
-    saverColorA.value = safeColorValue(settings.saverColorA, "#7aa2ff");
+    saverColorA.value = safeColorValue(settings.saverColorA, "#ffffff");
   }
   if (saverColorB && document.activeElement !== saverColorB) {
-    saverColorB.value = safeColorValue(settings.saverColorB, "#b88cff");
+    saverColorB.value = safeColorValue(settings.saverColorB, "#e6e6e6");
   }
 }
 function commitSaverDelay() {
@@ -4566,10 +4570,10 @@ function highlightTheme() {
     const animColorA = document.getElementById("animColorA");
     const animColorB = document.getElementById("animColorB");
     if (animColorA) {
-      animColorA.value = safeColorValue(wpGet("animColorA"), "#7aa2ff");
+      animColorA.value = safeColorValue(wpGet("animColorA"), "#ffffff");
     }
     if (animColorB) {
-      animColorB.value = safeColorValue(wpGet("animColorB"), "#b88cff");
+      animColorB.value = safeColorValue(wpGet("animColorB"), "#e6e6e6");
     }
     const animCount2 = document.getElementById("animCount");
     const animCountVal = document.getElementById("animCountVal");
@@ -4587,7 +4591,7 @@ function highlightTheme() {
         animSizeVal.textContent = Number(wpGet("animSize") || 1).toFixed(2) + "x";
       }
     }
-    const wrap = ["orbs", "stars", "constellation", "ripples", "drift", "custom"];
+    const wrap = ["orbs", "stars", "constellation", "sakura", "snow", "fall", "custom"];
     if (animStyle2) {
       animStyle2.value = wrap.includes(wpGet("animStyle")) ? wpGet("animStyle") : "orbs";
     }
@@ -7250,7 +7254,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=72";
+  link.href = BASE + "/veilos.css?v=73";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7261,7 +7265,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=72";
+  script.src = BASE + "/veilos.js?v=73";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7410,10 +7414,30 @@ document.querySelectorAll("[data-settings-tab]").forEach(value2 => {
     if (token === "desktop") fillDesktopSettings();
   });
 });
+const WALL_COLORS = {
+  orbs: ["#ffffff", "#e6e6e6"],
+  stars: ["#ffffff", "#e6e6e6"],
+  constellation: ["#ffffff", "#e6e6e6"],
+  sakura: ["#f7b7c8", "#e889a8"],
+  snow: ["#ffffff", "#f4f7fb"],
+  fall: ["#e07a2f", "#f0c14a"]
+};
+function applyWallPalette(style, which) {
+  const pair = WALL_COLORS[style];
+  if (!pair) return;
+  if (which === "saver") {
+    settings.saverColorA = pair[0];
+    settings.saverColorB = pair[1];
+    return;
+  }
+  wpSet("animColorA", pair[0]);
+  wpSet("animColorB", pair[1]);
+}
 const animStyle = document.getElementById("animStyle");
 if (animStyle) {
   animStyle.addEventListener("change", () => {
     wpSet("animStyle", animStyle.value || "orbs");
+    applyWallPalette(animStyle.value || "orbs");
     save();
     highlightTheme();
     refreshHomeFxAll();
@@ -7423,6 +7447,7 @@ const brAnimStyle = document.getElementById("brAnimStyle");
 if (brAnimStyle) {
   brAnimStyle.addEventListener("change", () => {
     settings.brAnimStyle = brAnimStyle.value || "orbs";
+    applyWallPalette(settings.brAnimStyle);
     save();
     highlightTheme();
     refreshHomeFxAll();
@@ -7491,6 +7516,7 @@ const saverStyleEl = document.getElementById("saverStyle");
 if (saverStyleEl) {
   saverStyleEl.addEventListener("change", () => {
     settings.saverStyle = saverStyleEl.value || "orbs";
+    applyWallPalette(settings.saverStyle, "saver");
     save();
     syncSaverFields();
     if (saverVisible) {
@@ -8436,7 +8462,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=72";
+    script.src = REPO_PATH + "anime.min.js?v=73";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);

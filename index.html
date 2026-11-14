@@ -100,7 +100,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .range-track input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:var(--border);border:0}
 .range-track input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:transparent}
 .range-knob{position:absolute;top:50%;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);pointer-events:none;transform:translateY(-50%)}
-.setting-actions{display:flex;flex-wrap:wrap;align-items:center;gap:22px;margin-top:16px}
+.setting-actions{display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:14px;margin:18px 0 20px}
 .setting-actions .primary-btn,.setting-actions .secondary-btn{width:auto;min-width:112px;margin:0;height:40px;padding:0 16px}
 .bind-chip{min-width:96px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:650}
 .range-val{min-width:28px;text-align:right;font-size:13px;color:var(--muted)}
@@ -258,7 +258,7 @@ body.veil-os .settings-tab[data-settings-tab="desktop"]{display:block}
 .profile-preview.is-ph{transform:scale(1.08)}
 .profile-actions{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
 .profile-actions input[type=file]{font-size:12px;color:var(--muted)}
-.setting-section{margin-bottom:22px}
+.setting-section{margin-bottom:32px}
 .quick-link{position:relative}
 .chat-alert{position:absolute;width:8px;height:8px;border-radius:50%;background:#ff4d4f;box-shadow:0 0 0 2px var(--bg);display:none;pointer-events:none}
 .chat-alert.on{display:block}
@@ -883,7 +883,12 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 #settingsPanel.is-page.open .range-row,
 #settingsPanel.is-page.open .custom-card,
 #settingsPanel.is-page.open .hint,
-#settingsPanel.is-page.open .preset-grid{max-width:640px;grid-template-columns:repeat(3,minmax(0,1fr))}
+#settingsPanel.is-page.open .server-list,
+#settingsPanel.is-page.open .transport-row,
+#settingsPanel.is-page.open .status,
+#settingsPanel.is-page.open .server-actions,
+#settingsPanel.is-page.open .preset-grid{max-width:640px}
+#settingsPanel.is-page.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 #settingsPanel.is-page [data-close-panel]{display:none}
 @media (max-width:760px){
   .veil-dash{padding:10px;gap:10px}
@@ -1043,7 +1048,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=72", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=73", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1251,8 +1256,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
             <option value="orbs">Floating orbs</option>
             <option value="stars">Twinkling stars</option>
             <option value="constellation">Constellation</option>
-            <option value="ripples">Ripples</option>
-            <option value="drift">Soft drift</option>
+            <option value="sakura">Sakura leaves</option>
+            <option value="snow">Snow</option>
+            <option value="fall">Fall leaves</option>
             <option value="custom">Custom URL</option>
           </select>
         </div>
@@ -1265,8 +1271,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
           <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
         </div>
         <div id="animColorRows">
-          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
-          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
+          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#ffffff"></div>
+          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#e6e6e6"></div>
         </div>
         <div id="animMediaSpeedRow" style="display:none">
           <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animMediaSpeed" min="0.25" max="3" step="0.05" value="1"><span class="range-val" id="animMediaSpeedVal">1.00x</span></div>
@@ -1289,8 +1295,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
             <option value="orbs">Floating orbs</option>
             <option value="stars">Twinkling stars</option>
             <option value="constellation">Constellation</option>
-            <option value="ripples">Ripples</option>
-            <option value="drift">Soft drift</option>
+            <option value="sakura">Sakura leaves</option>
+            <option value="snow">Snow</option>
+            <option value="fall">Fall leaves</option>
             <option value="custom">Custom URL</option>
           </select>
         </div>
@@ -1303,8 +1310,8 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
           <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="saverSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="saverSizeVal">1.00x</span></div>
         </div>
         <div id="saverColorRows">
-          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="saverColorA" value="#7aa2ff"></div>
-          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="saverColorB" value="#b88cff"></div>
+          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="saverColorA" value="#ffffff"></div>
+          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="saverColorB" value="#e6e6e6"></div>
         </div>
         <div id="saverMediaSpeedRow" style="display:none">
           <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="saverMediaSpeed" min="0.25" max="3" step="0.05" value="1"><span class="range-val" id="saverMediaSpeedVal">1.00x</span></div>
@@ -1528,7 +1535,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=72" defer></script>
-<script src="access-gate.js?v=72"></script>
+<script src="anime.min.js?v=73" defer></script>
+<script src="access-gate.js?v=73"></script>
 </body>
 </html>
