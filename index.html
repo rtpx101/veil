@@ -841,7 +841,7 @@ body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-when{margin-top:4px;font-size:clamp(12px,1.45vw,16px);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dash-logo{width:52px;height:52px;object-fit:contain;flex:0 0 52px}
 .dash-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:14px;overflow:visible}
-.dash-tile{position:relative;min-height:0;border-radius:22px;border:1px solid var(--border);background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;padding:16px}
+.dash-tile{position:relative;min-height:120px;overflow:visible;border-radius:22px;border:1px solid var(--border);background:var(--panel);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;padding:16px}
 .dash-tile img{width:42px;height:42px;object-fit:contain;display:block;filter:invert(var(--page-icon-invert,1))}
 .dash-label{font-size:clamp(15px,1.7vw,20px);font-weight:720;letter-spacing:-.02em}
 .dash-tile .chat-alert{top:14px;right:14px}
@@ -886,20 +886,17 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .veil-devgate .modal-actions{display:flex;align-items:stretch;gap:10px;margin-top:16px}
 .veil-devgate .modal-actions button{flex:1;width:auto;height:44px;margin:0;border-radius:12px;font-size:14px;font-weight:650}
 #optionsBack{display:none}
-#settingsPanel.open{
-  right:auto;left:50%;top:50%;
-  width:min(720px,calc(100vw - 32px));
-  height:min(760px,calc(100vh - 32px));
-  max-height:calc(100vh - 32px);
-  border:1px solid var(--border);border-radius:22px;background:var(--bg);
-  transform:translate(-50%,-50%);
-  box-shadow:0 24px 70px rgba(0,0,0,.5);
-  transition:opacity .22s ease,visibility 0s;
+#settingsPanel.is-page.open{
+  inset:0;left:0;top:0;right:0;width:100%;height:100%;max-height:none;
+  border:0;border-radius:0;background:var(--bg);transform:none;box-shadow:none;
+  z-index:30;
 }
-#settingsPanel.open .panel-head{margin:0;padding:0 14px;height:56px;border:0;border-bottom:1px solid var(--border);border-radius:22px 22px 0 0;background:var(--panel)}
-#settingsPanel.open .settings-tabs{margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:var(--panel);padding:0 8px}
-#settingsPanel.open .panel-body{flex:1;min-height:0;max-width:none;width:auto;margin:0;padding:18px;border:0;border-radius:0;background:var(--bg)}
-#settingsPanel.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#settingsPanel.is-page.open .panel-head{margin:16px 16px 0;padding:0 14px;height:64px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
+#settingsPanel.is-page.open .settings-tabs{margin:14px auto 0;width:min(760px,calc(100% - 32px));border:1px solid var(--border);border-radius:22px;background:var(--panel);padding:0 8px}
+#settingsPanel.is-page.open .panel-body{flex:1;min-height:0;width:min(760px,calc(100% - 32px));max-width:760px;margin:14px auto 16px;padding:22px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
+#settingsPanel.is-page.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#settingsPanel.is-page #optionsBack{display:inline-flex}
+#settingsPanel.is-page [data-close-panel]{display:none}
 @media (max-width:760px){
   .veil-dash{padding:10px;gap:10px}
   .dash-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;overflow:auto}
@@ -1060,7 +1057,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=63", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=64", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1545,7 +1542,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=63" defer></script>
-<script src="access-gate.js?v=63"></script>
+<script src="anime.min.js?v=64" defer></script>
+<script src="access-gate.js?v=64"></script>
 </body>
 </html>

@@ -3091,12 +3091,9 @@ function closePanelsInner() {
   document.querySelectorAll(".panel").forEach(value => value.classList.remove("open"));
   const settingsPanel = document.getElementById("settingsPanel");
   if (settingsPanel) {
-    settingsPanel.classList.remove("is-browser-scope");
-    if (settingsPanel.classList.contains("is-options")) {
-      settingsPanel.classList.remove("is-options");
-      const title = settingsPanel.querySelector(".panel-head > span");
-      if (title) title.textContent = "Settings";
-      if (document.body.dataset.veilView === "options") setVeilView("dash");
+    settingsPanel.classList.remove("is-browser-scope", "is-page");
+    if (document.body.dataset.veilView === "options") {
+      setVeilView(settingsReturn === "browser" ? "browser" : "dash");
     }
   }
 }
@@ -6967,7 +6964,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=63";
+  link.href = BASE + "/veilos.css?v=64";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6978,7 +6975,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=63";
+  script.src = BASE + "/veilos.js?v=64";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7011,7 +7008,7 @@ if (dashDesktop) dashDesktop.onclick = () => openDesktop();
 const dashLaunch = document.getElementById("dashLaunch");
 if (dashLaunch) dashLaunch.onclick = () => openLaunchModal();
 const optionsBack = document.getElementById("optionsBack");
-if (optionsBack) optionsBack.onclick = () => showDash();
+if (optionsBack) optionsBack.onclick = () => leaveSettings();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
 if (searchEngineSelect) {
   searchEngineSelect.addEventListener("change", () => {
@@ -8150,7 +8147,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=63";
+    script.src = REPO_PATH + "anime.min.js?v=64";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8168,11 +8165,14 @@ function motionOff() {
 function fadeIn(el) {
   if (!el || motionOff() || !window.anime || !window.anime.animate) return;
   try {
-    window.anime.animate(el, {
+    const job = window.anime.animate(el, {
       opacity: [0, 1],
       duration: 220,
       ease: "outCubic"
     });
+    const clear = () => { el.style.opacity = ""; };
+    if (job && typeof job.then === "function") job.then(clear);
+    setTimeout(clear, 420);
   } catch (err) {}
 }
 function playDashIntro() {
@@ -8235,7 +8235,7 @@ function setVeilView(view) {
 function showDash() {
   try { closeMenu(); } catch (err) {}
   try { closeHistory(); } catch (err) {}
-  document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope"));
+  document.querySelectorAll(".panel").forEach(value => value.classList.remove("open", "is-options", "is-browser-scope", "is-page"));
   const backdrop = document.getElementById("backdrop");
   if (backdrop) backdrop.classList.remove("open");
   const settingsPanel = document.getElementById("settingsPanel");
@@ -8370,23 +8370,43 @@ function showAdmin() {
   setVeilView("admin");
   fadeIn(document.getElementById("veilStage"));
 }
+let settingsReturn = "dash";
+function leaveSettings() {
+  const panel = document.getElementById("settingsPanel");
+  const backTo = settingsReturn === "browser" ? "browser" : "dash";
+  if (panel) panel.classList.remove("open", "is-page", "is-options", "is-browser-scope");
+  const backdrop = document.getElementById("backdrop");
+  if (backdrop) backdrop.classList.remove("open");
+  if (backTo === "browser") showBrowser();
+  else showDash();
+}
 function openSettings(scope) {
   wallpaperScope = scope === "browser" ? "browser" : "home";
+  settingsReturn = wallpaperScope === "browser" ? "browser" : "dash";
   closeMenu();
   const panel = document.getElementById("settingsPanel");
   if (!panel) return;
   panel.classList.remove("is-browser-scope", "is-options");
+  panel.classList.add("open", "is-page");
   const title = panel.querySelector(".panel-head > span");
   if (title) title.textContent = "Settings";
+  const backdrop = document.getElementById("backdrop");
+  if (backdrop) backdrop.classList.remove("open");
   try { highlightTheme(); } catch (err) {}
-  openPanel("settingsPanel");
+  setVeilView("options");
   try {
     fillWispSelect();
     startLivePings();
     fillChatSettings();
     fillDesktopSettings();
   } catch (err) {}
-  fadeIn(panel);
+  const body = panel.querySelector(".panel-body");
+  if (body && window.anime && window.anime.animate && !motionOff()) {
+    try {
+      window.anime.animate(body, { opacity: [0, 1], duration: 280, ease: "outCubic" });
+      setTimeout(() => { body.style.opacity = ""; }, 400);
+    } catch (err) {}
+  }
 }
 function showOptions() {
   openSettings("home");
