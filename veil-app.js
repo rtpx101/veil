@@ -2136,7 +2136,10 @@ function syncTabPill(host, from) {
 }
 function runTabStripMotion(host, before) {
   const anime = window.anime;
-  if (!host || !anime || !anime.animate || motionOff()) return;
+  if (!host || !anime || !anime.animate || motionOff()) {
+    syncTabPill(host, null);
+    return;
+  }
   const items = Array.from(host.querySelectorAll(".tab"));
   const target = desiredTabWidth(host, items.length);
   const ease = veilSpring(0.32, 400);
@@ -2172,6 +2175,33 @@ function runTabStripMotion(host, before) {
   if (!moved) {
     syncTabPill(host, tabMotionKind === "switch" ? before.get("__active") : null);
     return;
+  }
+  const from = before.get("__active");
+  const active = host.querySelector(".tab.active");
+  if (from && active) {
+    const index = items.indexOf(active);
+    const hostRect = host.getBoundingClientRect();
+    const startLeft = from.left - hostRect.left + host.scrollLeft;
+    const endLeft = Math.max(0, index) * (target + 3);
+    let pill = host.querySelector(".tab-pill");
+    if (!pill) {
+      pill = document.createElement("span");
+      pill.className = "tab-pill";
+      host.insertBefore(pill, host.firstChild);
+    }
+    host.classList.add("has-pill");
+    pill.style.transformOrigin = "left center";
+    pill.style.left = startLeft + "px";
+    pill.style.width = from.width + "px";
+    try {
+      anime.animate(pill, {
+        left: endLeft,
+        width: target,
+        ease: ease
+      });
+    } catch (err) {}
+  } else {
+    syncTabPill(host, null);
   }
   const plus = host.querySelector(".new-tab");
   if (plus) {
@@ -7415,7 +7445,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=77";
+  link.href = BASE + "/veilos.css?v=78";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7426,7 +7456,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=77";
+  script.src = BASE + "/veilos.js?v=78";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8623,7 +8653,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=77";
+    script.src = REPO_PATH + "anime.min.js?v=78";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
