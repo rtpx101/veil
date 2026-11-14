@@ -686,6 +686,15 @@ const DEFAULT_SETTINGS = {
   animMediaSpeed: 1,
   animColorA: "#7aa2ff",
   animColorB: "#b88cff",
+  brAnimEnabled: false,
+  brAnimStyle: "orbs",
+  brBackgroundUrl: "",
+  brAnimSpeed: 1,
+  brAnimCount: 18,
+  brAnimSize: 1,
+  brAnimMediaSpeed: 1,
+  brAnimColorA: "#7aa2ff",
+  brAnimColorB: "#b88cff",
   timeFormat: "12",
   transportMigratedV2: true,
   transportMigratedV3: false,
@@ -882,6 +891,13 @@ function migrateSettings() {
   if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.animStyle)) {
     settings.animStyle = "orbs";
   }
+  if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.brAnimStyle)) {
+    settings.brAnimStyle = "orbs";
+  }
+  if (typeof settings.brBackgroundUrl !== "string") {
+    settings.brBackgroundUrl = "";
+  }
+  if (settings.brAnimEnabled == null) settings.brAnimEnabled = false;
   if (typeof settings.backgroundUrl !== "string") {
     settings.backgroundUrl = "";
   }
@@ -1274,7 +1290,7 @@ function playHomeAnimated(value2, extra) {
         if (path.close) {
           path.close();
         }
-        const msg = Math.max(0.25, Math.min(3, Number(settings.animMediaSpeed) || 1));
+        const msg = Math.max(0.25, Math.min(3, Number(value2.dataset.fxSpeed || settings.animMediaSpeed) || 1));
         link = (link + 1) % addr;
         message.timer = setTimeout(href, Math.max(16, data / 1000 / msg));
       } catch (err) {
@@ -1322,6 +1338,43 @@ function applyNewTabBackground() {
       const color = document.createElement("img");
       color.className = "newtab-media-img";
       color.src = session;
+      color.alt = "";
+      value2.insertBefore(color, value2.firstChild);
+    }
+  });
+  document.querySelectorAll(".newtab-page").forEach(value2 => {
+    const on = !!settings.brAnimEnabled && settings.brAnimStyle === "custom";
+    let url = on ? (settings.brBackgroundUrl || "").trim() : "";
+    if (url.indexOf("veil-file:") === 0) {
+      url = (typeof window.veilOSFileUrl === "function" && window.veilOSFileUrl(url.slice("veil-file:".length))) || "";
+    }
+    stopHomeFrames(value2);
+    value2.querySelectorAll(".newtab-media, .newtab-media-img, .newtab-raster").forEach(value => value.remove());
+    value2.style.backgroundImage = "none";
+    if (!url) return;
+    value2.dataset.fxSpeed = String(settings.brAnimMediaSpeed || 1);
+    if (isVideoUrl(url)) {
+      const file = document.createElement("video");
+      file.className = "newtab-media";
+      file.src = url;
+      file.autoplay = true;
+      file.loop = true;
+      file.muted = true;
+      file.playsInline = true;
+      file.setAttribute("playsinline", "");
+      const rate = () => {
+        try { file.playbackRate = Math.max(0.25, Math.min(3, Number(settings.brAnimMediaSpeed) || 1)); } catch (err) {}
+      };
+      file.addEventListener("loadedmetadata", rate);
+      file.addEventListener("play", rate);
+      value2.insertBefore(file, value2.firstChild);
+      file.play().then(rate).catch(() => {});
+    } else if (/\.(gif|webp)(\?|#|$)/i.test(url)) {
+      playHomeAnimated(value2, url);
+    } else {
+      const color = document.createElement("img");
+      color.className = "newtab-media-img";
+      color.src = url;
       color.alt = "";
       value2.insertBefore(color, value2.firstChild);
     }
@@ -2161,7 +2214,7 @@ function observeHomeScale(value) {
   window.addEventListener("resize", () => fitHomeScale(value));
 }
 function homepageHTML(value) {
-  return '<div class="newtab-page" style="--timebar-h:0px"><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="newtab-sub">Search or enter a site.</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div></div></div></div></div>';
+  return '<div class="newtab-page" style="--timebar-h:0px"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="newtab-sub">Search or enter a site.</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div><div class="quick-links"><button class="quick-link" type="button" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button><button class="quick-link" type="button" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button><button class="quick-link" type="button" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button><button class="quick-link" type="button" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button></div></div></div></div></div>';
 }
 const SETTINGS_INFO = {
   theme: {
@@ -2185,8 +2238,12 @@ const SETTINGS_INFO = {
     body: "Shows the dashboard clock as 24-hour time instead of AM/PM."
   },
   animations: {
-    title: "Live wallpaper",
-    body: "Adds a moving background behind the dashboard. Pick a Veil animation and set its speed, amount, size, and colors, or choose Custom URL for an image, GIF, WebP, or video. A speed slider appears for video, GIF, and WebP."
+    title: "Home wallpaper",
+    body: "Moving background behind the dashboard only. The browser new tab uses Browser wallpaper instead."
+  },
+  browserbg: {
+    title: "Browser wallpaper",
+    body: "Moving background on the browser new tab. It does not change the dashboard."
   },
   screensaver: {
     title: "Screen saver",
@@ -2209,7 +2266,7 @@ const SETTINGS_INFO = {
     body: "When you lock Veil, also close open pages so others cannot see what you were viewing."
   },
   confirmleave: {
-    title: "Leave warning",
+    title: "Close Prevention",
     body: "Asks “are you sure?” before the browser tab is closed or refreshed."
   },
   search: {
@@ -2235,6 +2292,10 @@ const SETTINGS_INFO = {
   engine: {
     title: "Browser engine",
     body: "How Veil connects. Epoxy is the usual choice; try Libcurl if pages get stuck."
+  },
+  refresh: {
+    title: "Refresh Veil",
+    body: "Reloads Veil completely. This works in a normal tab and inside about:blank."
   },
   username: {
     title: "Change username",
@@ -2299,7 +2360,7 @@ function wireHome(value3, extra) {
   applyNewTabBackground();
   startWelcomeClock();
   observeHomeScale(value3);
-  setupHomeFx(value3);
+  setupHomeFx(value3, { browser: true });
   value3.querySelectorAll(".newtab-search").forEach(value2 => {
     value2.addEventListener("keydown", value => {
       if (value.key === "Enter") {
@@ -3396,16 +3457,24 @@ function stopHomeFx(value) {
 }
 function setupHomeFx(value3, extra2) {
   const el = !!extra2 && !!extra2.force;
+  const useBrowser = !!(extra2 && extra2.browser);
+  const fxEnabled = extra2 && extra2.saverColors ? true : useBrowser ? !!settings.brAnimEnabled : !!settings.animEnabled;
+  const fxStyle = (extra2 && extra2.style) || (extra2 && extra2.saverColors ? settings.saverStyle : useBrowser ? settings.brAnimStyle : settings.animStyle) || "orbs";
+  const fxSpeed = extra2 && extra2.saverColors ? settings.saverSpeed : useBrowser ? settings.brAnimSpeed : settings.animSpeed;
+  const fxSize = extra2 && extra2.saverColors ? settings.saverSize : useBrowser ? settings.brAnimSize : settings.animSize;
+  const fxCount = extra2 && extra2.saverColors ? settings.saverCount : useBrowser ? settings.brAnimCount : settings.animCount;
+  const fxColorA = extra2 && extra2.saverColors ? settings.saverColorA : useBrowser ? settings.brAnimColorA : settings.animColorA;
+  const fxColorB = extra2 && extra2.saverColors ? settings.saverColorB : useBrowser ? settings.brAnimColorB : settings.animColorB;
   stopHomeFx(value3);
   const node2 = value3.querySelector("[data-home-fx]");
   if (!node2) {
     return;
   }
-  if (!el && settings.animStyle === "custom") {
+  if (!el && fxStyle === "custom") {
     node2.style.display = "none";
     return;
   }
-  if (!el && (!settings.animEnabled || !COOKIE.consent)) {
+  if (!el && (!fxEnabled || !COOKIE.consent)) {
     node2.style.display = "none";
     return;
   }
@@ -3426,13 +3495,13 @@ function setupHomeFx(value3, extra2) {
     node2.style.height = btn.height + "px";
   };
   item2();
-  let orbs = extra2 && extra2.style || settings.animStyle || "orbs";
+  let orbs = fxStyle;
   if (orbs === "waves" || orbs === "pulse") {
     orbs = "rain";
   }
-  const raw = Math.max(0.25, Math.min(2.5, Number(extra2 && extra2.saverColors ? settings.saverSpeed : settings.animSpeed) || 1));
-  const found2 = Math.max(0.4, Math.min(2.5, Number(extra2 && extra2.saverColors ? settings.saverSize : settings.animSize) || 1));
-  let next2 = Number(extra2 && extra2.saverColors ? settings.saverCount : settings.animCount);
+  const raw = Math.max(0.25, Math.min(2.5, Number(fxSpeed) || 1));
+  const found2 = Math.max(0.4, Math.min(2.5, Number(fxSize) || 1));
+  let next2 = Number(fxCount);
   if (!Number.isFinite(next2)) {
     next2 = 18;
   }
@@ -3500,21 +3569,11 @@ function setupHomeFx(value3, extra2) {
     list2.flash = 0.55 + Math.random() * 0.35;
   };
   function animColor(value) {
-    if (extra2 && extra2.saverColors) {
-      if (value === "a") {
-        return settings.saverColorA || "#7aa2ff";
-      } else {
-        return settings.saverColorB || "#b88cff";
-      }
-    }
-    if (value === "a") {
-      return settings.animColorA || "#7aa2ff";
-    } else {
-      return settings.animColorB || "#b88cff";
-    }
+    if (value === "a") return fxColorA || "#7aa2ff";
+    return fxColorB || "#b88cff";
   }
   const box = () => {
-    if (!el && !settings.animEnabled) {
+    if (!el && !fxEnabled) {
       return;
     }
     const rec = raw * 0.42;
@@ -3731,7 +3790,7 @@ function refreshHomeFxAll() {
     const wrap = value2.dataset.pageId;
     const page = tabs.find(value => value.id === wrap);
     if (page && page.newTab) {
-      setupHomeFx(value2);
+      setupHomeFx(value2, { browser: true });
     }
   });
 }
@@ -4358,6 +4417,23 @@ function highlightTheme() {
       animMediaSpeedVal.textContent = Number(settings.animMediaSpeed || 1).toFixed(2) + "x";
     }
     syncSaverFields();
+    const brOn = document.getElementById("brAnimEnabledSwitch");
+    if (brOn) setSwitch(brOn, !!settings.brAnimEnabled);
+    const brOpts = document.getElementById("brAnimOpts");
+    if (brOpts) brOpts.classList.toggle("enabled", !!settings.brAnimEnabled);
+    const brStyle = document.getElementById("brAnimStyle");
+    if (brStyle) brStyle.value = ["orbs", "stars", "constellation", "rain", "custom"].includes(settings.brAnimStyle) ? settings.brAnimStyle : "orbs";
+    const brUrlRow = document.getElementById("brAnimUrlRow");
+    const brColorRows = document.getElementById("brAnimColorRows");
+    const brCustom = settings.brAnimStyle === "custom";
+    if (brUrlRow) brUrlRow.style.display = brCustom ? "" : "none";
+    if (brColorRows) brColorRows.style.display = brCustom ? "none" : "";
+    const brUrl = document.getElementById("brBackgroundUrl");
+    if (brUrl && document.activeElement !== brUrl) brUrl.value = settings.brBackgroundUrl || "";
+    const brA = document.getElementById("brAnimColorA");
+    const brB = document.getElementById("brAnimColorB");
+    if (brA) brA.value = safeColorValue(settings.brAnimColorA, "#7aa2ff");
+    if (brB) brB.value = safeColorValue(settings.brAnimColorB, "#b88cff");
     paintProfilePreview();
   } catch (err) {
     console.warn("highlightTheme", err);
@@ -4849,31 +4925,33 @@ function openAboutBlank(value2, extra) {
   }
   const kind = location.href.split("#")[0];
   const mode = kind.replace(/"/g, "%22");
-  const force = "<!DOCTYPE html><html><head>" + cloakHead() + "<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}iframe{position:fixed;top:0;left:0;width:100vw;height:100vh;border:none;margin:0;padding:0;display:block;background:#000}</style></head><body><iframe src=\"" + mode + "\"></iframe></body></html>";
+  const force = "<!DOCTYPE html><html><head>" + cloakHead() + "<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#14090b}iframe{position:fixed;top:0;left:0;width:100%;height:100%;border:none;margin:0;padding:0;display:block;background:#14090b}</style></head><body><iframe src=\"" + mode + "\" referrerpolicy=\"no-referrer\"></iframe><script>try{window.name=\"veil-cloak\";}catch(e){}</script></body></html>";
   let immediate;
-  if (value2 === "window") {
-    immediate = window.open("", "", "width=1100,height=700,resizable=yes,scrollbars=yes");
-  } else {
-    immediate = window.open("about:blank");
+  try {
+    immediate = window.open("about:blank", "_blank");
+  } catch (err) {
+    immediate = null;
   }
   if (!immediate) {
     alert("Popup blocked - allow popups for this site.");
     return;
   }
-  const locked = value => {
+  try {
+    immediate.document.open();
+    immediate.document.write(force);
+    immediate.document.close();
+    try { immediate.name = "veil-cloak"; } catch (err) {}
+    pushCloak(immediate);
+    watchCloak(immediate);
+    setTimeout(maybeCloseOrigin, 400);
+  } catch (err) {
+    console.error(err);
     try {
-      immediate.document.open();
-      immediate.document.write(value);
-      immediate.document.close();
-      pushCloak(immediate);
-      watchCloak(immediate);
-      maybeCloseOrigin();
-    } catch (err) {
-      console.error(err);
-      alert("Could not write about:blank shell.");
+      immediate.location.href = kind;
+    } catch (err2) {
+      alert("Could not open the page. Allow popups, then try again.");
     }
-  };
-  locked(force);
+  }
 }
 function openLaunchModal() {
   closeMenu();
@@ -5943,6 +6021,11 @@ function renderChatPage(value3) {
         }
       });
     }
+    const chatHost = value3.parentElement;
+    if (chatHost && chatHost.dataset.chatEnter === "1") {
+      chatHost.dataset.chatEnter = "";
+      playStageIntro(value3, ".chat-setup-card");
+    }
     return;
   }
   chatUnreads.inbox = 0;
@@ -5957,6 +6040,11 @@ function renderChatPage(value3) {
   chatUnreads[currentChatChannel()] = 0;
   paintChatAlerts();
   paintChatLog();
+  const chatHost = value3.parentElement;
+  if (chatHost && chatHost.dataset.chatEnter === "1") {
+    chatHost.dataset.chatEnter = "";
+    playStageIntro(value3, ".chat-app, .chat-setup-card");
+  }
   value3.querySelectorAll("[data-open]").forEach(value => {
     value.onclick = () => {
       chatRoom = value.getAttribute("data-open");
@@ -6874,7 +6962,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=60";
+  link.href = BASE + "/veilos.css?v=61";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6885,7 +6973,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=60";
+  script.src = BASE + "/veilos.js?v=61";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -6948,6 +7036,18 @@ on("animEnabledSwitch", () => {
     return;
   }
   settings.animEnabled = !settings.animEnabled;
+  save();
+  highlightTheme();
+  refreshHomeFxAll();
+});
+on("brAnimEnabledSwitch", () => {
+  if (!COOKIE.consent) {
+    settings.brAnimEnabled = false;
+    highlightTheme();
+    refreshHomeFxAll();
+    return;
+  }
+  settings.brAnimEnabled = !settings.brAnimEnabled;
   save();
   highlightTheme();
   refreshHomeFxAll();
@@ -7028,6 +7128,33 @@ if (animStyle) {
     refreshHomeFxAll();
   });
 }
+const brAnimStyle = document.getElementById("brAnimStyle");
+if (brAnimStyle) {
+  brAnimStyle.addEventListener("change", () => {
+    settings.brAnimStyle = brAnimStyle.value || "orbs";
+    save();
+    highlightTheme();
+    refreshHomeFxAll();
+  });
+}
+const brBackgroundUrl = document.getElementById("brBackgroundUrl");
+if (brBackgroundUrl) {
+  brBackgroundUrl.addEventListener("change", () => {
+    settings.brBackgroundUrl = brBackgroundUrl.value.trim();
+    save();
+    highlightTheme();
+    refreshHomeFxAll();
+  });
+}
+["brAnimColorA", "brAnimColorB"].forEach(id => {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.addEventListener("input", () => {
+    settings[id] = input.value;
+    save();
+    refreshHomeFxAll();
+  });
+});
 on("saverEnabledSwitch", () => {
   settings.saverEnabled = !settings.saverEnabled;
   save();
@@ -7998,7 +8125,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=60";
+    script.src = REPO_PATH + "anime.min.js?v=61";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8117,6 +8244,39 @@ function showEntPane(name) {
     });
   }
 }
+function playStageIntro(root, selector) {
+  if (!root || motionOff()) return;
+  ensureAnime().then(anime => {
+    if (!anime || !anime.animate || !root.isConnected) return;
+    const nodes = root.querySelectorAll(selector);
+    if (!nodes.length) return;
+    try {
+      anime.animate(nodes, {
+        opacity: [0, 1],
+        translateY: [16, 0],
+        delay: anime.stagger(46),
+        duration: 460,
+        ease: "outCubic"
+      });
+    } catch (err) {}
+  });
+}
+function confirmDevArea(next) {
+  const old = document.querySelector(".veil-devgate");
+  if (old) old.remove();
+  const nodes = document.createElement("div");
+  nodes.className = "modal-overlay veil-devgate";
+  nodes.innerHTML = "<div class=\"modal-box\" role=\"dialog\" aria-modal=\"true\"><h2>Veil</h2><p>This part of Veil is still under development, so bugs may occur. Continue?</p><div class=\"modal-actions\"><button type=\"button\" class=\"modal-cancel\" data-dev-return>Return</button><button type=\"button\" class=\"primary-btn\" data-dev-go>Continue</button></div></div>";
+  document.body.appendChild(nodes);
+  nodes.querySelector("[data-dev-return]").onclick = () => {
+    nodes.remove();
+    showDash();
+  };
+  nodes.querySelector("[data-dev-go]").onclick = () => {
+    nodes.remove();
+    next();
+  };
+}
 function showEntertainment() {
   const stage = document.getElementById("veilStage");
   const title = document.getElementById("stageTitle");
@@ -8130,6 +8290,8 @@ function showEntertainment() {
   }
   showEntPane("games");
   setVeilView("entertainment");
+  const gamesRoot = body && body.querySelector("#gamesRoot");
+  if (gamesRoot && gamesRoot.dataset.ready === "1") playStageIntro(gamesRoot, ".games-hero, .games-header, .games-section");
   fadeIn(stage);
 }
 function showChat() {
@@ -8139,6 +8301,7 @@ function showChat() {
   if (title) title.textContent = "Chat";
   if (sw) sw.hidden = true;
   if (body) {
+    body.dataset.chatEnter = "1";
     body.innerHTML = '<div class="chat-page" id="chatRoot"></div>';
     try { renderChatPage(body.querySelector("#chatRoot")); } catch (err) {}
     try { bootChatLink(); } catch (err) {}
@@ -8196,8 +8359,8 @@ function wireDash() {
       if (!tile || tile.disabled || tile.classList.contains("dash-soon")) return;
       const which = tile.getAttribute("data-dash");
       if (which === "browser") showBrowser();
-      else if (which === "entertainment") showEntertainment();
-      else if (which === "chat") showChat();
+      else if (which === "entertainment") confirmDevArea(showEntertainment);
+      else if (which === "chat") confirmDevArea(showChat);
       else if (which === "options") showOptions();
     });
   }
@@ -8934,6 +9097,8 @@ async function renderGamesPage(value3) {
     query: ""
   };
   value3._gamesState = piece;
+  value3.dataset.ready = "1";
+  playStageIntro(value3, ".games-hero, .games-header, .games-section");
   paintGamesLists(value3, piece);
   let chunk = 0;
   let bits = false;

@@ -1,5 +1,18 @@
 (function () {
   try {
+    var hostDoc = window.parent && window.parent !== window ? window.parent.document : null;
+    if (hostDoc) {
+      var from = window.parent.getComputedStyle(hostDoc.documentElement);
+      var root = document.documentElement;
+      ["--bg", "--bg2", "--panel", "--panel2", "--border", "--text", "--muted", "--accent"].forEach(function (name) {
+        var value = from.getPropertyValue(name);
+        if (value && value.trim()) root.style.setProperty(name, value.trim());
+      });
+      var accentText = from.getPropertyValue("--accentText");
+      if (accentText && accentText.trim()) root.style.setProperty("--accent-text", accentText.trim());
+    }
+  } catch (err) {}
+  try {
     var params = new URLSearchParams(location.search);
     if (params.get("worker")) {
       localStorage.setItem("veil_worker_url", params.get("worker").replace(/\/$/, ""));

@@ -845,7 +845,8 @@ body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-tile img{width:42px;height:42px;object-fit:contain;display:block;filter:invert(var(--page-icon-invert,1))}
 .dash-label{font-size:clamp(15px,1.7vw,20px);font-weight:720;letter-spacing:-.02em}
 .dash-tile .chat-alert{top:14px;right:14px}
-.dash-tile.dash-soon{opacity:.34;cursor:default}
+.dash-tile.dash-soon{opacity:.38;cursor:default}
+.dash-note{font-size:11px;font-weight:650;letter-spacing:.04em;color:var(--muted)}
 @media (hover:hover){
   .dash-tile:not(.dash-soon):hover{transform:translateY(-2px);border-color:var(--accent)}
 }
@@ -881,11 +882,14 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .ent-empty strong{color:var(--text);font-size:18px;font-weight:720;letter-spacing:-.02em}
 .stage-body > .chat-page{height:100%}
 #optionsBack{display:none}
-#settingsPanel.is-options{inset:0;width:100%;max-width:none;border-left:0}
+#settingsPanel.open{inset:0;width:100%;max-width:none;height:100%;border-left:0;background:var(--bg);transform:none}
+#settingsPanel.open .panel-head{margin:16px 16px 0;padding:0 14px;height:64px;border:1px solid var(--border);border-radius:22px;background:var(--panel)}
+#settingsPanel.open .settings-tabs{margin:14px 16px 0;border:1px solid var(--border);border-radius:22px;background:var(--panel);padding:0 8px}
+#settingsPanel.open .panel-body{max-width:none;width:auto;margin:14px 16px 16px;padding:22px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
+#settingsPanel.open .preset-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
 #settingsPanel.is-options #optionsBack{display:inline-flex}
 #settingsPanel.is-options [data-close-panel]{display:none}
 #settingsPanel.is-browser-scope .settings-tab:not([data-settings-tab="custom"]):not([data-settings-tab="browser"]){display:none !important}
-#settingsPanel.is-options .panel-body{max-width:760px;width:100%;margin:0 auto}
 @media (max-width:760px){
   .veil-dash{padding:10px;gap:10px}
   .dash-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;overflow:auto}
@@ -1046,7 +1050,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=60", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=61", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1130,9 +1134,9 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
   <div class="dash-grid">
     <button type="button" class="dash-tile" data-dash="browser"><img src="image/globe2.svg" alt=""><span class="dash-label">Browser</span></button>
     <button type="button" class="dash-tile" data-dash="entertainment"><img src="image/blocks.svg" alt=""><span class="dash-label">Entertainment</span></button>
-    <button type="button" class="dash-tile dash-soon" data-dash="toolbox" disabled><img src="image/util.svg" alt=""><span class="dash-label">Toolbox</span></button>
+    <button type="button" class="dash-tile dash-soon" data-dash="toolbox" disabled><img src="image/util.svg" alt=""><span class="dash-label">Toolbox</span><span class="dash-note">Under Development</span></button>
     <button type="button" class="dash-tile" data-dash="chat"><span class="chat-alert" data-chat-alert></span><img src="image/chat.svg" alt=""><span class="dash-label">Chat</span></button>
-    <button type="button" class="dash-tile dash-soon" data-dash="ai" disabled><img src="image/ai.svg" alt=""><span class="dash-label">AI</span></button>
+    <button type="button" class="dash-tile dash-soon" data-dash="ai" disabled><img src="image/ai.svg" alt=""><span class="dash-label">AI</span><span class="dash-note">Under Development</span></button>
     <button type="button" class="dash-tile" data-dash="options"><img src="image/settings.svg" alt=""><span class="dash-label">Options</span></button>
   </div>
   <footer class="dash-foot">
@@ -1248,14 +1252,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
       </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">24-hour time <button type="button" class="info-btn" data-info="time24" title="About this option" aria-label="About 24-hour time"><img src="image/info.svg" alt=""></button></div>
-      <div class="switch-row">
-        <span class="switch-label">Use 24-hour clock</span>
-        <button type="button" class="switch" id="time24Switch" role="switch" aria-checked="false"></button>
-      </div>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Live wallpaper <button type="button" class="info-btn" data-info="animations" title="About this option" aria-label="About Live wallpaper"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Home wallpaper <button type="button" class="info-btn" data-info="animations" title="About this option" aria-label="About Home wallpaper"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Enable animations</span>
         <button type="button" class="switch" id="animEnabledSwitch" role="switch" aria-checked="false"></button>
@@ -1372,7 +1369,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
       </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Leave warning <button type="button" class="info-btn" data-info="confirmleave" title="About this option" aria-label="About Leave warning"><img src="image/info.svg" alt=""></button></div>
+      <div class="setting-title">Close Prevention <button type="button" class="info-btn" data-info="confirmleave" title="About this option" aria-label="About Close Prevention"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Ask before closing the tab</span>
         <button type="button" class="switch" id="confirmLeaveSwitch" role="switch" aria-checked="false"></button>
@@ -1381,6 +1378,31 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     </div>
 
     <div class="settings-page" data-settings-page="browser">
+    <section class="setting-section">
+      <div class="setting-title">Browser wallpaper <button type="button" class="info-btn" data-info="browserbg" title="About this option" aria-label="About Browser wallpaper"><img src="image/info.svg" alt=""></button></div>
+      <div class="switch-row">
+        <span class="switch-label">Enable on the new tab page</span>
+        <button type="button" class="switch" id="brAnimEnabledSwitch" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="anim-opts" id="brAnimOpts">
+        <div class="input-row" style="margin-top:10px"><label class="input-label">Style</label>
+          <select class="text-input" id="brAnimStyle">
+            <option value="orbs">Floating orbs</option>
+            <option value="stars">Twinkling stars</option>
+            <option value="constellation">Constellation</option>
+            <option value="rain">Rain & storms</option>
+            <option value="custom">Custom URL</option>
+          </select>
+        </div>
+        <div id="brAnimUrlRow" style="display:none">
+          <div class="input-row"><input class="text-input" id="brBackgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
+        </div>
+        <div id="brAnimColorRows">
+          <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="brAnimColorA" value="#7aa2ff"></div>
+          <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="brAnimColorB" value="#b88cff"></div>
+        </div>
+      </div>
+    </section>
     <section class="setting-section">
       <div class="setting-title">Search engine <button type="button" class="info-btn" data-info="search" title="About this option" aria-label="About Search engine"><img src="image/info.svg" alt=""></button></div>
       <select class="text-input" id="searchEngineSelect">
@@ -1417,8 +1439,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
       <div class="status" id="engineStatus">Libcurl</div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Refresh Veil</div>
-      <p class="hint">Reloads Veil completely. This works in a normal tab and inside about:blank.</p>
+      <div class="setting-title">Refresh Veil <button type="button" class="info-btn" data-info="refresh" title="About this option" aria-label="About Refresh Veil"><img src="image/info.svg" alt=""></button></div>
       <button class="primary-btn" id="veilRefreshBtn" type="button">Refresh Veil</button>
     </section>
     </div>
@@ -1539,7 +1560,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=60" defer></script>
-<script src="access-gate.js?v=60"></script>
+<script src="anime.min.js?v=61" defer></script>
+<script src="access-gate.js?v=61"></script>
 </body>
 </html>
