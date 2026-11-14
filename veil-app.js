@@ -4988,8 +4988,8 @@ on("veilRefreshBtn", refreshVeil);
 on("backBtn", goBack);
 on("forwardBtn", goForward);
 on("refreshBtn", reload);
-on("homeBtn", () => showDash());
-on("settingsOpenBtn", () => showOptions());
+on("dashExitBtn", () => showDash());
+on("settingsOpenBtn", () => openBrowserSettings());
 on("bookmarkBtn", toggleBookmark);
 document.getElementById("address").addEventListener("keydown", value => {
   if (value.key === "Enter") {
@@ -6964,7 +6964,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=64";
+  link.href = BASE + "/veilos.css?v=65";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6975,7 +6975,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=64";
+  script.src = BASE + "/veilos.js?v=65";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7009,6 +7009,8 @@ const dashLaunch = document.getElementById("dashLaunch");
 if (dashLaunch) dashLaunch.onclick = () => openLaunchModal();
 const optionsBack = document.getElementById("optionsBack");
 if (optionsBack) optionsBack.onclick = () => leaveSettings();
+const optionsExit = document.getElementById("optionsExit");
+if (optionsExit) optionsExit.onclick = () => leaveSettings("dash");
 const searchEngineSelect = document.getElementById("searchEngineSelect");
 if (searchEngineSelect) {
   searchEngineSelect.addEventListener("change", () => {
@@ -8147,7 +8149,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=64";
+    script.src = REPO_PATH + "anime.min.js?v=65";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8250,8 +8252,12 @@ function showBrowser() {
   try { renderChrome(); } catch (err) {}
   requestAnimationFrame(() => {
     try {
+      applyNewTabBackground();
       document.querySelectorAll(".page").forEach(page => {
-        if (page.querySelector(".newtab-page")) fitHomeScale(page);
+        if (page.querySelector(".newtab-page")) {
+          fitHomeScale(page);
+          setupHomeFx(page, { browser: true });
+        }
       });
     } catch (err) {}
   });
@@ -8371,9 +8377,9 @@ function showAdmin() {
   fadeIn(document.getElementById("veilStage"));
 }
 let settingsReturn = "dash";
-function leaveSettings() {
+function leaveSettings(force) {
   const panel = document.getElementById("settingsPanel");
-  const backTo = settingsReturn === "browser" ? "browser" : "dash";
+  const backTo = force === "browser" || force === "dash" ? force : settingsReturn === "browser" ? "browser" : "dash";
   if (panel) panel.classList.remove("open", "is-page", "is-options", "is-browser-scope");
   const backdrop = document.getElementById("backdrop");
   if (backdrop) backdrop.classList.remove("open");
@@ -8392,6 +8398,8 @@ function openSettings(scope) {
   if (title) title.textContent = "Settings";
   const backdrop = document.getElementById("backdrop");
   if (backdrop) backdrop.classList.remove("open");
+  const back = document.getElementById("optionsBack");
+  if (back) back.title = settingsReturn === "browser" ? "Back to browser" : "Back to dashboard";
   try { highlightTheme(); } catch (err) {}
   setVeilView("options");
   try {

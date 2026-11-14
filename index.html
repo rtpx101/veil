@@ -100,6 +100,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .nav-buttons{display:flex;gap:2px;flex:0 0 auto}
 .tool-btn,.menu-btn,.address-bookmark{background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .tool-btn,.menu-btn{width:34px;height:34px;border-radius:8px}
+.exit-btn{width:auto;padding:0 12px;font-size:12px;font-weight:700;letter-spacing:.01em}
 .tool-btn:hover,.menu-btn:hover,.address-bookmark:hover{background:var(--panel2);color:var(--text)}
 .tool-btn:disabled{opacity:.28;cursor:default}
 .icon{width:17px;height:17px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
@@ -885,7 +886,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .admin-frame{width:100%;height:100%;min-height:100%;border:0;background:var(--bg);display:block}
 .veil-devgate .modal-actions{display:flex;align-items:stretch;gap:10px;margin-top:16px}
 .veil-devgate .modal-actions button{flex:1;width:auto;height:44px;margin:0;border-radius:12px;font-size:14px;font-weight:650}
-#optionsBack{display:none}
+#optionsBack,#optionsExit{display:none}
 #settingsPanel.is-page.open{
   inset:0;left:0;top:0;right:0;width:100%;height:100%;max-height:none;
   border:0;border-radius:0;background:var(--bg);transform:none;box-shadow:none;
@@ -896,6 +897,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 #settingsPanel.is-page.open .panel-body{flex:1;min-height:0;width:min(760px,calc(100% - 32px));max-width:760px;margin:14px auto 16px;padding:22px;border:1px solid var(--border);border-radius:22px;background:var(--bg)}
 #settingsPanel.is-page.open .preset-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 #settingsPanel.is-page #optionsBack{display:inline-flex}
+#settingsPanel.is-page #optionsExit{display:inline-flex;width:auto;height:32px;padding:0 12px;font-size:13px;font-weight:700}
 #settingsPanel.is-page [data-close-panel]{display:none}
 @media (max-width:760px){
   .veil-dash{padding:10px;gap:10px}
@@ -1057,7 +1059,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=64", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=65", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1180,7 +1182,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
         <button class="tool-btn" id="backBtn" title="Back"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
         <button class="tool-btn" id="forwardBtn" title="Forward"><span class="icon" style="--i:url('image/forward.svg')"></span></button>
         <button class="tool-btn" id="refreshBtn" title="Refresh"><span class="icon" style="--i:url('image/refresh.svg')"></span></button>
-        <button class="tool-btn" id="homeBtn" title="Dashboard"><span class="icon" style="--i:url('image/home.svg')"></span></button>
+        <button class="tool-btn exit-btn" id="dashExitBtn" type="button" title="Exit to dashboard">Exit</button>
       </div>
       <div class="address-wrap">
         <span class="address-icon"></span>
@@ -1218,7 +1220,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 <div class="backdrop" id="backdrop"></div>
 
 <aside class="panel" id="settingsPanel">
-  <div class="panel-head"><button type="button" class="close-panel" id="optionsBack" title="Back"><img src="image/backward.svg" alt=""></button><span>Settings</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
+  <div class="panel-head"><button type="button" class="close-panel" id="optionsBack" title="Back"><img src="image/backward.svg" alt=""></button><span>Settings</span><button type="button" class="close-panel" id="optionsExit" title="Exit to dashboard">Exit</button><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
   <div class="settings-tabs" role="tablist">
     <button type="button" class="settings-tab active" data-settings-tab="custom" role="tab">Customization</button>
     <button type="button" class="settings-tab" data-settings-tab="privacy" role="tab">Privacy</button>
@@ -1542,7 +1544,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 
 </div>
 
-<script src="anime.min.js?v=64" defer></script>
-<script src="access-gate.js?v=64"></script>
+<script src="anime.min.js?v=65" defer></script>
+<script src="access-gate.js?v=65"></script>
 </body>
 </html>
