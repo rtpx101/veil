@@ -2214,7 +2214,7 @@ function observeHomeScale(value) {
   window.addEventListener("resize", () => fitHomeScale(value));
 }
 function homepageHTML(value) {
-  return '<div class="newtab-page" style="--timebar-h:0px"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="newtab-sub">Search or enter a site.</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div><div class="quick-links"><button class="quick-link" type="button" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button><button class="quick-link" type="button" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button><button class="quick-link" type="button" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button><button class="quick-link" type="button" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button></div></div></div></div></div>';
+  return '<div class="newtab-page" style="--timebar-h:0px"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay"><div class="newtab-stage"><div class="newtab-center"><div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div><div class="newtab-title">Veil</div><div class="newtab-sub">Search or enter a site.</div><div class="search-row"><div class="search-box" style="width:100%"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + value + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false"></div></div><div class="quick-links"><button class="quick-link" type="button" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button><button class="quick-link" type="button" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button><button class="quick-link" type="button" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button><button class="quick-link" type="button" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button></div><div class="quick-links row2"><button class="quick-link quick-exit" type="button" data-dash-exit title="Exit to dashboard">Exit</button></div></div></div></div></div>';
 }
 const SETTINGS_INFO = {
   theme: {
@@ -2384,10 +2384,10 @@ function wireHome(value3, extra) {
       openGamesPage();
     });
   });
-  value3.querySelectorAll(".quick-link[data-chat]").forEach(value2 => {
+  value3.querySelectorAll("[data-dash-exit]").forEach(value2 => {
     value2.addEventListener("click", value => {
       value.preventDefault();
-      openChatPage();
+      showDash();
     });
   });
   const launchOptionsBtn = value3.querySelector("#launchOptionsBtn");
@@ -4988,7 +4988,7 @@ on("veilRefreshBtn", refreshVeil);
 on("backBtn", goBack);
 on("forwardBtn", goForward);
 on("refreshBtn", reload);
-on("dashExitBtn", () => showDash());
+on("homeBtn", () => goHome());
 on("settingsOpenBtn", () => openBrowserSettings());
 on("bookmarkBtn", toggleBookmark);
 document.getElementById("address").addEventListener("keydown", value => {
@@ -6964,7 +6964,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=65";
+  link.href = BASE + "/veilos.css?v=66";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -6975,7 +6975,7 @@ function openDesktop() {
   };
   document.head.appendChild(link);
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=65";
+  script.src = BASE + "/veilos.js?v=66";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7009,8 +7009,6 @@ const dashLaunch = document.getElementById("dashLaunch");
 if (dashLaunch) dashLaunch.onclick = () => openLaunchModal();
 const optionsBack = document.getElementById("optionsBack");
 if (optionsBack) optionsBack.onclick = () => leaveSettings();
-const optionsExit = document.getElementById("optionsExit");
-if (optionsExit) optionsExit.onclick = () => leaveSettings("dash");
 const searchEngineSelect = document.getElementById("searchEngineSelect");
 if (searchEngineSelect) {
   searchEngineSelect.addEventListener("change", () => {
@@ -8149,7 +8147,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=65";
+    script.src = REPO_PATH + "anime.min.js?v=66";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
