@@ -43,16 +43,16 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js?v=8",
+  all: BASE + "/scramjet/scramjet.all.js?v=9",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
-const BAREMUX_SCRIPT = BASE + "/baremux/index.js?v=5";
+const BAREMUX_SCRIPT = BASE + "/baremux/index.js?v=6";
 const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=6";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=18";
+const SW_URL = BASE + "/sw.js?v=19";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -204,6 +204,7 @@ function exposeBarePort() {
     }
   });
 }
+window.__veilMintBarePort = mintBarePort;
 exposeBarePort();
 function tellWorkerMuxReady() {
   const note = { type: "veil-mux-ready" };
@@ -1802,6 +1803,49 @@ function trapFrameExternalOpens(value2, extra2) {
     list();
   } catch (err) {}
 }
+function sorryQueryOf(url) {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)google\.[a-z.]+$/i.test(u.hostname) || u.pathname.indexOf("/sorry") !== 0) return null;
+    let q = "";
+    try { q = new URL(u.searchParams.get("continue") || "").searchParams.get("q") || ""; } catch (err) {}
+    return { q: q };
+  } catch (err) {
+    return null;
+  }
+}
+function veilSorryWatch(tab, url) {
+  if (!tab) return;
+  const page = document.querySelector(".page[data-page-id=\"" + tab.id + "\"]");
+  if (!page) return;
+  const old = page.querySelector(".veil-sorry-bar");
+  const hit = sorryQueryOf(url);
+  if (!hit) {
+    if (old) old.remove();
+    return;
+  }
+  if (old || tab.__sorryDismissed === url) return;
+  const bar = document.createElement("div");
+  bar.className = "veil-sorry-bar";
+  bar.setAttribute("role", "status");
+  bar.innerHTML = "<p><b>Google wants to check you're not a robot.</b>Google often blocks proxy traffic, so this check may not finish here. You can search somewhere else instead.</p><div class=\"veil-sorry-acts\"><button type=\"button\" class=\"primary\" data-sorry=\"duckduckgo\">Search DuckDuckGo</button><button type=\"button\" data-sorry=\"bing\">Bing</button><button type=\"button\" data-sorry-x aria-label=\"Dismiss\">✕</button></div>";
+  bar.addEventListener("click", event => {
+    const btn = event.target.closest("button");
+    if (!btn) return;
+    if (btn.hasAttribute("data-sorry-x")) {
+      tab.__sorryDismissed = url;
+      springClose(bar, () => bar.remove());
+      return;
+    }
+    const engine = SEARCH_ENGINES[btn.getAttribute("data-sorry")];
+    if (!engine) return;
+    bar.remove();
+    activeTabId = tab.id;
+    const dest = hit.q ? engine.prefix + encodeURIComponent(hit.q) : engine.prefix.replace(/[?&][^?&]*=$/, "").replace(/\/search$/, "/");
+    navigate(dest);
+  });
+  page.appendChild(bar);
+}
 function bindFrameEvents(value2, extra) {
   const raw = extra.element || extra.frame || extra;
   const found = value => {
@@ -1813,6 +1857,7 @@ function bindFrameEvents(value2, extra) {
     value2.url = setting;
     value2.newTab = false;
     value2.favicon = faviconFor(setting);
+    try { veilSorryWatch(value2, setting); } catch (err) {}
     if (!Array.isArray(value2.history)) {
       value2.history = [];
     }
@@ -2783,7 +2828,7 @@ function showActiveOnly() {
       session.style.pointerEvents = "";
       if (veilPageFade && window.anime && window.anime.animate && !motionOff()) {
         try {
-          window.anime.animate(session, { opacity: [0, 1], duration: 280, ease: "outCubic" });
+          if (!veilSpringIn(session, "settle", { bounce: 0.4, force: true })) window.anime.animate(session, { opacity: [0, 1], duration: 280, ease: "outCubic" });
         } catch (err) {
           session.style.opacity = "";
         }
@@ -4753,8 +4798,8 @@ function lockVeil(resume, opts) {
       if (card && window.anime.spring) {
         window.anime.animate(card, {
           opacity: [0, 1],
-          scale: [0.97, 1],
-          ease: window.anime.spring({ bounce: 0.28, duration: 520 })
+          scale: [0.9, 1],
+          ease: window.anime.spring({ bounce: 0.46, duration: 560 })
         });
       }
     } catch (err) {
@@ -7507,8 +7552,8 @@ function presentMenu(menu, left, top, origin) {
     try {
       menu._veilMotion = window.anime.animate(menu, {
         opacity: [0, 1],
-        scale: [0.97, 1],
-        ease: window.anime.spring({ bounce: 0.2, duration: 380 })
+        scale: [0.9, 1],
+        ease: window.anime.spring({ bounce: 0.42, duration: 520 })
       });
     } catch (err) {
       menu.style.opacity = "1";
@@ -7638,7 +7683,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=95";
+  link.href = BASE + "/veilos.css?v=96";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7650,7 +7695,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=95";
+  script.src = BASE + "/veilos.js?v=96";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8907,6 +8952,177 @@ function fadeIn(el) {
     setTimeout(clear, 420);
   } catch (err) {}
 }
+const VEIL_TAB_FEEL = { bounce: 0.46, duration: 560 };
+function veilMotionOk() {
+  const anime = window.anime;
+  return !!(anime && anime.animate && anime.spring && !motionOff());
+}
+function veilClearMotion(el, keepTransition) {
+  if (!el || !el.style) return;
+  const prev = el.__veilPrev || {};
+  el.__veilPrev = null;
+  el.style.opacity = prev.opacity || "";
+  el.style.transform = prev.transform || "";
+  el.style.scale = prev.scale || "";
+  el.style.translate = prev.translate || "";
+  if (!keepTransition && el.__veilTransition != null) {
+    el.style.transition = el.__veilTransition;
+    el.__veilTransition = null;
+  }
+}
+const VEIL_KINDS = {
+  pop: { opacity: [0, 1], scale: [0.9, 1] },
+  rise: { opacity: [0, 1], translateY: [14, 0], scale: [0.97, 1] },
+  settle: { opacity: [0, 1], scale: [0.985, 1] },
+  drop: { opacity: [0, 1], translateY: [-8, 0], scale: [0.94, 1] },
+  lift: { opacity: [0, 1], translateY: [24, 0] },
+  side: { opacity: [0, 1], translateX: [18, 0] },
+  nudge: { scale: [0.96, 1] }
+};
+function veilSpringIn(el, kind, opts) {
+  if (!el || !el.isConnected || !veilMotionOk()) return null;
+  opts = opts || {};
+  const now = performance.now();
+  if (!opts.force && el.__veilInAt && now - el.__veilInAt < 260) return null;
+  el.__veilInAt = now;
+  const anime = window.anime;
+  if (el._veilIn && el._veilIn.cancel) {
+    try { el._veilIn.cancel(); } catch (err) {}
+  }
+  if (!el.__veilPrev) el.__veilPrev = { opacity: el.style.opacity === "0" ? "" : el.style.opacity, transform: el.style.transform, scale: el.style.scale, translate: el.style.translate };
+  if (el.__veilTransition == null) {
+    el.__veilTransition = el.style.transition || "";
+    const keep = opts.keep || "";
+    el.style.transition = keep || "none";
+  }
+  const spec = Object.assign({}, VEIL_KINDS[kind] || VEIL_KINDS.pop);
+  spec.ease = veilSpring(opts.bounce == null ? VEIL_TAB_FEEL.bounce : opts.bounce, opts.duration || VEIL_TAB_FEEL.duration);
+  if (opts.delay) spec.delay = opts.delay;
+  let job = null;
+  try {
+    job = anime.animate(el, spec);
+  } catch (err) {
+    veilClearMotion(el);
+    return null;
+  }
+  el._veilIn = job;
+  let done = false;
+  const end = () => {
+    if (done) return;
+    done = true;
+    if (el._veilIn !== job) return;
+    el._veilIn = null;
+    try { if (job && job.cancel) job.cancel(); } catch (err) {}
+    veilClearMotion(el);
+  };
+  if (job && typeof job.then === "function") job.then(end);
+  // Springs settle a little after their nominal duration; this is only a safety net.
+  setTimeout(end, (opts.duration || VEIL_TAB_FEEL.duration) * 2.5 + (opts.delay || 0) + 400);
+  return job;
+}
+function veilStaggerIn(nodes, kind, opts) {
+  if (!veilMotionOk()) return;
+  opts = opts || {};
+  const list = Array.prototype.filter.call(nodes || [], el => el && el.getClientRects && el.getClientRects().length).slice(0, opts.max || 14);
+  list.forEach((el, index) => {
+    veilSpringIn(el, kind, Object.assign({}, opts, { delay: (opts.base || 0) + index * (opts.step || 32), force: true }));
+  });
+}
+window.veilMotion = { ok: veilMotionOk, spring: veilSpring, in: veilSpringIn, stagger: veilStaggerIn, clear: veilClearMotion, feel: VEIL_TAB_FEEL };
+const VEIL_AUTO_ADD = [
+  [".modal-overlay > .modal-box, .cookie-overlay > .modal-box, .cookie-overlay > .cookie-box, .signup-overlay > .signup-card, .game-player-overlay > .game-player", "pop"],
+  [".chat-card", "drop"],
+  [".vos-mu-pop", "drop"],
+  [".page-loader-card", "pop"],
+  [".sp-pop", "drop"],
+  [".engine-error-box", "pop"],
+  [".veil-sorry-bar", "drop"],
+];
+const VEIL_AUTO_ON = [
+  [".settings-page.active", "rise", el => el.classList.contains("active")],
+  [".vos-startmenu.is-open", "rise", el => el.classList.contains("is-open")],
+  [".vos-ctx:not([hidden])", "drop", el => !el.hidden],
+  [".vos-store-detail:not([hidden])", "rise", el => !el.hidden],
+  [".veil-toast.show", "rise", el => el.classList.contains("show")],
+  [".chat-add:not([hidden])", "rise", el => !el.hidden]
+];
+function veilAutoMotion() {
+  if (window.__veilAutoMotion || typeof MutationObserver !== "function") return;
+  window.__veilAutoMotion = true;
+  const root = document.documentElement;
+  const sync = () => { root.classList.toggle("veil-spring", veilMotionOk()); };
+  sync();
+  try {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (mq.addEventListener) mq.addEventListener("change", sync);
+  } catch (err) {}
+  ensureAnime().then(sync);
+  const inTabs = el => !!(el.closest && el.closest("#tabs, .tabs"));
+  const visit = node => {
+    if (!node || node.nodeType !== 1 || inTabs(node)) return;
+    VEIL_AUTO_ADD.forEach(([sel, kind]) => {
+      if (node.matches && node.matches(sel)) veilSpringIn(node, kind);
+      if (node.querySelectorAll && node.childElementCount) node.querySelectorAll(sel).forEach(el => veilSpringIn(el, kind));
+    });
+    VEIL_AUTO_ON.forEach(([sel, kind]) => {
+      if (node.matches && node.matches(sel)) veilSpringIn(node, kind);
+    });
+  };
+  const obs = new MutationObserver(list => {
+    if (!veilMotionOk()) return;
+    for (let i = 0; i < list.length; i++) {
+      const rec = list[i];
+      if (rec.type === "childList") {
+        for (let j = 0; j < rec.addedNodes.length; j++) visit(rec.addedNodes[j]);
+        continue;
+      }
+      const el = rec.target;
+      if (!el || inTabs(el)) continue;
+      for (let k = 0; k < VEIL_AUTO_ON.length; k++) {
+        const [sel, kind, on] = VEIL_AUTO_ON[k];
+        const was = rec.oldValue || "";
+        if (!el.matches(sel) || !on(el)) continue;
+        if (rec.attributeName === "class") {
+          const token = sel.split(".").pop().split(/[:\[]/)[0];
+          if ((" " + was + " ").indexOf(" " + token + " ") !== -1) continue;
+        }
+        veilSpringIn(el, kind);
+      }
+      if (rec.attributeName === "class" && el.classList.contains("panel") && el.classList.contains("open") && !/\bopen\b/.test(rec.oldValue || "")) {
+        const body = el.querySelector(".panel-body") || el;
+        veilStaggerIn(body.children, "side", { base: 70, step: 28, max: 10 });
+      }
+      if (rec.attributeName === "class" && el.classList.contains("menu") && el.classList.contains("open") && !/\bopen\b/.test(rec.oldValue || "")) {
+        veilStaggerIn(el.querySelectorAll(".menu-item"), "side", { base: 40, step: 18, max: 12, bounce: 0.4, duration: 480 });
+      }
+    }
+  });
+  obs.observe(document.body || root, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ["class", "hidden"] });
+  const pressSel = "button, [role=button], .vos-taskbtn, .vos-startitem";
+  const nudgeOwn = ".dash-tile, .quick-link, .dash-ico, .stage-back, .preset, .tab, .new-tab";
+  document.addEventListener("pointerdown", event => {
+    if (!veilMotionOk() || event.button) return;
+    const el = event.target && event.target.closest && event.target.closest(pressSel);
+    if (!el || el.disabled || inTabs(el) || el.matches(nudgeOwn) || el.closest(nudgeOwn) || el._veilScale != null || el.closest(".sp-dock, .sp-lyric-frame, .sp-pop")) return;
+    if (el.offsetWidth > 360 || el.offsetHeight > 220) return;
+    try {
+      if (el._veilPress && el._veilPress.cancel) el._veilPress.cancel();
+      el._veilPress = window.anime.animate(el, { "--veil-press": 0.95, ease: veilSpring(0.2, 220) });
+    } catch (err) {}
+    const release = () => {
+      document.removeEventListener("pointerup", release, true);
+      document.removeEventListener("pointercancel", release, true);
+      try {
+        if (el._veilPress && el._veilPress.cancel) el._veilPress.cancel();
+        el._veilPress = window.anime.animate(el, { "--veil-press": 1, ease: veilSpring(0.58, 620) });
+      } catch (err) {}
+    };
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+  }, { passive: true, capture: true });
+}
+if (document.body) veilAutoMotion();
+else document.addEventListener("DOMContentLoaded", veilAutoMotion);
 function playDashIntro() {
   if (dashIntroPlayed || motionOff()) {
     dashIntroPlayed = true;
@@ -8918,10 +9134,9 @@ function playDashIntro() {
     try {
       anime.animate(".dash-tile", {
         opacity: [0, 1],
-        scale: [0.96, 1],
-        delay: anime.stagger(28),
-        duration: 320,
-        ease: anime.spring ? anime.spring({ bounce: 0.22, duration: 320 }) : "outCubic"
+        scale: [0.9, 1],
+        delay: anime.stagger(36),
+        ease: anime.spring ? anime.spring({ bounce: 0.46, duration: 560 }) : "outCubic"
       });
       setTimeout(() => {
         document.querySelectorAll(".dash-tile").forEach(el => {
@@ -8930,7 +9145,7 @@ function playDashIntro() {
           el.style.scale = "";
           el.style.translate = "";
         });
-      }, 640);
+      }, 1100);
     } catch (err) {}
   };
   if (window.anime) run(window.anime);
@@ -9133,7 +9348,7 @@ function showEntPane(name) {
       anime.animate(next, {
         opacity: [0, 1],
         translateX: [dir * 42, 0],
-        ease: anime.spring ? anime.spring({ bounce: 0.28, duration: 560 }) : "outCubic"
+        ease: anime.spring ? anime.spring({ bounce: 0.44, duration: 580 }) : "outCubic"
       });
     } catch (err) {}
     setTimeout(() => {
@@ -9398,7 +9613,7 @@ function moveStagePill(name, animate) {
     anime.animate(pill, {
       left: left,
       width: width,
-      ease: anime.spring({ bounce: 0.28, duration: 420 })
+      ease: anime.spring({ bounce: 0.32, duration: 560 })
     });
   } catch (err) {
     pill.style.left = left + "px";
@@ -9468,7 +9683,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=95";
+      script.src = BASE + "/veilos.js?v=96";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9545,7 +9760,8 @@ function buildEntMusic(pane, api) {
     }
     const from = el._veilScale || 1;
     try {
-      el._veilGlide = anime.animate(el, { scale: [from, scale], ease: veilSpring(0.15, 680) });
+      const pressing = scale < 1 && scale < from;
+      el._veilGlide = anime.animate(el, { scale: [from, scale], ease: pressing ? veilSpring(0.2, 280) : veilSpring(scale >= from ? 0.42 : 0.3, 620) });
       el._veilScale = scale;
     } catch (err) {}
   }
@@ -9617,6 +9833,25 @@ function buildEntMusic(pane, api) {
     }
     box.innerHTML = ui.lines.map((line, index) => '<p class="sp-line" data-i="' + index + '" data-t="' + line.t + '">' + escapeHTML(line.text || "…") + "</p>").join("");
   }
+  function lyricQueryOf(track) {
+    let title = String(track.title || "");
+    let artist = String(track.author || "").replace(/\s*-\s*topic$/i, "").replace(/vevo$/i, "").replace(/\s*official$/i, "").trim();
+    title = title.replace(/\s*[\(\[][^\)\]]*(official|video|audio|lyric|visuali[sz]er|remaster|hd|4k|explicit|clean|live|mv)[^\)\]]*[\)\]]/gi, "");
+    title = title.replace(/\s*\|.*$/, "").replace(/\s+(ft\.?|feat\.?|featuring)\s.*$/i, "");
+    const dash = title.split(/\s+[-–—]\s+/);
+    if (dash.length >= 2) {
+      const left = dash[0].trim();
+      if (!artist || left.toLowerCase().indexOf(artist.toLowerCase()) !== -1 || artist.toLowerCase().indexOf(left.toLowerCase()) !== -1) {
+        artist = artist || left;
+        title = dash.slice(1).join(" - ");
+      } else if (!artist) {
+        artist = left;
+        title = dash.slice(1).join(" - ");
+      }
+    }
+    title = title.replace(/["“”]/g, "").trim() || String(track.title || "");
+    return { title: title, artist: artist };
+  }
   function loadLyrics(track) {
     const box = lyricBox();
     if (!box) return;
@@ -9631,8 +9866,20 @@ function buildEntMusic(pane, api) {
     ui.lines = [];
     ui.line = -1;
     box.innerHTML = '<div class="sp-lyric-empty">Loading lyrics…</div>';
-    const query = new URLSearchParams({ track_name: track.title || "", artist_name: track.author || "" });
-    fetch("https://lrclib.net/api/get?" + query.toString()).then(res => res.ok ? res.json() : null).then(data => {
+    const clean = lyricQueryOf(track);
+    const query = new URLSearchParams({ track_name: clean.title, artist_name: clean.artist });
+    if (track.seconds) query.set("duration", String(Math.round(track.seconds)));
+    const getOne = url => fetch(url).then(res => res.ok ? res.json() : null).catch(() => null);
+    const pick = rows => {
+      if (!Array.isArray(rows) || !rows.length) return null;
+      const near = row => !track.seconds || !row.duration || Math.abs(row.duration - track.seconds) < 8;
+      return rows.find(row => row.syncedLyrics && near(row)) || rows.find(row => row.syncedLyrics) || rows.find(row => row.plainLyrics) || null;
+    };
+    getOne("https://lrclib.net/api/get?" + query.toString()).then(data => {
+      if (data && (data.syncedLyrics || data.plainLyrics)) return data;
+      const q = new URLSearchParams({ q: (clean.title + " " + clean.artist).trim() });
+      return getOne("https://lrclib.net/api/search?" + q.toString()).then(pick);
+    }).then(data => {
       if (ui.lyricFor !== track.id) return;
       let lines = [];
       const synced = data && data.syncedLyrics;
@@ -9718,7 +9965,7 @@ function buildEntMusic(pane, api) {
     if (top < 8) top = box.bottom + 8;
     pop.style.left = left + "px";
     pop.style.top = top + "px";
-    spring(pop, 0.96, 1, 0.28, 420);
+    veilSpringIn(pop, "drop", { force: true });
     const close = event2 => {
       if (pop.contains(event2.target)) return;
       pop.remove();
@@ -9834,7 +10081,7 @@ function buildEntMusic(pane, api) {
     scanExplicit(main);
     const anime = window.anime;
     if (animate && anime && anime.animate && !motionOff()) {
-      try { anime.animate(main.firstElementChild || main, { opacity: [0, 1], translateY: [10, 0], ease: veilSpring(0.28, 520) }); } catch (err) {}
+      try { anime.animate(main.firstElementChild || main, { opacity: [0, 1], translateY: [14, 0], ease: veilSpring(0.46, 560) }); } catch (err) {}
     }
   }
   function paintBar() {
@@ -9945,7 +10192,7 @@ function buildEntMusic(pane, api) {
       const dx = old.left - now.left;
       const dy = old.top - now.top;
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-      try { anime.animate(el, { translateX: [dx, 0], translateY: [dy, 0], ease: veilSpring(0.32, 520) }); } catch (err) {}
+      try { anime.animate(el, { translateX: [dx, 0], translateY: [dy, 0], ease: veilSpring(0.38, 540) }); } catch (err) {}
     });
   }
   function full(animate) {

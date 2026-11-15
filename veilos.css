@@ -1005,6 +1005,7 @@ html[data-mode="light"] .vos-startitem img{filter:none}
 @keyframes vosIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes vosBar{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
+html.veil-spring .vos-mu-pop,html.veil-spring .vos-store-detail:not([hidden]){animation:none}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

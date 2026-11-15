@@ -1961,7 +1961,10 @@
     if (win.file) paintFile(win);
     win.running = true;
     win.el.classList.remove("is-closed", "is-min", "is-closing", "is-minimizing");
-    if (hidden && motionOn) {
+    var vm = window.veilMotion;
+    if (hidden && motionOn && vm && vm.ok()) {
+      vm.in(win.el, "rise", { force: true, bounce: 0.42, duration: 580 });
+    } else if (hidden && motionOn) {
       win.el.classList.add("is-opening");
       void win.el.offsetWidth;
       requestAnimationFrame(function () {
@@ -3552,7 +3555,10 @@
   }
   var musicPushTimer = 0;
   var musicPushGen = 0;
-  var MUSIC_INV = ["https://echostreamz.com", "https://yt.chocolatemoo53.com", "https://inv.nadeko.net", "https://invidious.tiekoetter.com", "https://yt.omada.cafe", "https://invidious.schenkel.eti.br"];
+  // Checked Nov 2026: only these Invidious hosts still answer /api/v1/search from a browser.
+  // inv.nadeko.net (403 endpoint disabled), invidious.tiekoetter.com (403), yt.omada.cafe (503)
+  // and invidious.schenkel.eti.br (403) were dropped so search stops waiting on dead hosts.
+  var MUSIC_INV = ["https://echostreamz.com", "https://yt.chocolatemoo53.com"];
   var MUSIC_SEARCH = ["https://api.piped.private.coffee", "https://pipedapi.ducks.party"];
   function musicSlimTrack(track) {
     if (!track || !track.id) return null;
@@ -3721,15 +3727,29 @@
       }
     });
   }
-  function musicFetchJson(urls) {
+  function musicFetchOne(url, ms) {
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { try { ctl.abort(); } catch (err) {} }, ms || 7000) : 0;
+    return fetch(url, { headers: { "Accept": "application/json" }, signal: ctl ? ctl.signal : undefined }).then(function (res) {
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }).then(function (data) {
+      clearTimeout(timer);
+      return data;
+    }, function (err) {
+      clearTimeout(timer);
+      throw err;
+    });
+  }
+  function musicFetchJson(urls, usable) {
     var i = 0;
     function next() {
       if (i >= urls.length) return Promise.reject(new Error("offline"));
       var url = urls[i];
       i += 1;
-      return fetch(url, { headers: { "Accept": "application/json" } }).then(function (res) {
-        if (!res.ok) throw new Error(String(res.status));
-        return res.json();
+      return musicFetchOne(url, 7000).then(function (data) {
+        if (usable && !usable(data)) throw new Error("empty");
+        return data;
       }).catch(function () { return next(); });
     }
     return next();
@@ -3747,67 +3767,36 @@
       local: false
     });
   }
-  function musicDiscover(id, job) {
-    fetch("https://echostreamz.com/api/v1/videos/" + encodeURIComponent(id), { headers: { "Accept": "application/json" } }).then(function (res) {
-      if (!res.ok) throw new Error(String(res.status));
-      return res.json();
-    }).then(function (data) {
-      if (!musicState || musicState.failovers !== job || job.ok || job.done || !data) return;
-      var tags = [];
-      function add(itag, audio) {
-        itag = Number(itag);
-        if (!itag || tags.indexOf(itag) !== -1) return;
-        if (audio) tags.unshift(itag);
-        else tags.push(itag);
-      }
-      (data.adaptiveFormats || []).forEach(function (fmt) {
-        if (/^audio\//.test(String(fmt.type || fmt.mimeType || ""))) add(fmt.itag, true);
-      });
-      (data.formatStreams || []).forEach(function (fmt) { add(fmt.itag, false); });
-      var extra = [];
-      tags.forEach(function (itag) {
-        var next = "https://echostreamz.com/latest_version?id=" + encodeURIComponent(id) + "&itag=" + itag + "&local=true";
-        if (job.urls.indexOf(next) === -1) extra.push(next);
-      });
-      if (!extra.length) return;
-      job.urls = job.urls.slice(0, job.i + 1).concat(extra, job.urls.slice(job.i + 1));
-      if (!job.ok && musicState.audio && musicState.audio.readyState < 1) musicBump(job, job.i, musicState.audio);
-    }).catch(function () {});
-  }
-  function musicDiscoverPiped(id, job) {
-    var hosts = ["https://api.piped.private.coffee", "https://pipedapi.ducks.party"];
+  function musicPipedFallback(job) {
+    // One-shot last resort after every echostreamz stream failed. Never loops:
+    // each host is asked once per song, and only when the song couldn't play.
+    if (!job || job.piped) return Promise.resolve(false);
+    job.piped = true;
+    var hosts = MUSIC_SEARCH.slice();
     var n = 0;
     function step() {
-      if (n >= hosts.length) return;
+      if (n >= hosts.length) return Promise.resolve(false);
       var host = hosts[n];
       n += 1;
-      fetch(host + "/streams/" + encodeURIComponent(id), { headers: { "Accept": "application/json" } }).then(function (res) {
-        if (!res.ok) throw new Error(String(res.status));
-        return res.json();
-      }).then(function (data) {
-        if (!musicState || musicState.failovers !== job || job.done || !data) return;
+      return musicFetchOne(host + "/streams/" + encodeURIComponent(job.id), 8000).then(function (data) {
         var extra = [];
         function push(url) {
           if (!url || /googlevideo\.com/i.test(url)) return;
           if (job.urls.indexOf(url) !== -1 || extra.indexOf(url) !== -1) return;
           extra.push(url);
         }
-        (data.videoStreams || []).forEach(function (fmt) {
-          if (fmt.videoOnly) return;
-          if (fmt.itag === 18 || fmt.itag === 22) push(fmt.url);
-        });
-        (data.audioStreams || []).forEach(function (fmt) {
+        (data && data.audioStreams || []).forEach(function (fmt) {
           if (/audio\/(mp4|webm|mpeg)/i.test(String(fmt.mimeType || ""))) push(fmt.url);
         });
-        if (!extra.length) {
-          step();
-          return;
-        }
-        job.urls = job.urls.slice(0, job.i + 1).concat(extra, job.urls.slice(job.i + 1));
-        if (!job.ok && musicState.audio && musicState.audio.readyState < 1) musicBump(job, job.i, musicState.audio);
-      }).catch(function () { step(); });
+        (data && data.videoStreams || []).forEach(function (fmt) {
+          if (!fmt.videoOnly && (fmt.itag === 18 || fmt.itag === 22)) push(fmt.url);
+        });
+        if (!extra.length) return step();
+        job.urls = job.urls.concat(extra);
+        return true;
+      }).catch(function () { return step(); });
     }
-    step();
+    return step();
   }
   function musicStreamUrls(id, itags) {
     var idQ = encodeURIComponent(id);
@@ -3817,10 +3806,15 @@
       urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true");
     });
     urls.push(host + "/latest_version?id=" + idQ + "&itag=18");
+    // echostreamz's companion throws random 500s under load; one delayed retry of the
+    // first format rescues most of those before we fall back to Piped.
+    urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itags[0] + "&local=true&retry=1");
     return urls;
   }
   function musicAudioUrls(id) {
-    return musicStreamUrls(id, [18, 140, 251, 250]);
+    // 140 (m4a) plays everywhere and reports a real length, so seeking works; 251 (opus)
+    // is the fast fallback; 18 is the muxed mp4 that almost every video still has.
+    return musicStreamUrls(id, [140, 251, 18]);
   }
   function musicVideoUrls(id) {
     return musicStreamUrls(id, [18, 22]);
@@ -3833,6 +3827,15 @@
     job.echoWait = false;
     job.i = attempt + 1;
     if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
+    var nextUrl = job.urls[job.i] || "";
+    if (/[?&]retry=1/.test(nextUrl)) {
+      musicStatus("Retrying…");
+      job.timer = setTimeout(function () {
+        job.timer = 0;
+        musicKick(audio, job.id);
+      }, 1500);
+      return;
+    }
     musicKick(audio, job.id);
   }
   function musicRetryEcho() {
@@ -3954,6 +3957,8 @@
         else heart.classList.toggle("on", musicLiked(track.id));
         row.querySelector(".meta").onclick = function () {
           musicState.queue = rows.slice();
+          musicState.userPick = true;
+          musicState.skips = 0;
           musicPlay(index);
         };
         heart.onclick = function (e) {
@@ -4071,8 +4076,34 @@
     if (!job || job.id !== id || job.done || job.ok) return;
     if (!musicCurrent() || musicCurrent().id !== id) return;
     if (job.i >= job.urls.length) {
+      if (!job.piped) {
+        job.busy = true;
+        musicStatus("Trying another source…");
+        musicPipedFallback(job).then(function (more) {
+          if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
+          if (more && job.i < job.urls.length) {
+            musicKick(audio, id);
+            return;
+          }
+          musicKick(audio, id);
+        });
+        return;
+      }
       job.done = true;
       job.busy = false;
+      var queueLen = (musicState.queue || []).length;
+      musicState.skips = (musicState.skips || 0) + 1;
+      if (queueLen > 1 && musicState.skips < 4 && !musicState.userPick) {
+        musicStatus("That song isn't available right now. Skipping…");
+        musicPaint();
+        var from = musicState.index;
+        setTimeout(function () {
+          if (!musicState || musicState.failovers !== job || musicState.index !== from) return;
+          musicPlay(from + 1);
+        }, 1400);
+        return;
+      }
+      musicState.skips = 0;
       musicStatus("Couldn't play that song. Try another.");
       musicPaint();
       return;
@@ -4092,12 +4123,15 @@
         job.timer = 0;
         job.busy = false;
         job.ok = true;
+        musicState.skips = 0;
         musicStatus("");
         musicPaint();
         return;
       }
       var waited = Date.now() - job.started;
-      var limit = audio.readyState >= 1 ? 4000 : 1200;
+      // echostreamz takes 1-3s to answer (two redirects), so the old 1.2s cutoff
+      // abandoned streams that were about to start and burned through every fallback.
+      var limit = audio.readyState >= 1 ? 9000 : 12000;
       if (waited > limit) {
         musicBump(job, attempt, audio);
         return;
@@ -4202,6 +4236,7 @@
       }
       var last = musicState.index >= musicState.queue.length - 1;
       if (last && musicState.repeat !== "all") return;
+      musicState.userPick = false;
       musicPlay(musicState.index + 1);
     });
   }
@@ -4240,7 +4275,11 @@
     var urls = [];
     MUSIC_SEARCH.forEach(function (host) { urls.push(host + "/search?q=" + qEnc + "&filter=music_songs"); });
     MUSIC_INV.forEach(function (host) { urls.push(host + "/api/v1/search?q=" + qEnc + "&type=video"); });
-    return musicFetchJson(urls).then(function (data) {
+    return musicFetchJson(urls, function (data) {
+      var list = Array.isArray(data) ? data : ((data && data.items) || []);
+      for (var k = 0; k < list.length; k++) if (musicTrackFrom(list[k])) return true;
+      return false;
+    }).then(function (data) {
       if (slot === "artistResults" && musicState.artistQuery !== q) return [];
       var items = Array.isArray(data) ? data : ((data && data.items) || []);
       var tracks = [];
@@ -4315,8 +4354,8 @@
       var track = musicCurrent();
       if (track) musicToggleLike(track);
     };
-    root.querySelector("[data-prev]").onclick = function () { musicPlay((musicState.index || 0) - 1); };
-    root.querySelector("[data-next]").onclick = function () { musicPlay((musicState.index || 0) + 1); };
+    root.querySelector("[data-prev]").onclick = function () { musicState.userPick = false; musicPlay((musicState.index || 0) - 1); };
+    root.querySelector("[data-next]").onclick = function () { musicState.userPick = false; musicPlay((musicState.index || 0) + 1); };
     root.querySelector("[data-play]").onclick = function () {
       if (!audio.src) {
         var rows = musicQueue();
@@ -4375,6 +4414,8 @@
     play: function (tracks, index) {
       musicBoot();
       musicState.queue = (tracks || []).slice();
+      musicState.userPick = true;
+      musicState.skips = 0;
       musicPlay(index || 0);
     },
     toggle: function () {
@@ -4385,8 +4426,8 @@
       if (audio.paused) audio.play().then(function () { musicPaint(); }).catch(function () {});
       else { audio.pause(); musicPaint(); }
     },
-    prev: function () { musicBoot(); musicPlay((musicState.index || 0) - 1); },
-    next: function () { musicBoot(); musicPlay((musicState.index || 0) + 1); },
+    prev: function () { musicBoot(); musicState.userPick = false; musicPlay((musicState.index || 0) - 1); },
+    next: function () { musicBoot(); musicState.userPick = false; musicPlay((musicState.index || 0) + 1); },
     seek: function (ratio) {
       musicBoot();
       var audio = musicState.audio;

@@ -722,13 +722,13 @@
     var warmup = window.__veilBootWork && typeof window.__veilBootWork.then === "function" ? window.__veilBootWork.catch(function () {}) : Promise.resolve();
     warmup.then(function () {
       setBootSub("Loading connection…");
-      return loadScript("baremux/index.js?v=5");
+      return loadScript("baremux/index.js?v=6");
     }).then(function () {
       setBootSub("Loading engine…");
-      return loadScript("scramjet/scramjet.all.js");
+      return loadScript("scramjet/scramjet.all.js?v=9");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=95");
+      return loadScript("veil-app.js?v=96");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);
