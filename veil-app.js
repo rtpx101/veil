@@ -1038,6 +1038,7 @@ function loadSavedData() {
       if (href) {
         visitHistory = JSON.parse(href) || [];
       }
+      tidyStoredTitles();
     } catch {}
   } catch (err) {
     console.warn("load failed", err);
@@ -1504,6 +1505,57 @@ function openInVeilTab(value) {
   createTab(true);
   navigate(target);
 }
+function junkTitle(title) {
+  const text = String(title || "").replace(/\s+/g, " ").trim();
+  return !text || /^(loading|scramjet|about:blank|new tab|undefined|null)$/i.test(text);
+}
+function hostLabel(url) {
+  try {
+    const host = new URL(url, location.href).hostname.replace(/^www\./, "");
+    return host || String(url || "");
+  } catch (err) {
+    return String(url || "");
+  }
+}
+function prettyTitle(title, url) {
+  const text = String(title || "").replace(/\s+/g, " ").trim();
+  if (!junkTitle(text) && text !== url) return text.slice(0, 180);
+  return hostLabel(url) || "Page";
+}
+function tidyStoredTitles() {
+  let changed = false;
+  (visitHistory || []).forEach(item => {
+    if (!item) return;
+    const next = prettyTitle(item.title, item.url);
+    if (item.title !== next) {
+      item.title = next;
+      changed = true;
+    }
+  });
+  (bookmarks || []).forEach(item => {
+    if (!item) return;
+    const next = prettyTitle(item.title, item.url);
+    if (item.title !== next) {
+      item.title = next;
+      changed = true;
+    }
+  });
+  if (changed) {
+    try { save(); } catch (err) {}
+  }
+}
+function markScramjetError(href) {
+  let tab = null;
+  try { tab = tabForFault(href); } catch (err) {}
+  if (!tab && typeof getActiveTab === "function") tab = getActiveTab();
+  if (!tab || tab.newTab) return;
+  tab.title = "Error";
+  const item = (visitHistory || []).find(value => value && value.url === tab.url);
+  if (item) item.title = hostLabel(tab.url) || item.title;
+  try { save(); } catch (err) {}
+  try { renderTabs(); } catch (err) {}
+  try { renderHistory(); } catch (err) {}
+}
 function titleIsJustHost(value, extra) {
   try {
     const password = new URL(extra).hostname.replace(/^www\./, "").toLowerCase();
@@ -1546,6 +1598,14 @@ function applyRealPageTitle(value, extra, other) {
   }
   if (!other && titleIsJustHost(clientId, value.url)) {
     return false;
+  }
+  if (/^scramjet$/i.test(clientId)) {
+    value.title = "Error";
+    const locked = visitHistory.find(item => item.url === value.url);
+    if (locked) locked.title = hostLabel(value.url) || locked.title;
+    try { save(); } catch (err) {}
+    renderTabs();
+    return true;
   }
   if (value.title === clientId) {
     return true;
@@ -1775,6 +1835,7 @@ function bindFrameEvents(value2, extra) {
         const recovering = doc && doc.querySelector("meta[name=\"veil-recover\"]");
         if (looksLikeHyperDump(text)) {
           wipeHyperDump(doc);
+          try { markScramjetError(value2.url); } catch (err) {}
           onTransportFault(value2.url);
         } else if (recovering) {
           onTransportFault(value2.url);
@@ -1933,6 +1994,12 @@ function tabForFault(url) {
 }
 function showSoftNavFail(tab) {
   if (!tab) return;
+  tab.title = "Error";
+  const item = (visitHistory || []).find(value => value && value.url === tab.url);
+  if (item && junkTitle(item.title)) item.title = hostLabel(tab.url) || item.title;
+  try { save(); } catch (err) {}
+  try { renderTabs(); } catch (err) {}
+  try { renderHistory(); } catch (err) {}
   finishPageLoader(tab);
   const frame = tab.engineFrame;
   const el = frame && (frame.element || frame.frame || frame);
@@ -2030,6 +2097,7 @@ function scanHyperDumps(win, depth) {
     wipeHyperDump(doc);
     let href = "";
     try { href = win.location && win.location.href || ""; } catch (err) {}
+    try { markScramjetError(href); } catch (err) {}
     onTransportFault(href);
     return;
   }
@@ -2885,7 +2953,7 @@ async function navigate(value2) {
   link.isAdmin = false;
   link.favicon = faviconFor(href);
   link.title = "Loading";
-  pushVisitHistory(href, link.title);
+  pushVisitHistory(href, prettyTitle("", href));
   if (!Array.isArray(link.history)) {
     link.history = [];
   }
@@ -3079,7 +3147,7 @@ function pushVisitHistory(value2, extra) {
     visitHistory.unshift({
       id: uid(),
       url: maxAge,
-      title: extra || maxAge,
+      title: prettyTitle(extra, maxAge),
       at: Date.now()
     });
     if (visitHistory.length > 200) {
@@ -3103,8 +3171,22 @@ function renderHistory() {
     locked.className = "history-item";
     const show = document.createElement("a");
     show.href = "#";
-    show.textContent = value2.title || value2.url;
-    show.title = value2.url;
+    const title = prettyTitle(value2.title, value2.url);
+    const fav = document.createElement("img");
+    fav.className = "history-fav";
+    fav.alt = "";
+    fav.src = faviconFor(value2.url);
+    const copy = document.createElement("span");
+    copy.className = "history-copy";
+    const name = document.createElement("b");
+    name.textContent = title;
+    const url = document.createElement("small");
+    url.textContent = value2.url || "";
+    copy.appendChild(name);
+    copy.appendChild(url);
+    show.appendChild(fav);
+    show.appendChild(copy);
+    show.title = value2.url || "";
     show.onclick = value => {
       value.preventDefault();
       closeHistory();
@@ -3314,7 +3396,7 @@ function toggleBookmark() {
   } else {
     bookmarks.push({
       id: uid(),
-      title: session.title || session.url,
+      title: prettyTitle(session.title, session.url),
       url: session.url
     });
   }
@@ -3328,7 +3410,7 @@ function renderBookmarks() {
     bookmarkList.innerHTML = "<div class=\"empty\">No bookmarks yet.</div>";
     return;
   }
-  bookmarkList.innerHTML = bookmarks.map(value => "<div class=\"bookmark-row\"><div class=\"bookmark-main\" data-open-bookmark=\"" + escapeHTML(value.url) + "\"><div class=\"bookmark-title\">" + escapeHTML(value.title) + "</div><div class=\"bookmark-url\">" + escapeHTML(value.url) + "</div></div><button class=\"bookmark-delete\" data-delete-bookmark=\"" + escapeHTML(value.id) + "\" type=\"button\" aria-label=\"Remove\" title=\"Remove\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div>").join("");
+  bookmarkList.innerHTML = bookmarks.map(value => "<div class=\"bookmark-row\"><img class=\"bookmark-fav\" alt=\"\" src=\"" + escapeHTML(faviconFor(value.url)) + "\"><div class=\"bookmark-main\" data-open-bookmark=\"" + escapeHTML(value.url) + "\"><div class=\"bookmark-title\">" + escapeHTML(prettyTitle(value.title, value.url)) + "</div><div class=\"bookmark-url\">" + escapeHTML(value.url) + "</div></div><button class=\"bookmark-delete\" data-delete-bookmark=\"" + escapeHTML(value.id) + "\" type=\"button\" aria-label=\"Remove\" title=\"Remove\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></button></div>").join("");
   bookmarkList.querySelectorAll("[data-open-bookmark]").forEach(value => value.onclick = () => {
     closePanels();
     navigate(value.dataset.openBookmark);
@@ -7524,7 +7606,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=90";
+  link.href = BASE + "/veilos.css?v=91";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7536,7 +7618,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=90";
+  script.src = BASE + "/veilos.js?v=91";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8734,7 +8816,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=90";
+    script.src = REPO_PATH + "anime.min.js?v=91";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -8887,7 +8969,9 @@ function setVeilView(view) {
       const stage = document.getElementById("veilStage");
       if (stage) stage.querySelectorAll("video").forEach(video => video.pause());
     } catch (err) {}
+    try { if (window.__veilCloseVideo) window.__veilCloseVideo(true); } catch (err) {}
   }
+  try { if (window.__veilSyncDock) window.__veilSyncDock(); } catch (err) {}
 }
 function quietSettingsPanel() {
   const panel = document.getElementById("settingsPanel");
@@ -9031,6 +9115,10 @@ function showEntPane(name) {
     }, 580);
   }
   if (name === "music" && next) mountEntMusic(next);
+  else if (name !== "music") {
+    try { if (window.__veilCloseVideo) window.__veilCloseVideo(true); } catch (err) {}
+  }
+  try { if (window.__veilSyncDock) window.__veilSyncDock(); } catch (err) {}
   requestAnimationFrame(() => moveStagePill(name, !first));
 }
 function moveSettingsPill(animate) {
@@ -9295,7 +9383,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=90";
+      script.src = BASE + "/veilos.js?v=91";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9320,17 +9408,34 @@ function mountEntMusic(pane) {
   });
 }
 function buildEntMusic(pane, api) {
-  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: {}, query: "", cover: "", animFold: "", lines: [], line: -1, lyricFor: "", videoWasPlaying: false };
+  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: {}, query: "", cover: "", animFold: "", foldDir: "", lines: [], line: -1, lyricFor: "", videoWasPlaying: false, explicit: {} };
   function iconCss(file) {
     return encodeURI(IMG + file).replace(/\(/g, "%28").replace(/\)/g, "%29");
   }
   function ico(file, cls) {
     return '<span class="sp-ico' + (cls ? " " + cls : "") + '" style="--ico:url(' + iconCss(file) + ')"></span>';
   }
-  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-lyrics" data-lyrics><div class="sp-lyric-empty">Lyrics show up when a song is playing.</div></div><div class="sp-lyric-credit">Provided by Musixmatch</div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button><button type="button" data-prev aria-label="Previous">' + ico("rewind.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + ico("play.svg") + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("fast.svg") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-video aria-label="Music video">' + ico("video.svg") + '</button><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer><div class="sp-video" data-video-panel hidden><div class="sp-video-card"><button type="button" class="sp-x" data-video-close aria-label="Close">' + ico("exit.svg") + '</button><video data-video-el playsinline controls></video><div class="sp-video-status" data-video-status></div></div></div></div>';
+  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-label">Queue</div><div class="sp-queue" data-queue></div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button><button type="button" data-prev aria-label="Previous">' + ico("rewind.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + ico("play.svg") + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-video aria-label="Music video">' + ico("video.svg") + '</button><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer><div class="sp-video" data-video-panel hidden><div class="sp-video-card"><button type="button" class="sp-x" data-video-close aria-label="Close">' + ico("exit.svg") + '</button><video data-video-el playsinline controls></video><div class="sp-video-status" data-video-status></div></div></div></div>';
   const root = pane.querySelector(".sp");
   const side = root.querySelector("[data-side]");
   const main = root.querySelector("[data-main]");
+  const videoPanel = root.querySelector("[data-video-panel]");
+  if (videoPanel) {
+    document.querySelectorAll("body > .sp-video").forEach(el => {
+      if (el !== videoPanel) el.remove();
+    });
+    document.body.appendChild(videoPanel);
+  }
+  let lyricFrame = document.getElementById("spLyricFrame");
+  if (!lyricFrame) {
+    lyricFrame = document.createElement("div");
+    lyricFrame.id = "spLyricFrame";
+    lyricFrame.className = "sp-lyric-frame";
+    lyricFrame.hidden = true;
+    document.body.appendChild(lyricFrame);
+  }
+  lyricFrame.innerHTML = '<div class="sp-lyric-bg" data-lyric-bg></div><div class="sp-lyric-scrim"></div><button type="button" class="sp-x" data-lyric-close aria-label="Close">' + ico("exit.svg") + '</button><div class="sp-lyrics" data-lyrics><div class="sp-lyric-empty">Lyrics show up when a song is playing.</div></div><div class="sp-lyric-credit">Provided by Musixmatch</div>';
+  const lyricBox = () => lyricFrame.querySelector("[data-lyrics]");
   const lib = () => api.lib() || { playlists: [], folders: [], liked: [] };
   const albumOf = id => (lib().playlists || []).find(item => item.id === id) || null;
   const folderOf = id => (lib().folders || []).find(item => item.id === id) || null;
@@ -9361,8 +9466,49 @@ function buildEntMusic(pane, api) {
     }
     return null;
   }
+  function expMark(track) {
+    const on = !!(track && (ui.explicit[track.id] === true || /\bexplicit\b/i.test(track.title || "")));
+    return '<i class="sp-exp" data-exp="' + escapeHTML(track && track.id || "") + '"' + (on ? "" : " hidden") + ">" + ico("explicit.svg") + "</i>";
+  }
+  function checkExplicit(track) {
+    if (!track || track.local || !track.id || ui.explicit[track.id] != null) return;
+    if (/\bexplicit\b/i.test(track.title || "")) {
+      ui.explicit[track.id] = true;
+      return;
+    }
+    ui.explicit[track.id] = false;
+    const query = new URLSearchParams({ term: ((track.title || "") + " " + (track.author || "")).slice(0, 120), entity: "song", limit: "5" });
+    fetch("https://itunes.apple.com/search?" + query.toString()).then(res => res.ok ? res.json() : null).then(data => {
+      const wantT = String(track.title || "").toLowerCase().slice(0, 18);
+      const wantA = String(track.author || "").toLowerCase().split(/\s+/)[0] || "";
+      const rows = data && data.results || [];
+      const hit = rows.find(item => {
+        const name = String(item.trackName || "").toLowerCase();
+        const artist = String(item.artistName || "").toLowerCase();
+        return wantT && name.indexOf(wantT.slice(0, 8)) !== -1 && (!wantA || artist.indexOf(wantA) !== -1);
+      });
+      const yes = !!(hit && hit.trackExplicitness === "explicit");
+      ui.explicit[track.id] = yes;
+      if (!yes) return;
+      document.querySelectorAll("[data-exp]").forEach(el => {
+        if (el.getAttribute("data-exp") === track.id) el.hidden = false;
+      });
+    }).catch(() => {});
+  }
+  function scanExplicit(scope) {
+    const nodes = (scope || root).querySelectorAll("[data-exp]");
+    let n = 0;
+    nodes.forEach(el => {
+      if (n > 10) return;
+      const id = el.getAttribute("data-exp");
+      if (!id || ui.explicit[id] != null) return;
+      n += 1;
+      const track = trackById(id);
+      if (track) checkExplicit(track);
+    });
+  }
   function renderLyrics(lines) {
-    const box = root.querySelector("[data-lyrics]");
+    const box = lyricBox();
     if (!box) return;
     ui.lines = lines || [];
     ui.line = -1;
@@ -9373,7 +9519,7 @@ function buildEntMusic(pane, api) {
     box.innerHTML = ui.lines.map((line, index) => '<p class="sp-line" data-i="' + index + '" data-t="' + line.t + '">' + escapeHTML(line.text || "…") + "</p>").join("");
   }
   function loadLyrics(track) {
-    const box = root.querySelector("[data-lyrics]");
+    const box = lyricBox();
     if (!box) return;
     if (!track || track.local) {
       ui.lyricFor = "";
@@ -9414,7 +9560,7 @@ function buildEntMusic(pane, api) {
     for (let i = 0; i < lines.length; i++) if (lines[i].t <= time + 0.15) index = i;
     if (index === ui.line) return;
     ui.line = index;
-    const box = root.querySelector("[data-lyrics]");
+    const box = lyricBox();
     if (!box) return;
     const nodes = box.querySelectorAll(".sp-line");
     nodes.forEach((el, i) => {
@@ -9496,16 +9642,18 @@ function buildEntMusic(pane, api) {
     const on = nowId && nowId === track.id ? " is-on" : "";
     const drag = ui.page === "album" ? "true" : "false";
     const time = track.seconds ? api.clock(track.seconds) : "";
-    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + '</span>' + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><b>' + escapeHTML(track.title || "Untitled") + '</b><small data-artist="' + escapeHTML(track.author || "") + '">' + escapeHTML(track.author || "") + '</small></span></button><span class="sp-time">' + time + '</span>' + (extra || "") + '</div>';
+    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + '</span>' + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><span class="sp-titleline"><b>' + escapeHTML(track.title || "Untitled") + "</b>" + expMark(track) + '</span><small data-artist="' + escapeHTML(track.author || "") + '">' + escapeHTML(track.author || "") + '</small></span></button><span class="sp-time">' + time + '</span>' + (extra || "") + '</div>';
   }
   function paintSide() {
     const data = lib();
-    let html = '<button type="button" class="sp-nav' + (ui.page === "home" ? " on" : "") + '" data-go="home">Home</button><button type="button" class="sp-nav' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">Liked songs</button><div class="sp-tools"><button type="button" data-new="album">Album</button><button type="button" data-new="folder">Folder</button></div><div class="sp-label">Library</div>';
+    let html = '<button type="button" class="sp-nav sp-nav-home' + (ui.page === "home" ? " on" : "") + '" data-go="home">' + ico("home.svg") + '<span>Home</span></button><button type="button" class="sp-nav sp-nav-liked' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">' + ico("heart.svg") + '<span>Liked songs</span></button><div class="sp-tools"><button type="button" data-new="album">Album</button><button type="button" data-new="folder">Folder</button></div><div class="sp-label">Library</div>';
     (data.folders || []).forEach(item => {
       const open = ui.open[item.id] !== false;
-      const spinning = ui.animFold === item.id;
-      html += '<div class="sp-folder"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x sp-fold' + (open ? " open" : "") + '" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '"><span class="sp-ico sp-chev" style="--ico:url(' + iconCss("expand.svg") + ");transform:rotate(" + (open && !spinning ? 90 : 0) + 'deg)"></span></button><button type="button" data-open-folder="' + escapeHTML(item.id) + '"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button></div>';
-      if (open) html += '<div class="sp-kids" data-kids="' + escapeHTML(item.id) + '">' + inFolder(item.id).map(albumRow).join("") + '</div>';
+      const closing = ui.animFold === item.id && ui.foldDir === "close";
+      const opening = ui.animFold === item.id && ui.foldDir !== "close";
+      const shown = (open && !opening) || closing;
+      html += '<div class="sp-folder"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x sp-fold' + (shown ? " open" : "") + '" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '"><span class="sp-ico sp-chev" style="--ico:url(' + iconCss("expand.svg") + ");transform:rotate(" + (shown ? 90 : 0) + 'deg)"></span></button><button type="button" data-open-folder="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button></div>';
+      if (open || closing) html += '<div class="sp-kids" data-kids="' + escapeHTML(item.id) + '">' + inFolder(item.id).map(albumRow).join("") + '</div>';
       html += '</div>';
     });
     html += inFolder("").map(albumRow).join("");
@@ -9557,6 +9705,7 @@ function buildEntMusic(pane, api) {
     const top = main.scrollTop;
     main.innerHTML = html;
     if (!animate) main.scrollTop = top;
+    scanExplicit(main);
     const anime = window.anime;
     if (animate && anime && anime.animate && !motionOff()) {
       try { anime.animate(main.firstElementChild || main, { opacity: [0, 1], translateY: [10, 0], ease: veilSpring(0.28, 520) }); } catch (err) {}
@@ -9607,17 +9756,15 @@ function buildEntMusic(pane, api) {
     }
     if (add) add.disabled = !track;
     const videoBtn = root.querySelector("[data-video]");
-    const videoPanel = root.querySelector("[data-video-panel]");
+    const noVideo = !!(track && window.__veilNoVideo && window.__veilNoVideo[track.id]);
     if (videoBtn) {
-      videoBtn.disabled = !track || !!(track && track.local);
+      const gone = !track || !!track.local || noVideo;
+      videoBtn.classList.toggle("is-gone", gone);
+      videoBtn.disabled = gone;
       videoBtn.classList.toggle("on", !!(videoPanel && !videoPanel.hidden));
     }
     const lyricBtn = root.querySelector("[data-lyrics-toggle]");
-    if (lyricBtn) {
-      let narrow = false;
-      try { narrow = window.matchMedia("(max-width:980px)").matches; } catch (err) {}
-      lyricBtn.classList.toggle("on", narrow ? root.classList.contains("is-lyrics") : true);
-    }
+    if (lyricBtn) lyricBtn.classList.toggle("on", !lyricFrame.hidden);
     const toggle = root.querySelector("[data-toggle]");
     const file = snap.playing ? "pause.svg" : "play.svg";
     if (toggle && toggle.dataset.file !== file) {
@@ -9627,12 +9774,33 @@ function buildEntMusic(pane, api) {
     }
     const id = track && track.id;
     root.querySelectorAll(".sp-song").forEach(el => el.classList.toggle("is-on", el.getAttribute("data-track") === id));
+    paintQueue(snap);
+    const lyricBg = lyricFrame.querySelector("[data-lyric-bg]");
+    if (lyricBg) lyricBg.style.backgroundImage = bigSrc ? "url(\"" + String(bigSrc).replace(/"/g, "") + "\")" : "";
     loadLyrics(track);
+    if (window.__veilSyncDock) window.__veilSyncDock();
+  }
+  function paintQueue(snap) {
+    const box = root.querySelector("[data-queue]");
+    if (!box) return;
+    const q = snap.queue || [];
+    const key = String(snap.index == null ? -1 : snap.index) + ":" + q.map(track => track.id).join(".");
+    if (box.dataset.key === key) return;
+    box.dataset.key = key;
+    if (!q.length) {
+      box.innerHTML = '<div class="sp-empty">Queue is empty.</div>';
+      return;
+    }
+    box.innerHTML = q.map((track, index) => {
+      const on = index === snap.index ? " is-on" : "";
+      return '<button type="button" class="sp-q' + on + '" data-queue-index="' + index + '">' + art(track.thumb) + '<span><span class="sp-titleline"><b>' + escapeHTML(track.title || "Untitled") + "</b>" + expMark(track) + '</span><small>' + escapeHTML(track.author || "") + "</small></span></button>";
+    }).join("");
+    scanExplicit(box);
   }
   function signature() {
     const data = lib();
     const snap = api.snap();
-    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || ""].join("~");
+    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name + (item.cover || "").length).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || ""].join("~");
   }
   let sig = "";
   function grabFlip(scope) {
@@ -9661,44 +9829,80 @@ function buildEntMusic(pane, api) {
     paintSide();
     paintMain(animate);
     paintBar();
-    spinChev();
     runFlip(side, sidePrev);
     runFlip(main, mainPrev);
     animateFold();
   }
-  function spinChev() {
+  function animateFold() {
     const id = ui.animFold;
-    if (!id || motionOff()) return;
+    const dir = ui.foldDir || "open";
+    if (!id) return;
+    ui.animFold = "";
+    ui.foldDir = "";
+    let kids = null;
     let btn = null;
+    side.querySelectorAll("[data-kids]").forEach(el => {
+      if (el.getAttribute("data-kids") === id) kids = el;
+    });
     side.querySelectorAll("[data-fold]").forEach(el => {
       if (el.getAttribute("data-fold") === id) btn = el;
     });
     const chev = btn && btn.querySelector(".sp-chev");
     const anime = window.anime;
-    if (!chev || !anime || !anime.animate) return;
-    try { anime.animate(chev, { rotate: [0, 90], ease: veilSpring(0.42, 420) }); } catch (err) {}
-  }
-  function animateFold() {
-    const id = ui.animFold;
-    if (!id || motionOff()) {
-      ui.animFold = "";
+    const finishClose = () => {
+      ui.open[id] = false;
+      if (kids && kids.parentNode) kids.remove();
+      if (chev) chev.style.transform = "rotate(0deg)";
+    };
+    if (motionOff() || !anime || !anime.animate) {
+      if (dir === "close") finishClose();
       return;
     }
-    ui.animFold = "";
-    let kids = null;
-    side.querySelectorAll("[data-kids]").forEach(el => {
-      if (el.getAttribute("data-kids") === id) kids = el;
-    });
-    const anime = window.anime;
-    if (!kids || !anime || !anime.animate) return;
-    try { anime.animate(kids, { opacity: [0, 1], translateY: [-8, 0], ease: veilSpring(0.2, 460) }); } catch (err) {}
+    if (chev) {
+      try { anime.animate(chev, { rotate: dir === "close" ? [90, 0] : [0, 90], ease: veilSpring(0.4, 420) }); } catch (err) {}
+    }
+    if (!kids) {
+      if (dir === "close") ui.open[id] = false;
+      return;
+    }
+    kids.style.overflow = "hidden";
+    const height = kids.scrollHeight || 0;
+    if (dir === "close") {
+      let done = false;
+      const end = () => {
+        if (done) return;
+        done = true;
+        finishClose();
+      };
+      try {
+        const job = anime.animate(kids, { height: [height, 0], opacity: [1, 0], translateY: [0, -8], ease: veilSpring(0.24, 460) });
+        if (job && typeof job.then === "function") job.then(end);
+      } catch (err) { end(); }
+      setTimeout(end, 520);
+      return;
+    }
+    kids.style.height = "0px";
+    try {
+      const job = anime.animate(kids, { height: [0, height], opacity: [0, 1], translateY: [-8, 0], ease: veilSpring(0.24, 480) });
+      const end = () => {
+        kids.style.height = "";
+        kids.style.overflow = "";
+        kids.style.opacity = "";
+        kids.style.transform = "";
+      };
+      if (job && typeof job.then === "function") job.then(end);
+      setTimeout(end, 540);
+    } catch (err) {
+      kids.style.height = "";
+      kids.style.overflow = "";
+    }
   }
   function askName(title, value, withCover, onOk, onDelete) {
     const old = document.querySelector(".sp-modal");
     if (old) old.remove();
     const modal = document.createElement("div");
     modal.className = "modal-overlay sp-modal";
-    modal.innerHTML = '<div class="modal-box"><h2></h2><button type="button" class="sp-coverpick" data-pick>Cover</button><input class="text-input" data-name maxlength="40"><div class="modal-actions"><button type="button" class="modal-cancel" data-cancel>Cancel</button><button type="button" class="primary-btn" data-ok>Save</button></div></div>';
+    modal.innerHTML = '<div class="modal-box"><h2></h2><button type="button" class="sp-coverpick" data-pick aria-label="Add a picture">+</button><input class="text-input" data-name maxlength="40"><div class="modal-actions"><button type="button" class="modal-cancel" data-cancel>Cancel</button><button type="button" class="primary-btn" data-ok>Save</button></div></div>';
     modal.querySelector("h2").textContent = title;
     const input = modal.querySelector("[data-name]");
     input.value = value || "";
@@ -9736,7 +9940,7 @@ function buildEntMusic(pane, api) {
             data = canvas.toDataURL("image/jpeg", quality);
           }
           ui.cover = data.length < 140000 ? data : "";
-          pick.innerHTML = ui.cover ? '<img alt="" src="' + ui.cover + '">' : "Cover";
+          pick.innerHTML = ui.cover ? '<img alt="" src="' + ui.cover + '">' : "+";
         };
         image.onerror = () => URL.revokeObjectURL(url);
         image.src = url;
@@ -9770,57 +9974,78 @@ function buildEntMusic(pane, api) {
   let videoToken = 0;
   function closeVideo(resume) {
     videoToken += 1;
-    const panel = root.querySelector("[data-video-panel]");
-    const vid = root.querySelector("[data-video-el]");
+    const vid = videoPanel && videoPanel.querySelector("[data-video-el]");
     if (vid) {
       vid.onerror = null;
       try { vid.pause(); } catch (err) {}
       vid.removeAttribute("src");
     }
-    if (panel) panel.hidden = true;
+    if (videoPanel) {
+      videoPanel.hidden = true;
+      videoPanel.style.opacity = "";
+    }
     if (resume && ui.videoWasPlaying) {
       ui.videoWasPlaying = false;
       try { if (!api.snap().playing) api.toggle(); } catch (err) {}
     } else ui.videoWasPlaying = false;
+    const btn = root.querySelector("[data-video]");
+    if (btn) btn.classList.remove("on");
+  }
+  function fadeVideo(track) {
+    if (track && track.id) {
+      if (!window.__veilNoVideo) window.__veilNoVideo = {};
+      window.__veilNoVideo[track.id] = 1;
+    }
+    const btn = root.querySelector("[data-video]");
+    if (btn) btn.classList.add("is-gone");
+    const dockBtn = document.querySelector("[data-dock-video]");
+    if (dockBtn) dockBtn.classList.add("is-gone");
+    const anime = window.anime;
+    if (!videoPanel || videoPanel.hidden || motionOff() || !anime || !anime.animate) {
+      closeVideo(true);
+      return;
+    }
+    try { anime.animate(videoPanel, { opacity: [1, 0], ease: veilSpring(0.16, 380) }); } catch (err) {}
+    setTimeout(() => closeVideo(true), 320);
   }
   function openVideo() {
     const track = api.snap().track;
     if (!track || track.local || !api.videoUrls) return;
+    if (window.__veilNoVideo && window.__veilNoVideo[track.id]) return;
     const urls = api.videoUrls(track.id) || [];
-    const panel = root.querySelector("[data-video-panel]");
-    const vid = root.querySelector("[data-video-el]");
-    const status = root.querySelector("[data-video-status]");
-    if (!panel || !vid) return;
+    const vid = videoPanel && videoPanel.querySelector("[data-video-el]");
+    if (!videoPanel || !vid || !urls.length) {
+      fadeVideo(track);
+      return;
+    }
     const wasPlaying = !!api.snap().playing;
     closeVideo(false);
     ui.videoWasPlaying = wasPlaying;
     if (wasPlaying) {
       try { api.toggle(); } catch (err) {}
     }
-    panel.hidden = false;
-    spring(panel.querySelector(".sp-video-card"), 0.94, 1, 0.32, 480);
+    videoPanel.hidden = false;
+    videoPanel.style.opacity = "";
+    spring(videoPanel.querySelector(".sp-video-card"), 0.96, 1, 0.28, 460);
     const token = ++videoToken;
     let index = 0;
     const next = () => {
       if (token !== videoToken) return;
       if (index >= urls.length) {
-        if (status) status.textContent = "No video for this song.";
+        fadeVideo(track);
         return;
       }
-      if (status) status.textContent = "Loading video…";
       const url = urls[index];
       index += 1;
       const timer = setTimeout(() => {
         if (token === videoToken && vid.readyState < 2) next();
-      }, 7000);
+      }, 6000);
       vid.onerror = () => {
         clearTimeout(timer);
         next();
       };
       vid.onloadeddata = () => {
         clearTimeout(timer);
-        if (token !== videoToken) return;
-        if (status) status.textContent = "";
       };
       vid.src = url;
       const play = vid.play();
@@ -9832,6 +10057,32 @@ function buildEntMusic(pane, api) {
     };
     next();
   }
+  function openLyrics(force) {
+    const open = force == null ? lyricFrame.hidden : !!force;
+    if (!open) {
+      const anime = window.anime;
+      if (!motionOff() && anime && anime.animate && !lyricFrame.hidden) {
+        try { anime.animate(lyricFrame, { opacity: [1, 0], scale: [1, 0.98], ease: veilSpring(0.18, 320) }); } catch (err) {}
+        setTimeout(() => {
+          lyricFrame.hidden = true;
+          lyricFrame.style.opacity = "";
+          lyricFrame.style.transform = "";
+        }, 280);
+      } else lyricFrame.hidden = true;
+      const lyricBtn = root.querySelector("[data-lyrics-toggle]");
+      if (lyricBtn) lyricBtn.classList.remove("on");
+      return;
+    }
+    lyricFrame.hidden = false;
+    lyricFrame.style.opacity = "";
+    spring(lyricFrame, 0.97, 1, 0.26, 480);
+    const lyricBtn = root.querySelector("[data-lyrics-toggle]");
+    if (lyricBtn) lyricBtn.classList.add("on");
+    const track = api.snap().track;
+    const bg = lyricFrame.querySelector("[data-lyric-bg]");
+    if (bg && track && track.thumb) bg.style.backgroundImage = "url(\"" + String(prettySrc(track.thumb, true)).replace(/"/g, "") + "\")";
+  }
+  window.__veilCloseVideo = closeVideo;
   let skipClick = false;
   root.addEventListener("click", event => {
     if (skipClick) {
@@ -9839,9 +10090,13 @@ function buildEntMusic(pane, api) {
       return;
     }
     const lyricLine = event.target.closest(".sp-line");
-    if (lyricLine) {
+    if (lyricLine && lyricFrame.contains(lyricLine)) {
       const at = Number(lyricLine.getAttribute("data-t"));
       if (at >= 0) api.seekTo(at);
+      return;
+    }
+    if (event.target.closest("[data-lyric-close]")) {
+      openLyrics(false);
       return;
     }
     if (event.target.closest("[data-video-close]")) {
@@ -9849,19 +10104,17 @@ function buildEntMusic(pane, api) {
       return;
     }
     if (event.target.closest("[data-lyrics-toggle]")) {
-      const open = root.classList.toggle("is-lyrics");
-      const panel = root.querySelector(".sp-now");
-      if (open && panel) spring(panel, 0.94, 1, 0.34, 480);
-      const lyricBtn = root.querySelector("[data-lyrics-toggle]");
-      if (lyricBtn) {
-        let narrow = false;
-        try { narrow = window.matchMedia("(max-width:980px)").matches; } catch (err) {}
-        lyricBtn.classList.toggle("on", narrow ? open : true);
-      }
+      openLyrics();
       return;
     }
     if (event.target.closest("[data-video]")) {
       openVideo();
+      return;
+    }
+    const queued = event.target.closest("[data-queue-index]");
+    if (queued) {
+      const snap = api.snap();
+      api.play(snap.queue || [], Number(queued.getAttribute("data-queue-index")));
       return;
     }
     const artistBtn = event.target.closest("[data-artist]");
@@ -9882,8 +10135,9 @@ function buildEntMusic(pane, api) {
     if (fold) {
       const id = fold.getAttribute("data-fold");
       const opening = ui.open[id] === false;
-      ui.open[id] = opening;
-      if (opening) ui.animFold = id;
+      ui.animFold = id;
+      ui.foldDir = opening ? "open" : "close";
+      if (opening) ui.open[id] = true;
       full(false);
       return;
     }
@@ -9912,11 +10166,12 @@ function buildEntMusic(pane, api) {
     if (made) {
       const kind = made.getAttribute("data-new");
       ui.cover = "";
-      askName(kind === "folder" ? "New folder" : "New album", "", kind !== "folder", name => {
-        if (kind === "folder") api.createFolder(name);
+      askName(kind === "folder" ? "New folder" : "New album", "", true, name => {
+        const cover = ui.cover || "";
+        if (kind === "folder") api.createFolder(name, cover);
         else {
           ui.page = "album";
-          ui.albumId = api.createAlbum(name, ui.cover);
+          ui.albumId = api.createAlbum(name, cover);
         }
         ui.cover = "";
         full(true);
@@ -9943,9 +10198,10 @@ function buildEntMusic(pane, api) {
       const id = editFolder.getAttribute("data-edit-folder");
       const item = folderOf(id);
       if (!item) return;
-      ui.cover = "";
-      askName("Edit folder", item.name, false, name => {
-        api.renameFolder(id, name);
+      ui.cover = item.cover || "";
+      askName("Edit folder", item.name, true, name => {
+        api.renameFolder(id, name, ui.cover || "");
+        ui.cover = "";
         full(false);
       }, () => {
         api.deleteFolder(id);
@@ -10003,17 +10259,23 @@ function buildEntMusic(pane, api) {
     api.search(ui.query);
   });
   root.addEventListener("pointerdown", event => {
-    const btn = event.target.closest("button");
-    if (btn && (btn.classList.contains("sp-x") || btn.classList.contains("sp-ghost") || btn.closest(".sp-btns") || btn.classList.contains("sp-quick") || btn.classList.contains("sp-play") || btn.classList.contains("sp-nav"))) {
-      spring(btn, 0.84, 1, 0.48, 320);
+    const song = event.target.closest(".sp-song, .sp-q");
+    if (song && !event.target.closest(".sp-x, .sp-exp")) {
+      const rect = song.getBoundingClientRect();
+      song.style.transformOrigin = Math.max(0, event.clientX - rect.left) + "px " + Math.max(0, event.clientY - rect.top) + "px";
+      spring(song, 0.985, 1, 0.2, 440);
       return;
     }
-    const el = event.target.closest(".sp-song, .sp-row, .sp-card");
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    el.style.transformOrigin = Math.max(0, event.clientX - rect.left) + "px " + Math.max(0, event.clientY - rect.top) + "px";
-    const song = el.classList.contains("sp-song");
-    spring(el, song ? 0.94 : 0.92, 1, song ? 0.4 : 0.42, song ? 360 : 420);
+    const btn = event.target.closest("button, .sp-nav, .sp-card, .sp-row");
+    if (!btn) return;
+    const card = btn.classList && (btn.classList.contains("sp-card") || btn.classList.contains("sp-row"));
+    if (card) {
+      const rect = btn.getBoundingClientRect();
+      btn.style.transformOrigin = Math.max(0, event.clientX - rect.left) + "px " + Math.max(0, event.clientY - rect.top) + "px";
+      spring(btn, 0.975, 1, 0.24, 460);
+      return;
+    }
+    spring(btn, 0.94, 1, 0.28, 380);
   });
   let drag = null;
   root.addEventListener("dragstart", event => {
@@ -10107,9 +10369,133 @@ function buildEntMusic(pane, api) {
     img.removeAttribute("data-fb");
     img.src = fallback;
   }, true);
+  lyricFrame.onclick = event => {
+    const line = event.target.closest(".sp-line");
+    if (line) {
+      const at = Number(line.getAttribute("data-t"));
+      if (at >= 0) api.seekTo(at);
+      return;
+    }
+    if (event.target.closest("[data-lyric-close]")) openLyrics(false);
+  };
+  lyricFrame.onpointerdown = event => {
+    const line = event.target.closest(".sp-line");
+    if (line) {
+      spring(line, 0.985, 1, 0.18, 380);
+      return;
+    }
+    const btn = event.target.closest("button");
+    if (btn) spring(btn, 0.94, 1, 0.26, 360);
+  };
+  if (videoPanel) {
+    videoPanel.onclick = event => {
+      if (event.target.closest("[data-video-close]")) closeVideo(true);
+    };
+  }
+  function musicPaneOn() {
+    if (document.body.dataset.veilView !== "entertainment") return false;
+    const paneOn = document.querySelector('.ent-pane[data-pane="music"]');
+    return !!(paneOn && paneOn.classList.contains("on"));
+  }
+  function ensureDock() {
+    let dock = document.getElementById("spDock");
+    if (dock) return dock;
+    dock = document.createElement("div");
+    dock.id = "spDock";
+    dock.className = "sp-dock";
+    dock.hidden = true;
+    dock.innerHTML = '<div class="sp-dock-line"></div><div class="sp-dock-card"><button type="button" class="sp-dock-id" data-dock-open><span class="sp-art sp-ph" data-dock-art>' + ico("music_default.svg") + '</span><span class="sp-dock-meta"><b data-dock-title>Nothing playing</b><small data-dock-by></small></span></button><div class="sp-dock-controls"><button type="button" data-dock-prev aria-label="Previous">' + ico("rewind.svg") + '</button><button type="button" class="play" data-dock-toggle aria-label="Play">' + ico("play.svg") + '</button><button type="button" data-dock-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div><div class="sp-dock-seek"><span data-dock-cur>0:00</span><input data-dock-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dock-dur>0:00</span></div><button type="button" data-dock-lyrics aria-label="Lyrics">' + ico("lyrics.svg") + '</button><button type="button" class="sp-ghost" data-dock-video aria-label="Music video">' + ico("video.svg") + '</button></div>';
+    document.body.appendChild(dock);
+    dock.addEventListener("pointerenter", () => {
+      if (dock.hidden) return;
+      dock.classList.add("is-open");
+      const card = dock.querySelector(".sp-dock-card");
+      if (window.__veilDockSpring) window.__veilDockSpring(card);
+    });
+    dock.addEventListener("pointerleave", () => dock.classList.remove("is-open"));
+    return dock;
+  }
+  function syncDock() {
+    const dock = ensureDock();
+    const snap = api.snap();
+    const track = snap.track;
+    const show = !!(track && (snap.playing || (snap.currentTime || 0) > 0.15) && !musicPaneOn());
+    dock.hidden = !show;
+    if (!show) dock.classList.remove("is-open");
+    const title = dock.querySelector("[data-dock-title]");
+    if (title) title.textContent = track ? (track.title || "Untitled") : "Nothing playing";
+    const by = dock.querySelector("[data-dock-by]");
+    if (by) by.textContent = track && track.author ? track.author : "";
+    const artEl = dock.querySelector("[data-dock-art]");
+    const src = track && track.thumb ? prettySrc(track.thumb, false) : "";
+    if (artEl) {
+      const img = artEl.querySelector("img");
+      const shown = img ? (img.getAttribute("src") || "") : "";
+      if (src !== shown) artEl.innerHTML = src ? '<img alt="" src="' + escapeHTML(src) + '">' : ico("music_default.svg");
+    }
+    const toggle = dock.querySelector("[data-dock-toggle]");
+    const file = snap.playing ? "pause.svg" : "play.svg";
+    if (toggle && toggle.dataset.file !== file) {
+      toggle.dataset.file = file;
+      toggle.innerHTML = ico(file);
+      toggle.setAttribute("aria-label", snap.playing ? "Pause" : "Play");
+    }
+    const videoBtn = dock.querySelector("[data-dock-video]");
+    if (videoBtn) {
+      const gone = !track || !!track.local || !!(window.__veilNoVideo && track && window.__veilNoVideo[track.id]);
+      videoBtn.classList.toggle("is-gone", gone);
+      videoBtn.disabled = gone;
+    }
+    const known = snap.duration || (track && track.seconds) || 0;
+    const durEl = dock.querySelector("[data-dock-dur]");
+    if (durEl) durEl.textContent = api.clock(known);
+  }
+  function syncDockTime(audio) {
+    const dock = document.getElementById("spDock");
+    if (!dock || dock.hidden) return;
+    const cur = dock.querySelector("[data-dock-cur]");
+    const durEl = dock.querySelector("[data-dock-dur]");
+    const seek = dock.querySelector("[data-dock-seek]");
+    const known = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
+    if (cur) cur.textContent = api.clock(audio.currentTime || 0);
+    if (durEl && known) durEl.textContent = api.clock(known);
+    if (seek && known && document.activeElement !== seek) seek.value = String(Math.round(((audio.currentTime || 0) / known) * 1000));
+  }
+  const dock = ensureDock();
+  window.__veilDockSpring = card => spring(card, 0.96, 1, 0.28, 440);
+  window.__veilSyncDock = syncDock;
+  window.__veilSyncDockTime = syncDockTime;
+  dock.onclick = event => {
+    if (event.target.closest("[data-dock-prev]")) { api.prev(); return; }
+    if (event.target.closest("[data-dock-next]")) { api.next(); return; }
+    if (event.target.closest("[data-dock-toggle]")) { api.toggle(); return; }
+    if (event.target.closest("[data-dock-lyrics]")) { openLyrics(true); return; }
+    if (event.target.closest("[data-dock-video]")) { openVideo(); return; }
+    if (event.target.closest("[data-dock-open], .sp-dock-line")) openMusic();
+  };
+  dock.onpointerdown = event => {
+    const btn = event.target.closest("button");
+    if (!btn) return;
+    spring(btn, btn.classList.contains("play") ? 0.92 : 0.94, 1, 0.26, 360);
+  };
+  const dockSeek = dock.querySelector("[data-dock-seek]");
+  if (dockSeek) dockSeek.oninput = () => api.seek(Number(dockSeek.value) / 1000);
+  if (!window.__veilDockBound) {
+    window.__veilDockBound = true;
+    api.on(() => { if (window.__veilSyncDock) window.__veilSyncDock(); });
+    api.onTick(audio => { if (window.__veilSyncDockTime) window.__veilSyncDockTime(audio); });
+  }
+  syncDock();
   full(false);
 }
 
+function openMusic() {
+  const body = document.getElementById("stageBody");
+  const pane = body && body.querySelector('.ent-pane[data-pane="music"]');
+  if (!pane) showEntertainment();
+  setVeilView("entertainment");
+  showEntPane("music");
+}
 function showEntertainment() {
   const stage = document.getElementById("veilStage");
   const title = document.getElementById("stageTitle");

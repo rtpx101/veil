@@ -3586,7 +3586,8 @@
       if (!folder || typeof folder !== "object") return;
       lib.folders.push({
         id: String(folder.id || ("fd_" + Date.now().toString(36))).slice(0, 40),
-        name: String(folder.name || "Folder").slice(0, 40)
+        name: String(folder.name || "Folder").slice(0, 40),
+        cover: musicCoverOk(folder.cover)
       });
     });
     var folderIds = {};
@@ -3646,7 +3647,7 @@
         };
       }),
       folders: (lib.folders || []).map(function (folder) {
-        return { id: folder.id, name: folder.name };
+        return { id: folder.id, name: folder.name, cover: folder.cover || "" };
       })
     };
   }
@@ -3746,22 +3747,78 @@
       local: false
     });
   }
+  function musicDiscover(id, job) {
+    fetch("https://echostreamz.com/api/v1/videos/" + encodeURIComponent(id), { headers: { "Accept": "application/json" } }).then(function (res) {
+      if (!res.ok) throw new Error(String(res.status));
+      return res.json();
+    }).then(function (data) {
+      if (!musicState || musicState.failovers !== job || job.ok || job.done || !data) return;
+      var tags = [];
+      function add(itag, audio) {
+        itag = Number(itag);
+        if (!itag || tags.indexOf(itag) !== -1) return;
+        if (audio) tags.unshift(itag);
+        else tags.push(itag);
+      }
+      (data.adaptiveFormats || []).forEach(function (fmt) {
+        if (/^audio\//.test(String(fmt.type || fmt.mimeType || ""))) add(fmt.itag, true);
+      });
+      (data.formatStreams || []).forEach(function (fmt) { add(fmt.itag, false); });
+      var extra = [];
+      tags.forEach(function (itag) {
+        var next = "https://echostreamz.com/latest_version?id=" + encodeURIComponent(id) + "&itag=" + itag + "&local=true";
+        if (job.urls.indexOf(next) === -1) extra.push(next);
+      });
+      if (!extra.length) return;
+      job.urls = job.urls.slice(0, job.i + 1).concat(extra, job.urls.slice(job.i + 1));
+    }).catch(function () {});
+  }
+  function musicDiscoverPiped(id, job) {
+    var hosts = ["https://api.piped.private.coffee", "https://pipedapi.ducks.party"];
+    var n = 0;
+    function step() {
+      if (n >= hosts.length) return;
+      var host = hosts[n];
+      n += 1;
+      fetch(host + "/streams/" + encodeURIComponent(id), { headers: { "Accept": "application/json" } }).then(function (res) {
+        if (!res.ok) throw new Error(String(res.status));
+        return res.json();
+      }).then(function (data) {
+        if (!musicState || musicState.failovers !== job || job.done || !data) return;
+        var extra = [];
+        function push(url) {
+          if (!url || /googlevideo\.com/i.test(url)) return;
+          if (job.urls.indexOf(url) !== -1 || extra.indexOf(url) !== -1) return;
+          extra.push(url);
+        }
+        (data.videoStreams || []).forEach(function (fmt) {
+          if (fmt.videoOnly) return;
+          if (fmt.itag === 18 || fmt.itag === 22) push(fmt.url);
+        });
+        (data.audioStreams || []).forEach(function (fmt) {
+          if (/audio\/(mp4|webm|mpeg)/i.test(String(fmt.mimeType || ""))) push(fmt.url);
+        });
+        if (!extra.length) {
+          step();
+          return;
+        }
+        job.urls = job.urls.slice(0, job.i + 1).concat(extra, job.urls.slice(job.i + 1));
+      }).catch(function () { step(); });
+    }
+    step();
+  }
   function musicStreamUrls(id, itags) {
     var idQ = encodeURIComponent(id);
-    var hosts = ["https://echostreamz.com", "https://yt.chocolatemoo53.com", "https://inv.nadeko.net", "https://invidious.tiekoetter.com"];
+    var host = "https://echostreamz.com";
     var urls = [];
-    hosts.forEach(function (host, index) {
-      var tags = index === 0 ? itags : [18];
-      tags.forEach(function (itag) {
-        urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true");
-      });
+    itags.forEach(function (itag) {
+      urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true");
     });
-    urls.push("https://echostreamz.com/latest_version?id=" + idQ + "&itag=18");
-    urls.push("https://echostreamz.com/latest_version?id=" + idQ + "&itag=18&local=true");
+    urls.push(host + "/latest_version?id=" + idQ + "&itag=18");
     return urls;
   }
   function musicAudioUrls(id) {
-    return musicStreamUrls(id, [18, 140, 251]);
+    return musicStreamUrls(id, [18, 140, 251, 250]);
   }
   function musicVideoUrls(id) {
     return musicStreamUrls(id, [18, 22]);
@@ -4032,13 +4089,23 @@
         musicPaint();
         return;
       }
-      if (Date.now() - job.started > 8000) {
+      if (Date.now() - job.started > (/echostreamz\.com/.test(url) ? 5000 : 2800)) {
         musicBump(job, attempt, audio);
         return;
       }
       job.timer = setTimeout(arm, 450);
     };
     job.timer = setTimeout(arm, 450);
+    var gen = (audio._veilGen || 0) + 1;
+    audio._veilGen = gen;
+    var kicked = Date.now();
+    audio.onerror = function () {
+      if (audio._veilGen !== gen) return;
+      if (Date.now() - kicked < 50) return;
+      if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
+      if (job.i !== attempt) return;
+      musicBump(job, attempt, audio);
+    };
     try { audio.pause(); } catch (err) {}
     audio.src = url;
     audio.play().then(function () {
@@ -4084,6 +4151,8 @@
     musicStatus("Loading…");
     musicState.failovers = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: false, done: false, ok: false };
     musicKick(audio, track.id);
+    musicDiscover(track.id, musicState.failovers);
+    musicDiscoverPiped(track.id, musicState.failovers);
   }
   function musicWire(audio) {
     if (!audio || audio.dataset.wired === "1") return;
@@ -4286,7 +4355,8 @@
         volume: audio ? audio.volume : 1,
         repeat: musicState.repeat,
         liked: musicState.lib.liked.slice(),
-        index: musicState.index
+        index: musicState.index,
+        queue: (musicState.queue || []).slice(0, 50)
       };
     },
     search: function (q) { return musicSearch(q); },
@@ -4392,19 +4462,21 @@
       musicSaveLib();
       musicPaint();
     },
-    createFolder: function (name) {
+    createFolder: function (name, cover) {
       musicBoot();
       if (!musicState.lib.folders) musicState.lib.folders = [];
-      var folder = { id: "fd_" + Date.now().toString(36), name: String(name || "New folder").slice(0, 40) };
+      var folder = { id: "fd_" + Date.now().toString(36), name: String(name || "New folder").slice(0, 40), cover: musicCoverOk(cover) };
       musicState.lib.folders.unshift(folder);
       musicSaveLib();
       musicPaint();
       return folder.id;
     },
-    renameFolder: function (id, name) {
+    renameFolder: function (id, name, cover) {
       if (!musicState) return;
       (musicState.lib.folders || []).forEach(function (folder) {
-        if (folder.id === id) folder.name = String(name || "Folder").slice(0, 40);
+        if (folder.id !== id) return;
+        folder.name = String(name || "Folder").slice(0, 40);
+        if (cover != null) folder.cover = musicCoverOk(cover);
       });
       musicSaveLib();
       musicPaint();
