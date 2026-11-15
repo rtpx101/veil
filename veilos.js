@@ -3552,7 +3552,7 @@
   }
   var musicPushTimer = 0;
   var musicPushGen = 0;
-  var MUSIC_INV = ["https://yt.omada.cafe", "https://invidious.schenkel.eti.br", "https://echostreamz.com"];
+  var MUSIC_INV = ["https://echostreamz.com", "https://yt.chocolatemoo53.com", "https://inv.nadeko.net", "https://invidious.tiekoetter.com", "https://yt.omada.cafe", "https://invidious.schenkel.eti.br"];
   var MUSIC_SEARCH = ["https://api.piped.private.coffee", "https://pipedapi.ducks.party"];
   function musicSlimTrack(track) {
     if (!track || !track.id) return null;
@@ -3746,17 +3746,25 @@
       local: false
     });
   }
-  function musicAudioUrls(id) {
-    var hosts = ["https://echostreamz.com", "https://yt.omada.cafe", "https://invidious.schenkel.eti.br"];
+  function musicStreamUrls(id, itags) {
+    var idQ = encodeURIComponent(id);
+    var hosts = ["https://echostreamz.com", "https://yt.chocolatemoo53.com", "https://inv.nadeko.net", "https://invidious.tiekoetter.com"];
     var urls = [];
     hosts.forEach(function (host, index) {
-      var itags = index === 0 ? [140, 251, 18] : [140, 18];
-      itags.forEach(function (itag) {
-        urls.push(host + "/latest_version?id=" + encodeURIComponent(id) + "&itag=" + itag + "&local=true");
+      var tags = index === 0 ? itags : [18];
+      tags.forEach(function (itag) {
+        urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true");
       });
     });
-    urls.push("https://echostreamz.com/latest_version?id=" + encodeURIComponent(id) + "&itag=18");
+    urls.push("https://echostreamz.com/latest_version?id=" + idQ + "&itag=18");
+    urls.push("https://echostreamz.com/latest_version?id=" + idQ + "&itag=18&local=true");
     return urls;
+  }
+  function musicAudioUrls(id) {
+    return musicStreamUrls(id, [18, 140, 251]);
+  }
+  function musicVideoUrls(id) {
+    return musicStreamUrls(id, [18, 22]);
   }
   function musicBump(job, attempt, audio) {
     if (!musicState || !job || musicState.failovers !== job || job.done || job.ok) return;
@@ -4006,19 +4014,36 @@
       return;
     }
     var attempt = job.i;
+    var url = job.urls[attempt];
     job.attempt = attempt;
+    job.url = url;
     job.busy = true;
+    job.started = Date.now();
     if (job.timer) clearTimeout(job.timer);
-    job.timer = setTimeout(function () { musicBump(job, attempt, audio); }, 9000);
+    var arm = function () {
+      if (!musicState || musicState.failovers !== job || job.ok || job.done || job.i !== attempt) return;
+      var progressed = audio.readyState >= 2 || (audio.currentTime || 0) > 0.05;
+      if (progressed) {
+        if (job.timer) clearTimeout(job.timer);
+        job.timer = 0;
+        job.busy = false;
+        job.ok = true;
+        musicStatus("");
+        musicPaint();
+        return;
+      }
+      if (Date.now() - job.started > 8000) {
+        musicBump(job, attempt, audio);
+        return;
+      }
+      job.timer = setTimeout(arm, 450);
+    };
+    job.timer = setTimeout(arm, 450);
     try { audio.pause(); } catch (err) {}
-    audio.src = job.urls[attempt];
+    audio.src = url;
     audio.play().then(function () {
       if (!musicState || musicState.failovers !== job || job.i !== attempt) return;
-      if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
-      job.busy = false;
-      job.ok = true;
-      musicStatus("");
-      musicPaint();
+      job.playing = true;
     }).catch(function (err) {
       if (!musicState || musicState.failovers !== job) return;
       if (err && err.name === "NotAllowedError") {
@@ -4107,38 +4132,58 @@
     audio.preload = "none";
     audio.setAttribute("data-audio", "");
     try { document.body.appendChild(audio); } catch (err) {}
-    musicState = { body: null, audio: audio, lib: musicLoadLib(), view: "home", playlistId: "", results: [], queue: [], index: -1, repeat: "off", showNow: true, seeking: false, status: "", hydrating: false, pendingSave: false, failovers: null };
+    musicState = { body: null, audio: audio, lib: musicLoadLib(), view: "home", playlistId: "", results: [], artistResults: [], artistStatus: "", artistQuery: "", queue: [], index: -1, repeat: "off", showNow: true, seeking: false, status: "", hydrating: false, pendingSave: false, failovers: null };
     musicWire(audio);
     musicHydrate();
     return musicState;
   }
-  function musicSearch(q) {
+  function musicQuery(q, slot) {
     musicBoot();
+    if (!musicState.artistResults) musicState.artistResults = [];
     q = String(q || "").trim();
-    if (!q) return Promise.resolve([]);
-    musicState.view = "home";
-    musicStatus("Searching…");
+    if (!q) {
+      musicState[slot] = [];
+      if (slot === "results") musicStatus("");
+      else musicState.artistStatus = "";
+      musicEmit();
+      return Promise.resolve([]);
+    }
+    if (slot === "results") {
+      musicState.view = "home";
+      musicStatus("Searching…");
+    } else {
+      musicState.artistQuery = q;
+      musicState.artistResults = [];
+      musicState.artistStatus = "Searching…";
+    }
     musicEmit();
     var qEnc = encodeURIComponent(q);
     var urls = [];
     MUSIC_SEARCH.forEach(function (host) { urls.push(host + "/search?q=" + qEnc + "&filter=music_songs"); });
     MUSIC_INV.forEach(function (host) { urls.push(host + "/api/v1/search?q=" + qEnc + "&type=video"); });
     return musicFetchJson(urls).then(function (data) {
+      if (slot === "artistResults" && musicState.artistQuery !== q) return [];
       var items = Array.isArray(data) ? data : ((data && data.items) || []);
       var tracks = [];
       items.forEach(function (item) {
         var track = musicTrackFrom(item);
         if (track) tracks.push(track);
       });
-      musicState.results = tracks.slice(0, 40);
-      musicStatus(tracks.length ? "" : "No songs found.");
+      musicState[slot] = tracks.slice(0, 40);
+      if (slot === "results") musicStatus(tracks.length ? "" : "No songs found.");
+      else musicState.artistStatus = tracks.length ? "" : "No songs found.";
       musicPaint();
-      return musicState.results.slice();
+      return musicState[slot].slice();
     }).catch(function () {
-      musicStatus("Search failed. Try again in a moment.");
+      if (slot === "artistResults" && musicState.artistQuery !== q) return [];
+      if (slot === "results") musicStatus("Search failed. Try again in a moment.");
+      else musicState.artistStatus = "Couldn't load this artist.";
       musicPaint();
       return [];
     });
+  }
+  function musicSearch(q) {
+    return musicQuery(q, "results");
   }
   function musicAlbum(id) {
     var found = null;
@@ -4232,6 +4277,8 @@
       return {
         status: musicState.status || "",
         results: (musicState.results || []).slice(),
+        artistResults: (musicState.artistResults || []).slice(),
+        artistStatus: musicState.artistStatus || "",
         track: track,
         playing: !!(audio && !audio.paused && audio.src && !audio.ended),
         currentTime: audio ? audio.currentTime || 0 : 0,
@@ -4243,6 +4290,8 @@
       };
     },
     search: function (q) { return musicSearch(q); },
+    searchArtist: function (q) { return musicQuery(q, "artistResults"); },
+    videoUrls: function (id) { return musicVideoUrls(id); },
     play: function (tracks, index) {
       musicBoot();
       musicState.queue = (tracks || []).slice();
@@ -4263,6 +4312,25 @@
       var audio = musicState.audio;
       if (!audio || !audio.duration) return;
       audio.currentTime = Math.max(0, Math.min(1, ratio)) * audio.duration;
+    },
+    seekTo: function (sec) {
+      musicBoot();
+      var audio = musicState.audio;
+      if (!audio) return;
+      var t = Math.max(0, Number(sec) || 0);
+      var apply = function () {
+        var dur = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
+        var next = dur ? Math.min(t, Math.max(0, dur - 0.2)) : t;
+        try { audio.currentTime = next; } catch (err) {}
+      };
+      if (audio.readyState >= 1) {
+        apply();
+        return;
+      }
+      audio.addEventListener("loadedmetadata", function once() {
+        audio.removeEventListener("loadedmetadata", once);
+        apply();
+      });
     },
     volume: function (value) {
       musicBoot();

@@ -7524,7 +7524,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=89";
+  link.href = BASE + "/veilos.css?v=90";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7536,7 +7536,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=89";
+  script.src = BASE + "/veilos.js?v=90";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8734,7 +8734,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=89";
+    script.src = REPO_PATH + "anime.min.js?v=90";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -9093,6 +9093,120 @@ function dressRanges() {
   });
 }
 try { dressRanges(); } catch (err) {}
+function installVeilScrolls() {
+  if (installVeilScrolls.ready || !document.body) return;
+  installVeilScrolls.ready = true;
+  const bar = document.createElement("div");
+  bar.className = "veil-scroll";
+  bar.innerHTML = '<i class="veil-scroll-track"></i><i class="veil-scroll-knob"></i>';
+  document.body.appendChild(bar);
+  const knob = bar.querySelector(".veil-scroll-knob");
+  let host = null;
+  let axis = "y";
+  let hideTimer = 0;
+  let settleTimer = 0;
+  let drag = null;
+  let lastPos = 0;
+  let velocity = 0;
+  function geom(el) {
+    if (!el || !el.getBoundingClientRect) return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 20 || rect.height < 20) return null;
+    const maxY = el.scrollHeight - el.clientHeight;
+    const maxX = el.scrollWidth - el.clientWidth;
+    const vertical = maxY >= maxX;
+    const max = vertical ? maxY : maxX;
+    if (max < 12) return null;
+    const track = Math.max(36, (vertical ? rect.height : rect.width) - 8);
+    const travel = Math.max(1, track - 18);
+    const pos = ((vertical ? el.scrollTop : el.scrollLeft) / max) * travel;
+    return { rect: rect, vertical: vertical, track: track, travel: travel, pos: pos, max: max };
+  }
+  function place(el, settle) {
+    if (!el || (el.closest && el.closest(".tabs"))) return;
+    const g = geom(el);
+    if (!g || g.rect.bottom < 0 || g.rect.top > window.innerHeight) {
+      bar.classList.remove("is-on");
+      return;
+    }
+    host = el;
+    axis = g.vertical ? "y" : "x";
+    bar.classList.toggle("is-x", !g.vertical);
+    bar.classList.add("is-on");
+    if (knob._veilMotion && knob._veilMotion.cancel) {
+      try { knob._veilMotion.cancel(); } catch (err) {}
+      knob._veilMotion = null;
+    }
+    knob.style.transform = "";
+    if (g.vertical) {
+      bar.style.left = Math.max(0, g.rect.right - 18) + "px";
+      bar.style.top = (g.rect.top + 4) + "px";
+      bar.style.width = "18px";
+      bar.style.height = g.track + "px";
+      knob.style.left = "0";
+      knob.style.top = g.pos + "px";
+    } else {
+      bar.style.top = Math.max(0, g.rect.bottom - 18) + "px";
+      bar.style.left = (g.rect.left + 4) + "px";
+      bar.style.height = "18px";
+      bar.style.width = g.track + "px";
+      knob.style.top = "0";
+      knob.style.left = g.pos + "px";
+    }
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { if (!drag) bar.classList.remove("is-on"); }, 680);
+    if (!settle || motionOff() || !window.anime || !window.anime.animate) return;
+    const over = Math.max(-8, Math.min(8, velocity));
+    try {
+      knob._veilMotion = window.anime.animate(knob, {
+        translateY: g.vertical ? [over, 0] : 0,
+        translateX: g.vertical ? 0 : [over, 0],
+        scale: [1.16, 1],
+        ease: veilSpring(0.42, 460)
+      });
+    } catch (err) {}
+  }
+  function follow(el) {
+    const before = lastPos;
+    place(el, false);
+    const g = geom(el);
+    if (g) {
+      velocity = g.pos - before;
+      lastPos = g.pos;
+    }
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => { if (host) place(host, true); }, 80);
+  }
+  document.addEventListener("scroll", event => {
+    const el = event.target;
+    if (!el || el.nodeType !== 1 || el === bar || bar.contains(el)) return;
+    follow(el);
+  }, true);
+  bar.addEventListener("pointerdown", event => {
+    if (!host) return;
+    const g = geom(host);
+    if (!g) return;
+    event.preventDefault();
+    event.stopPropagation();
+    drag = { x: event.clientX, y: event.clientY, scroll: axis === "y" ? host.scrollTop : host.scrollLeft, max: g.max, travel: g.travel };
+    try { bar.setPointerCapture(event.pointerId); } catch (err) {}
+  });
+  bar.addEventListener("pointermove", event => {
+    if (!drag || !host) return;
+    const delta = axis === "y" ? event.clientY - drag.y : event.clientX - drag.x;
+    const next = drag.scroll + (delta / drag.travel) * drag.max;
+    if (axis === "y") host.scrollTop = next;
+    else host.scrollLeft = next;
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag = null;
+    if (host) place(host, true);
+  };
+  bar.addEventListener("pointerup", endDrag);
+  bar.addEventListener("pointercancel", endDrag);
+}
+try { installVeilScrolls(); } catch (err) {}
 function moveStagePill(name, animate) {
   const sw = document.getElementById("stageSwitch");
   const pill = document.getElementById("stagePill");
@@ -9181,7 +9295,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=89";
+      script.src = BASE + "/veilos.js?v=90";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9206,8 +9320,14 @@ function mountEntMusic(pane) {
   });
 }
 function buildEntMusic(pane, api) {
-  const ui = { page: "home", albumId: "", folderId: "", open: {}, query: "", cover: "", animFold: "", lines: [], line: -1, lyricFor: "" };
-  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><small data-now-by></small></div><div class="sp-lyrics" data-lyrics><div class="sp-lyric-empty">Lyrics show up when a song is playing.</div></div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">♪</span><div><b data-title>Nothing playing</b><small data-by></small></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">♥</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">+</button><button type="button" data-prev aria-label="Previous">⏮</button></div><button type="button" class="play" data-toggle aria-label="Play">▶</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">⏭</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></footer></div>';
+  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: {}, query: "", cover: "", animFold: "", lines: [], line: -1, lyricFor: "", videoWasPlaying: false };
+  function iconCss(file) {
+    return encodeURI(IMG + file).replace(/\(/g, "%28").replace(/\)/g, "%29");
+  }
+  function ico(file, cls) {
+    return '<span class="sp-ico' + (cls ? " " + cls : "") + '" style="--ico:url(' + iconCss(file) + ')"></span>';
+  }
+  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-lyrics" data-lyrics><div class="sp-lyric-empty">Lyrics show up when a song is playing.</div></div><div class="sp-lyric-credit">Provided by Musixmatch</div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button><button type="button" data-prev aria-label="Previous">' + ico("rewind.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + ico("play.svg") + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("fast.svg") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-video aria-label="Music video">' + ico("video.svg") + '</button><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer><div class="sp-video" data-video-panel hidden><div class="sp-video-card"><button type="button" class="sp-x" data-video-close aria-label="Close">' + ico("exit.svg") + '</button><video data-video-el playsinline controls></video><div class="sp-video-status" data-video-status></div></div></div></div>';
   const root = pane.querySelector(".sp");
   const side = root.querySelector("[data-side]");
   const main = root.querySelector("[data-main]");
@@ -9216,7 +9336,7 @@ function buildEntMusic(pane, api) {
   const folderOf = id => (lib().folders || []).find(item => item.id === id) || null;
   const art = (src, big) => {
     const url = prettySrc(src, !!big);
-    if (!url) return '<span class="sp-art sp-ph" aria-hidden="true">♪</span>';
+    if (!url) return '<span class="sp-art sp-ph" aria-hidden="true">' + ico("music_default.svg") + "</span>";
     const fallback = big ? prettySrc(src, false) : "";
     return '<img class="sp-art" draggable="false" src="' + escapeHTML(url) + '" alt=""' + (fallback && fallback !== url ? ' data-fb="' + escapeHTML(fallback) + '"' : "") + ">";
   };
@@ -9233,7 +9353,7 @@ function buildEntMusic(pane, api) {
   function trackById(id) {
     if (!id) return null;
     const snap = api.snap();
-    const pools = [snap.results || [], ((albumOf(ui.albumId) || {}).tracks) || [], lib().liked || []];
+    const pools = [snap.results || [], snap.artistResults || [], ((albumOf(ui.albumId) || {}).tracks) || [], lib().liked || []];
     if (snap.track) pools.push([snap.track]);
     for (let i = 0; i < pools.length; i++) {
       const hit = (pools[i] || []).find(item => item && item.id === id);
@@ -9250,7 +9370,7 @@ function buildEntMusic(pane, api) {
       box.innerHTML = '<div class="sp-lyric-empty">No lyrics for this song.</div>';
       return;
     }
-    box.innerHTML = ui.lines.map((line, index) => '<p class="sp-line" data-i="' + index + '">' + escapeHTML(line.text || "…") + "</p>").join("");
+    box.innerHTML = ui.lines.map((line, index) => '<p class="sp-line" data-i="' + index + '" data-t="' + line.t + '">' + escapeHTML(line.text || "…") + "</p>").join("");
   }
   function loadLyrics(track) {
     const box = root.querySelector("[data-lyrics]");
@@ -9297,10 +9417,35 @@ function buildEntMusic(pane, api) {
     const box = root.querySelector("[data-lyrics]");
     if (!box) return;
     const nodes = box.querySelectorAll(".sp-line");
-    nodes.forEach((el, i) => el.classList.toggle("is-on", i === index));
+    nodes.forEach((el, i) => {
+      el.classList.toggle("is-on", i === index);
+      el.classList.toggle("is-past", index >= 0 && i < index);
+      if (i !== index) el.style.transform = "";
+    });
     const on = nodes[index];
     if (!on) return;
-    box.scrollTop = Math.max(0, on.offsetTop - box.clientHeight * 0.35);
+    const anime = window.anime;
+    if (!motionOff() && anime && anime.animate) {
+      try { anime.animate(on, { scale: [0.96, 1], ease: veilSpring(0.36, 420) }); } catch (err) {}
+    }
+    const target = Math.max(0, on.offsetTop - box.clientHeight * 0.38);
+    if (motionOff() || !anime || !anime.animate) {
+      box.scrollTop = target;
+      return;
+    }
+    const proxy = { y: box.scrollTop };
+    if (box._lyricJob && box._lyricJob.cancel) {
+      try { box._lyricJob.cancel(); } catch (err) {}
+    }
+    try {
+      box._lyricJob = anime.animate(proxy, {
+        y: target,
+        ease: veilSpring(0.28, 680),
+        onUpdate: () => { box.scrollTop = proxy.y; }
+      });
+    } catch (err) {
+      box.scrollTop = target;
+    }
   }
   function openAdd(anchor, track) {
     const old = document.querySelector(".sp-pop");
@@ -9345,20 +9490,21 @@ function buildEntMusic(pane, api) {
   }
   const inFolder = folderId => (lib().playlists || []).filter(item => (item.folderId || "") === (folderId || ""));
   const albumRow = item => '<div class="sp-row' + (ui.page === "album" && ui.albumId === item.id ? " on" : "") + '" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></span></button></div>';
-  const albumCard = item => '<div class="sp-cardwrap" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" class="sp-card" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></button><button type="button" class="sp-quick" data-play-card="' + escapeHTML(item.id) + '" aria-label="Play album">▶</button></div>';
+  const albumCard = item => '<div class="sp-cardwrap" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" class="sp-card" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></button><button type="button" class="sp-quick" data-play-card="' + escapeHTML(item.id) + '" aria-label="Play album">' + ico("play.svg") + '</button></div>';
   let nowId = "";
   function songRow(track, index, extra) {
     const on = nowId && nowId === track.id ? " is-on" : "";
     const drag = ui.page === "album" ? "true" : "false";
     const time = track.seconds ? api.clock(track.seconds) : "";
-    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + '</span>' + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><b>' + escapeHTML(track.title || "Untitled") + '</b><small>' + escapeHTML(track.author || "") + '</small></span></button><span class="sp-time">' + time + '</span>' + (extra || "") + '</div>';
+    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + '</span>' + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><b>' + escapeHTML(track.title || "Untitled") + '</b><small data-artist="' + escapeHTML(track.author || "") + '">' + escapeHTML(track.author || "") + '</small></span></button><span class="sp-time">' + time + '</span>' + (extra || "") + '</div>';
   }
   function paintSide() {
     const data = lib();
     let html = '<button type="button" class="sp-nav' + (ui.page === "home" ? " on" : "") + '" data-go="home">Home</button><button type="button" class="sp-nav' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">Liked songs</button><div class="sp-tools"><button type="button" data-new="album">Album</button><button type="button" data-new="folder">Folder</button></div><div class="sp-label">Library</div>';
     (data.folders || []).forEach(item => {
       const open = ui.open[item.id] !== false;
-      html += '<div class="sp-folder"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '">' + (open ? "▾" : "▸") + '</button><button type="button" data-open-folder="' + escapeHTML(item.id) + '"><span class="sp-art sp-ph">▣</span><span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button><button type="button" class="sp-x" data-edit-folder="' + escapeHTML(item.id) + '" aria-label="Edit folder">✎</button></div>';
+      const spinning = ui.animFold === item.id;
+      html += '<div class="sp-folder"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x sp-fold' + (open ? " open" : "") + '" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '"><span class="sp-ico sp-chev" style="--ico:url(' + iconCss("expand.svg") + ");transform:rotate(" + (open && !spinning ? 90 : 0) + 'deg)"></span></button><button type="button" data-open-folder="' + escapeHTML(item.id) + '"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button></div>';
       if (open) html += '<div class="sp-kids" data-kids="' + escapeHTML(item.id) + '">' + inFolder(item.id).map(albumRow).join("") + '</div>';
       html += '</div>';
     });
@@ -9376,25 +9522,31 @@ function buildEntMusic(pane, api) {
     if (ui.page === "liked") {
       const tracks = lib().liked || [];
       html = '<h2 class="sp-h">Liked songs</h2><div class="sp-acts"><button type="button" class="sp-play" data-play-liked>Play</button></div>';
-      html += tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-unlike="' + escapeHTML(track.id) + '" aria-label="Remove">×</button>')).join("") : '<div class="sp-empty">Songs you like show up here.</div>';
+      html += tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-unlike="' + escapeHTML(track.id) + '" aria-label="Remove">' + ico("exit.svg") + '</button>')).join("") : '<div class="sp-empty">Songs you like show up here.</div>';
     } else if (ui.page === "album") {
       const item = albumOf(ui.albumId);
       if (!item) ui.page = "home";
       else {
-        html = '<div class="sp-hero">' + art(item.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(item.name || "Album") + '</h2><div>' + (item.tracks || []).length + ' songs</div><div class="sp-acts"><button type="button" class="sp-play" data-play-album>Play</button><button type="button" class="sp-icon" data-edit-album>Edit</button></div></div></div>';
-        html += (item.tracks || []).length ? item.tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-remove-track="' + index + '" aria-label="Remove">×</button>')).join("") : '<div class="sp-empty">Search on Home and add songs here.</div>';
+        html = '<div class="sp-hero">' + art(item.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(item.name || "Album") + '</h2><div>' + (item.tracks || []).length + ' songs</div><div class="sp-acts"><button type="button" class="sp-play" data-play-album>Play</button><button type="button" class="sp-icon sp-pencil" data-edit-album aria-label="Edit album">' + ico("pencil.svg") + '</button></div></div></div>';
+        html += (item.tracks || []).length ? item.tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-remove-track="' + index + '" aria-label="Remove">' + ico("exit.svg") + '</button>')).join("") : '<div class="sp-empty">Search on Home and add songs here.</div>';
       }
     } else if (ui.page === "folder") {
       const item = folderOf(ui.folderId);
       if (!item) ui.page = "home";
       else {
         const kids = inFolder(item.id);
-        html = '<h2 class="sp-h">' + escapeHTML(item.name || "Folder") + '</h2><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(item.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
+        html = '<div class="sp-head"><h2 class="sp-h">' + escapeHTML(item.name || "Folder") + '</h2><button type="button" class="sp-icon" data-edit-folder="' + escapeHTML(item.id) + '">Edit</button></div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(item.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
       }
+    }
+    if (ui.page === "artist") {
+      const tracks = snap.artistResults || [];
+      const note = snap.artistStatus || (tracks.length ? "" : "Loading…");
+      html = '<h2 class="sp-h">' + escapeHTML(ui.artist || "Artist") + '</h2><div class="sp-label">Artist</div>';
+      html += tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("") : '<div class="sp-empty">' + escapeHTML(note || "No songs found.") + '</div>';
     }
     if (ui.page === "home") {
       html = '<form class="sp-search" data-search><input data-q type="search" placeholder="Search for a song" value="' + escapeHTML(ui.query) + '" aria-label="Search"><button type="submit">Search</button></form><div class="sp-status">' + escapeHTML(snap.status || "") + '</div>';
-      if ((snap.results || []).length) html += '<div class="sp-label">Songs</div>' + snap.results.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">♥</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">+</button>')).join("");
+      if ((snap.results || []).length) html += '<div class="sp-label">Songs</div>' + snap.results.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("");
       (lib().folders || []).forEach(folder => {
         const kids = inFolder(folder.id);
         html += '<div class="sp-label">' + escapeHTML(folder.name || "Folder") + '</div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(folder.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
@@ -9419,9 +9571,20 @@ function buildEntMusic(pane, api) {
     const shown = current && current.tagName === "IMG" ? current.getAttribute("src") || "" : "";
     if (current && src !== shown) current.outerHTML = art(src);
     root.querySelector("[data-title]").textContent = track ? track.title : "Nothing playing";
-    root.querySelector("[data-by]").textContent = track ? track.author || "" : "";
+    const author = track && track.author ? track.author : "";
+    const by = root.querySelector("[data-by]");
+    const nowBy = root.querySelector("[data-now-by]");
+    if (by) {
+      by.textContent = author;
+      if (author) by.setAttribute("data-artist", author);
+      else by.removeAttribute("data-artist");
+    }
     root.querySelector("[data-now-title]").textContent = track ? track.title : "Nothing playing";
-    root.querySelector("[data-now-by]").textContent = track ? track.author || "" : "";
+    if (nowBy) {
+      nowBy.textContent = author;
+      if (author) nowBy.setAttribute("data-artist", author);
+      else nowBy.removeAttribute("data-artist");
+    }
     root.dataset.seconds = track && track.seconds ? String(track.seconds) : "";
     const known = Number(root.dataset.seconds) || 0;
     const durEl = root.querySelector("[data-dur]");
@@ -9443,7 +9606,25 @@ function buildEntMusic(pane, api) {
       heart.disabled = !track || !!track.local;
     }
     if (add) add.disabled = !track;
-    root.querySelector("[data-toggle]").textContent = snap.playing ? "❚❚" : "▶";
+    const videoBtn = root.querySelector("[data-video]");
+    const videoPanel = root.querySelector("[data-video-panel]");
+    if (videoBtn) {
+      videoBtn.disabled = !track || !!(track && track.local);
+      videoBtn.classList.toggle("on", !!(videoPanel && !videoPanel.hidden));
+    }
+    const lyricBtn = root.querySelector("[data-lyrics-toggle]");
+    if (lyricBtn) {
+      let narrow = false;
+      try { narrow = window.matchMedia("(max-width:980px)").matches; } catch (err) {}
+      lyricBtn.classList.toggle("on", narrow ? root.classList.contains("is-lyrics") : true);
+    }
+    const toggle = root.querySelector("[data-toggle]");
+    const file = snap.playing ? "pause.svg" : "play.svg";
+    if (toggle && toggle.dataset.file !== file) {
+      toggle.dataset.file = file;
+      toggle.innerHTML = ico(file);
+      toggle.setAttribute("aria-label", snap.playing ? "Pause" : "Play");
+    }
     const id = track && track.id;
     root.querySelectorAll(".sp-song").forEach(el => el.classList.toggle("is-on", el.getAttribute("data-track") === id));
     loadLyrics(track);
@@ -9451,7 +9632,7 @@ function buildEntMusic(pane, api) {
   function signature() {
     const data = lib();
     const snap = api.snap();
-    return [ui.page, ui.albumId, ui.folderId, (data.folders || []).map(item => item.id + item.name).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), snap.status || ""].join("~");
+    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || ""].join("~");
   }
   let sig = "";
   function grabFlip(scope) {
@@ -9480,9 +9661,22 @@ function buildEntMusic(pane, api) {
     paintSide();
     paintMain(animate);
     paintBar();
+    spinChev();
     runFlip(side, sidePrev);
     runFlip(main, mainPrev);
     animateFold();
+  }
+  function spinChev() {
+    const id = ui.animFold;
+    if (!id || motionOff()) return;
+    let btn = null;
+    side.querySelectorAll("[data-fold]").forEach(el => {
+      if (el.getAttribute("data-fold") === id) btn = el;
+    });
+    const chev = btn && btn.querySelector(".sp-chev");
+    const anime = window.anime;
+    if (!chev || !anime || !anime.animate) return;
+    try { anime.animate(chev, { rotate: [0, 90], ease: veilSpring(0.42, 420) }); } catch (err) {}
   }
   function animateFold() {
     const id = ui.animFold;
@@ -9565,11 +9759,118 @@ function buildEntMusic(pane, api) {
     });
     spring(modal.querySelector(".modal-box"), 0.96, 1);
   }
+  function openArtist(name) {
+    name = String(name || "").trim();
+    if (!name) return;
+    ui.page = "artist";
+    ui.artist = name;
+    full(true);
+    if (api.searchArtist) api.searchArtist(name);
+  }
+  let videoToken = 0;
+  function closeVideo(resume) {
+    videoToken += 1;
+    const panel = root.querySelector("[data-video-panel]");
+    const vid = root.querySelector("[data-video-el]");
+    if (vid) {
+      vid.onerror = null;
+      try { vid.pause(); } catch (err) {}
+      vid.removeAttribute("src");
+    }
+    if (panel) panel.hidden = true;
+    if (resume && ui.videoWasPlaying) {
+      ui.videoWasPlaying = false;
+      try { if (!api.snap().playing) api.toggle(); } catch (err) {}
+    } else ui.videoWasPlaying = false;
+  }
+  function openVideo() {
+    const track = api.snap().track;
+    if (!track || track.local || !api.videoUrls) return;
+    const urls = api.videoUrls(track.id) || [];
+    const panel = root.querySelector("[data-video-panel]");
+    const vid = root.querySelector("[data-video-el]");
+    const status = root.querySelector("[data-video-status]");
+    if (!panel || !vid) return;
+    const wasPlaying = !!api.snap().playing;
+    closeVideo(false);
+    ui.videoWasPlaying = wasPlaying;
+    if (wasPlaying) {
+      try { api.toggle(); } catch (err) {}
+    }
+    panel.hidden = false;
+    spring(panel.querySelector(".sp-video-card"), 0.94, 1, 0.32, 480);
+    const token = ++videoToken;
+    let index = 0;
+    const next = () => {
+      if (token !== videoToken) return;
+      if (index >= urls.length) {
+        if (status) status.textContent = "No video for this song.";
+        return;
+      }
+      if (status) status.textContent = "Loading video…";
+      const url = urls[index];
+      index += 1;
+      const timer = setTimeout(() => {
+        if (token === videoToken && vid.readyState < 2) next();
+      }, 7000);
+      vid.onerror = () => {
+        clearTimeout(timer);
+        next();
+      };
+      vid.onloadeddata = () => {
+        clearTimeout(timer);
+        if (token !== videoToken) return;
+        if (status) status.textContent = "";
+      };
+      vid.src = url;
+      const play = vid.play();
+      if (play && play.catch) play.catch(err => {
+        if (!err || err.name === "NotAllowedError" || token !== videoToken) return;
+        clearTimeout(timer);
+        next();
+      });
+    };
+    next();
+  }
   let skipClick = false;
   root.addEventListener("click", event => {
     if (skipClick) {
       skipClick = false;
       return;
+    }
+    const lyricLine = event.target.closest(".sp-line");
+    if (lyricLine) {
+      const at = Number(lyricLine.getAttribute("data-t"));
+      if (at >= 0) api.seekTo(at);
+      return;
+    }
+    if (event.target.closest("[data-video-close]")) {
+      closeVideo(true);
+      return;
+    }
+    if (event.target.closest("[data-lyrics-toggle]")) {
+      const open = root.classList.toggle("is-lyrics");
+      const panel = root.querySelector(".sp-now");
+      if (open && panel) spring(panel, 0.94, 1, 0.34, 480);
+      const lyricBtn = root.querySelector("[data-lyrics-toggle]");
+      if (lyricBtn) {
+        let narrow = false;
+        try { narrow = window.matchMedia("(max-width:980px)").matches; } catch (err) {}
+        lyricBtn.classList.toggle("on", narrow ? open : true);
+      }
+      return;
+    }
+    if (event.target.closest("[data-video]")) {
+      openVideo();
+      return;
+    }
+    const artistBtn = event.target.closest("[data-artist]");
+    if (artistBtn) {
+      const name = artistBtn.getAttribute("data-artist") || "";
+      if (name) {
+        openArtist(name);
+        return;
+      }
     }
     const playCard = event.target.closest("[data-play-card]");
     if (playCard) {
@@ -9656,7 +9957,7 @@ function buildEntMusic(pane, api) {
     const playIndex = event.target.closest("[data-play-index]");
     if (playIndex) {
       const index = Number(playIndex.getAttribute("data-play-index"));
-      const tracks = ui.page === "album" ? ((albumOf(ui.albumId) || {}).tracks || []) : ui.page === "liked" ? (lib().liked || []) : (api.snap().results || []);
+      const tracks = ui.page === "album" ? ((albumOf(ui.albumId) || {}).tracks || []) : ui.page === "liked" ? (lib().liked || []) : ui.page === "artist" ? (api.snap().artistResults || []) : (api.snap().results || []);
       api.play(tracks, index);
       return;
     }
@@ -9704,7 +10005,7 @@ function buildEntMusic(pane, api) {
   root.addEventListener("pointerdown", event => {
     const btn = event.target.closest("button");
     if (btn && (btn.classList.contains("sp-x") || btn.classList.contains("sp-ghost") || btn.closest(".sp-btns") || btn.classList.contains("sp-quick") || btn.classList.contains("sp-play") || btn.classList.contains("sp-nav"))) {
-      spring(btn, 0.9, 1, 0.26, 280);
+      spring(btn, 0.84, 1, 0.48, 320);
       return;
     }
     const el = event.target.closest(".sp-song, .sp-row, .sp-card");
@@ -9712,7 +10013,7 @@ function buildEntMusic(pane, api) {
     const rect = el.getBoundingClientRect();
     el.style.transformOrigin = Math.max(0, event.clientX - rect.left) + "px " + Math.max(0, event.clientY - rect.top) + "px";
     const song = el.classList.contains("sp-song");
-    spring(el, song ? 0.986 : 0.98, 1, song ? 0.18 : 0.22, song ? 340 : 420);
+    spring(el, song ? 0.94 : 0.92, 1, song ? 0.4 : 0.42, song ? 360 : 420);
   });
   let drag = null;
   root.addEventListener("dragstart", event => {
