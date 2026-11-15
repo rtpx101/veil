@@ -111,7 +111,7 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .range-track input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border-radius:50%;background:transparent;border:0}
 .range-track input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:var(--border);border:0}
 .range-track input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:transparent}
-.range-knob{position:absolute;top:50%;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--accent);pointer-events:none;transform:translateY(-50%)}
+.range-knob{position:absolute;top:50%;width:18px;height:18px;margin-left:-9px;will-change:left,transform;border-radius:50%;background:var(--accent);pointer-events:none;transform:translateY(-50%)}
 .setting-actions{display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:14px;margin:18px 0 20px}
 .setting-actions .primary-btn,.setting-actions .secondary-btn{width:auto;min-width:112px;margin:0;height:40px;padding:0 16px}
 .bind-chip{min-width:96px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:650}
@@ -962,13 +962,13 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-sub span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sp-dot{flex:0 0 auto;opacity:.7}
 .sp-exp{width:14px;height:14px;flex:0 0 14px;border-radius:50%;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);background:transparent;box-sizing:border-box}
-.sp-exp b{font-style:normal;font-size:8px;font-weight:800;line-height:1;letter-spacing:-.03em}
+.sp-exp b{display:inline;font-style:normal;font-size:8px;font-weight:800;line-height:1;letter-spacing:-.03em;overflow:visible;white-space:normal}
 .sp-exp[hidden]{display:none !important}
 .sp-topwrap{display:flex;align-items:center;gap:28px;margin:0 0 16px;padding:10px;border-radius:12px;background:var(--panel)}
 .sp-top{flex:1;min-width:0;display:flex;align-items:center;gap:16px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer;padding:6px}
 .sp-top .sp-art{width:92px;height:92px;flex:0 0 92px;border-radius:6px}
 .sp-top-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:6px}
-.sp-top-copy b{display:block;font-size:28px;font-weight:760;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-top-copy > b{display:block;font-size:28px;font-weight:760;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sp-top-play{width:48px;height:48px;flex:0 0 48px;border-radius:50%;background:var(--accent);color:var(--accentText);display:inline-flex;align-items:center;justify-content:center}
 .sp-top-play .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-top-acts{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;margin-left:8px}
@@ -1021,7 +1021,7 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-lyric-scrim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
 .sp-lyric-frame .sp-x{position:absolute;top:12px;right:12px;z-index:2;color:#fff;background:rgba(0,0,0,.28);box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
 .sp-lyric-frame .sp-lyrics{position:relative;z-index:1;flex:1;min-height:0;overflow:auto;margin:58px 7vw 8px;padding-right:8px}
-.sp-line{margin:0 0 18px;color:rgba(255,255,255,.48);font-size:clamp(18px,2.4vw,28px);font-weight:750;line-height:1.3;cursor:pointer;transform-origin:left center}
+.sp-line{margin:0 0 18px;color:rgba(255,255,255,.48);transition:color .35s ease;font-size:clamp(18px,2.4vw,28px);font-weight:750;line-height:1.3;cursor:pointer;transform-origin:left center}
 .sp-line.is-past{color:rgba(255,255,255,.72)}
 .sp-line.is-on{color:#fff}
 .sp-line[data-t^="-"]{cursor:default}
@@ -1032,7 +1032,10 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-dock-line{position:absolute;left:50%;top:6px;width:calc(100vw / 12);min-width:72px;height:5px;transform:translateX(-50%);border-radius:99px;background:var(--accent);cursor:pointer;pointer-events:auto}
 .sp-dock-card{position:absolute;left:12px;top:16px;width:max-content;max-width:calc(100vw - 24px);height:72px;display:flex;align-items:center;justify-content:flex-start;gap:12px;padding:0 12px;border-radius:16px;border:1px solid var(--border);background:var(--panel);box-shadow:0 12px 36px rgba(0,0,0,.35);opacity:0;pointer-events:none;transform-origin:left top}
 .sp-dock.is-open{height:104px;pointer-events:auto}
-.sp-dock.is-open .sp-dock-card{opacity:1;pointer-events:auto}
+.sp-dock.is-open .sp-dock-card{pointer-events:auto}
+.sp-dock{--dock-p:0}
+.sp-dock-line{translate:0 calc(var(--dock-p) * 4px)}
+.sp-dock-card{opacity:clamp(0,var(--dock-p),1);translate:0 calc((1 - var(--dock-p)) * -18px);will-change:translate,opacity}
 body[data-veil-view="browser"] .sp-dock{top:86px}
 .sp-dock-id{display:flex;align-items:center;gap:10px;min-width:0;width:auto;max-width:220px;flex:0 1 220px;height:auto;border:0;border-radius:10px;background:transparent;color:var(--text);text-align:left;cursor:pointer;padding:0;box-shadow:none}
 .sp-dock-id img,.sp-dock-id .sp-art{width:52px;height:52px;flex:0 0 52px;border-radius:6px;object-fit:cover}
@@ -1114,6 +1117,9 @@ body[data-veil-view="browser"] .sp-dock{top:86px}
 }
 
 @property --veil-press{syntax:'<number>';inherits:false;initial-value:1}
+@property --veil-in-x{syntax:'<number>';inherits:false;initial-value:0}
+@property --veil-in-y{syntax:'<number>';inherits:false;initial-value:0}
+@property --veil-in-s{syntax:'<number>';inherits:false;initial-value:1}
 html.veil-spring :is(button,[role=button],.vos-taskbtn,.vos-startitem):not(.tab):not(.new-tab):not(.dash-tile):not(.quick-link):not(.preset){scale:var(--veil-press,1)}
 html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cookie-overlay .cookie-box,.signup-overlay .signup-card,.settings-page.active,.chat-card,.chat-add,.page-loader-card):not(.closing *){animation:none}
 .veil-sorry-bar{position:absolute;left:50%;top:12px;translate:-50% 0;z-index:40;display:flex;align-items:center;gap:12px;max-width:calc(100% - 24px);padding:10px 12px 10px 16px;border-radius:14px;background:rgba(22,22,22,.94);border:1px solid rgba(255,255,255,.1);box-shadow:0 14px 38px rgba(0,0,0,.45);color:#eee;font-size:13px;line-height:1.35;backdrop-filter:blur(10px)}
@@ -1268,8 +1274,8 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     if (!gate) throw new Error("Sign-in screen failed to load (missing access gate)");
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
-    await prefetch("scramjet/scramjet.all.js?v=10", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=97", "Loading browser…", 5);
+    await prefetch("scramjet/scramjet.all.js?v=11", "Loading engine…", 4);
+    await prefetch("veil-app.js?v=98", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1756,6 +1762,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=97"></script>
+<script src="access-gate.js?v=98"></script>
 </body>
 </html>

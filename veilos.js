@@ -4089,6 +4089,15 @@
         });
         return;
       }
+      if (!job.alt) {
+        job.busy = true;
+        musicStatus("Finding another copy of this song…");
+        musicAlternate(job).then(function () {
+          if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
+          musicKick(audio, id);
+        });
+        return;
+      }
       job.done = true;
       job.busy = false;
       var queueLen = (musicState.queue || []).length;
@@ -4171,6 +4180,93 @@
       musicBump(job, attempt, audio);
     });
   }
+  function musicAlternate(job) {
+    // Last resort before "couldn't play": the same song is usually up more than once (topic
+    // upload, lyric video). Official videos of explicit songs are often age-gated and refuse every
+    // stream host, while a lyric re-upload of the same length plays fine.
+    if (!job || job.alt) return Promise.resolve(false);
+    job.alt = true;
+    var track = musicCurrent();
+    if (!track || track.id !== job.id) return Promise.resolve(false);
+    var want = Number(track.seconds) || 0;
+    var q = encodeURIComponent(((track.title || "") + " " + (track.author || "")).replace(/\s+-\s+topic$/i, "").slice(0, 120));
+    var urls = MUSIC_SEARCH.map(function (host) { return host + "/search?q=" + q + "&filter=videos"; });
+    return musicFetchJson(urls, function (data) { return data && data.items && data.items.length; }).then(function (data) {
+      var picks = (data.items || []).map(musicTrackFrom).filter(function (t) {
+        if (!t || t.id === job.id) return false;
+        if (want && t.seconds && Math.abs(t.seconds - want) > 8) return false;
+        return !/reaction|cover|remix|slowed|sped up|nightcore|8d/i.test(t.title || "");
+      }).slice(0, 3);
+      var n = 0;
+      function step() {
+        if (n >= picks.length) return false;
+        var pick = picks[n];
+        n += 1;
+        return musicProbe(pick.id).then(function (url) {
+          if (!url) return step();
+          job.urls.push(url);
+          return true;
+        });
+      }
+      return step();
+    }).catch(function () { return false; });
+  }
+  function musicProbe(id) {
+    // Load every audio format at once in throwaway <audio> elements (metadata only) and hand the
+    // real player the first one that actually decodes. echostreamz's companion answers with a
+    // doubled Access-Control-Allow-Origin header, so fetch() can't probe it, but media elements
+    // don't need CORS. One slow or broken format (140 sometimes hangs 20s) no longer costs a full
+    // timeout per song.
+    if (typeof Audio !== "function") return Promise.resolve("");
+    var idQ = encodeURIComponent(id);
+    var order = [
+      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=140&local=true",
+      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=140",
+      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=251&local=true",
+      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=18"
+    ];
+    var probes = [];
+    var got = {};
+    return new Promise(function (resolve) {
+      var settled = false;
+      var left = order.length;
+      var grace = 0;
+      var cap = setTimeout(function () { finish(best()); }, 10000);
+      function best() {
+        for (var i = 0; i < order.length; i++) if (got[i]) return order[i];
+        return "";
+      }
+      function finish(url) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(cap);
+        if (grace) clearTimeout(grace);
+        probes.forEach(function (el) {
+          try { el.removeAttribute("src"); el.load(); } catch (err) {}
+        });
+        resolve(url || "");
+      }
+      order.forEach(function (url, i) {
+        var el = new Audio();
+        probes.push(el);
+        el.muted = true;
+        el.preload = "metadata";
+        var done = false;
+        var mark = function (ok) {
+          if (done) return;
+          done = true;
+          if (ok) got[i] = true;
+          left -= 1;
+          if (settled) return;
+          if (got[0] || got[1] || left === 0) { finish(best()); return; }
+          if (best() && !grace) grace = setTimeout(function () { finish(best()); }, 1500);
+        };
+        el.addEventListener("loadedmetadata", function () { mark(isFinite(el.duration) || el.duration === Infinity || el.readyState >= 1); });
+        el.addEventListener("error", function () { mark(false); });
+        el.src = url;
+      });
+    });
+  }
   function musicPlay(index) {
     if (!musicState) return;
     var queue = musicState.queue || [];
@@ -4195,8 +4291,18 @@
       return;
     }
     musicStatus("Loading…");
-    musicState.failovers = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: false, done: false, ok: false };
-    musicKick(audio, track.id);
+    var job = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: true, done: false, ok: false };
+    musicState.failovers = job;
+    try { audio.pause(); } catch (err) {}
+    musicProbe(track.id).then(function (url) {
+      if (!musicState || musicState.failovers !== job) return;
+      // Every format already failed the probe, so walking the same raw links again only adds
+      // 12s timeouts each; keep the muxed format as the single direct retry, then fall back.
+      if (url) job.urls.unshift(url);
+      else job.urls = ["https://echostreamz.com/latest_version?id=" + encodeURIComponent(track.id) + "&itag=18"];
+      job.busy = false;
+      musicKick(audio, track.id);
+    });
   }
   function musicWire(audio) {
     if (!audio || audio.dataset.wired === "1") return;

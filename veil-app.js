@@ -43,7 +43,7 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js?v=10",
+  all: BASE + "/scramjet/scramjet.all.js?v=11",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
@@ -52,7 +52,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=6";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=20";
+const SW_URL = BASE + "/sw.js?v=21";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -7695,7 +7695,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=96";
+  script.src = BASE + "/veilos.js?v=97";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8463,10 +8463,16 @@ window.addEventListener("beforeunload", value => {
     return "";
   }
 });
+// Re-setting the transport drops every request in flight (a captcha check, a song stream), so only
+// do it after the tab has been hidden long enough for the wisp socket to have gone stale.
+let veilHiddenAt = 0;
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    reconnectTransport();
+  if (document.visibilityState === "hidden") {
+    veilHiddenAt = Date.now();
+    return;
   }
+  if (veilHiddenAt && Date.now() - veilHiddenAt > 5 * 60 * 1000) reconnectTransport();
+  veilHiddenAt = 0;
 });
 function hasProfileName() {
   try {
@@ -8952,7 +8958,22 @@ function fadeIn(el) {
     setTimeout(clear, 420);
   } catch (err) {}
 }
-const VEIL_TAB_FEEL = { bounce: 0.46, duration: 560 };
+// The browser tab strip (v=87 / 82d8463) is the motion model for the rest of Veil. Its numbers are
+// copied here (the tab code itself is left untouched) so panes, sections and lists move the same way:
+// enter = fade + grow from 0.9, exit = fade + shrink to 0.96 while out of flow, reflow = FLIP slide,
+// switch = small 0.94 pop on the newly selected item, indicator = sliding pill.
+const VEIL_TAB_MOTION = {
+  enter: { bounce: 0.46, duration: 560 },
+  exit: { bounce: 0.28, duration: 380 },
+  slide: { bounce: 0.38, duration: 540 },
+  select: { bounce: 0.5, duration: 600 },
+  pill: { bounce: 0.32, duration: 560 }
+};
+const VEIL_TAB_FEEL = VEIL_TAB_MOTION.enter;
+function veilTabSpring(kind) {
+  const feel = VEIL_TAB_MOTION[kind] || VEIL_TAB_MOTION.enter;
+  return veilSpring(feel.bounce, feel.duration);
+}
 function veilMotionOk() {
   const anime = window.anime;
   return !!(anime && anime.animate && anime.spring && !motionOff());
@@ -8965,6 +8986,9 @@ function veilClearMotion(el, keepTransition) {
   el.style.transform = prev.transform || "";
   el.style.scale = prev.scale || "";
   el.style.translate = prev.translate || "";
+  el.style.removeProperty("--veil-in-x");
+  el.style.removeProperty("--veil-in-y");
+  el.style.removeProperty("--veil-in-s");
   if (!keepTransition && el.__veilTransition != null) {
     el.style.transition = el.__veilTransition;
     el.__veilTransition = null;
@@ -8995,7 +9019,35 @@ function veilSpringIn(el, kind, opts) {
     const keep = opts.keep || "";
     el.style.transition = keep || "none";
   }
-  const spec = Object.assign({}, VEIL_KINDS[kind] || VEIL_KINDS.pop);
+  const base = VEIL_KINDS[kind] || VEIL_KINDS.pop;
+  let spec = Object.assign({}, base);
+  // An element positioned with its own transform (translate(-50%,-50%) centring etc.) must not have
+  // that transform replaced mid-spring, or it jumps off-centre and snaps back. Those elements get
+  // the spring through CSS variables appended after their own transform instead.
+  let own = "";
+  try {
+    const cs = getComputedStyle(el);
+    if (cs.transform && cs.transform !== "none") own = "standalone";
+    else if ((cs.translate && cs.translate !== "none") || (cs.scale && cs.scale !== "none")) own = "transform";
+  } catch (err) {}
+  if (own === "standalone") {
+    spec = {};
+    if (base.opacity) spec.opacity = base.opacity;
+    const x = base.translateX || [0, 0];
+    const y = base.translateY || [0, 0];
+    const sc = base.scale || [1, 1];
+    spec["--veil-in-x"] = x;
+    spec["--veil-in-y"] = y;
+    spec["--veil-in-s"] = sc;
+    el.style.setProperty("--veil-in-x", String(x[0]));
+    el.style.setProperty("--veil-in-y", String(y[0]));
+    el.style.setProperty("--veil-in-s", String(sc[0]));
+    // Append the spring after the element's own transform so it moves and scales around where it
+    // already sits (standalone translate/scale would apply before it and pull centred boxes aside).
+    let ownT = "";
+    try { ownT = el.style.transform || getComputedStyle(el).transform; } catch (err) {}
+    el.style.transform = (ownT && ownT !== "none" ? ownT + " " : "") + "translate(calc(var(--veil-in-x) * 1px), calc(var(--veil-in-y) * 1px)) scale(var(--veil-in-s))";
+  }
   spec.ease = veilSpring(opts.bounce == null ? VEIL_TAB_FEEL.bounce : opts.bounce, opts.duration || VEIL_TAB_FEEL.duration);
   if (opts.delay) spec.delay = opts.delay;
   let job = null;
@@ -9028,7 +9080,51 @@ function veilStaggerIn(nodes, kind, opts) {
     veilSpringIn(el, kind, Object.assign({}, opts, { delay: (opts.base || 0) + index * (opts.step || 32), force: true }));
   });
 }
-window.veilMotion = { ok: veilMotionOk, spring: veilSpring, in: veilSpringIn, stagger: veilStaggerIn, clear: veilClearMotion, feel: VEIL_TAB_FEEL };
+function veilSnapshot(nodes) {
+  const map = new Map();
+  Array.prototype.forEach.call(nodes || [], el => { if (el && el.getBoundingClientRect) map.set(el, el.getBoundingClientRect()); });
+  return map;
+}
+// FLIP: after a list changed, slide the items that moved from where they were, like tabs do.
+function veilFlip(before) {
+  if (!before || !veilMotionOk()) return;
+  before.forEach((rect, el) => {
+    if (!el.isConnected) return;
+    const now = el.getBoundingClientRect();
+    const dx = rect.left - now.left;
+    const dy = rect.top - now.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    if (el._veilFlip && el._veilFlip.cancel) { try { el._veilFlip.cancel(); } catch (err) {} }
+    try {
+      el._veilFlip = window.anime.animate(el, { translateX: [dx, 0], translateY: [dy, 0], ease: veilTabSpring("slide"), onComplete: () => { el._veilFlip = null; el.style.transform = ""; } });
+    } catch (err) {}
+  });
+}
+// Remove an element the way a tab closes: lift it out of flow, fade and shrink, let the rest slide.
+function veilTabExit(el, done, siblings) {
+  if (!el || !el.isConnected) { if (done) done(); return; }
+  if (!veilMotionOk()) { el.remove(); if (done) done(); return; }
+  const before = veilSnapshot(siblings || (el.parentNode ? Array.prototype.filter.call(el.parentNode.children, n => n !== el) : []));
+  const parent = el.offsetParent || el.parentNode;
+  const box = el.getBoundingClientRect();
+  const pr = parent && parent.getBoundingClientRect ? parent.getBoundingClientRect() : { left: 0, top: 0 };
+  el.style.position = "absolute";
+  el.style.left = box.left - pr.left + (parent && parent.scrollLeft || 0) + "px";
+  el.style.top = box.top - pr.top + (parent && parent.scrollTop || 0) + "px";
+  el.style.width = box.width + "px";
+  el.style.height = box.height + "px";
+  el.style.margin = "0";
+  el.style.pointerEvents = "none";
+  try { window.anime.animate(el, { opacity: [1, 0], scale: [1, 0.96], ease: veilTabSpring("exit") }); } catch (err) {}
+  veilFlip(before);
+  setTimeout(() => { try { el.remove(); } catch (err) {} if (done) done(); }, VEIL_TAB_MOTION.exit.duration + 20);
+}
+function veilTabSelect(el) {
+  if (!el || !veilMotionOk()) return;
+  if (el._veilSelect && el._veilSelect.cancel) { try { el._veilSelect.cancel(); } catch (err) {} }
+  try { el._veilSelect = window.anime.animate(el, { scale: [0.94, 1], ease: veilTabSpring("select") }); } catch (err) {}
+}
+window.veilMotion = { tab: VEIL_TAB_MOTION, tabSpring: veilTabSpring, flip: veilFlip, snapshot: veilSnapshot, exit: veilTabExit, select: veilTabSelect, ok: veilMotionOk, spring: veilSpring, in: veilSpringIn, stagger: veilStaggerIn, clear: veilClearMotion, feel: VEIL_TAB_FEEL };
 const VEIL_AUTO_ADD = [
   [".modal-overlay > .modal-box, .cookie-overlay > .modal-box, .cookie-overlay > .cookie-box, .signup-overlay > .signup-card, .game-player-overlay > .game-player", "pop"],
   [".chat-card", "drop"],
@@ -9318,9 +9414,13 @@ function showEntPane(name) {
     const on = pane === next;
     pane.classList.toggle("on", on);
     if (!on && pane !== prev) {
+      if (pane._veilPane && pane._veilPane.cancel) { try { pane._veilPane.cancel(); } catch (err) {} }
+      pane._veilPane = null;
       pane.style.opacity = "";
+      pane.style.transform = "";
       pane.style.translate = "";
       pane.style.visibility = "";
+      pane.style.pointerEvents = "";
     }
   });
   const sw = document.getElementById("stageSwitch");
@@ -9335,31 +9435,43 @@ function showEntPane(name) {
   if (!first && prev && next && prev !== next && anime && anime.animate && !motionOff()) {
     prev.classList.remove("on");
     next.classList.add("on");
+    // Same pattern as switching browser tabs: the old pane leaves with the tab-close spring, the new
+    // one arrives with the tab-open spring, and any switch still in flight is stopped first.
+    [prev, next].forEach(pane => {
+      if (pane._veilPane && pane._veilPane.cancel) { try { pane._veilPane.cancel(); } catch (err) {} }
+      pane._veilPane = null;
+    });
+    clearTimeout(showEntPane.timer);
     prev.style.visibility = "visible";
     prev.style.pointerEvents = "none";
     next.style.visibility = "visible";
     try {
-      anime.animate(prev, {
+      prev._veilPane = anime.animate(prev, {
         opacity: [1, 0],
-        translateX: [0, dir * -36],
-        duration: 320,
-        ease: "outCubic"
+        translateX: [0, dir * -28],
+        scale: [1, 0.96],
+        ease: veilTabSpring("exit")
       });
-      anime.animate(next, {
+      next._veilPane = anime.animate(next, {
         opacity: [0, 1],
         translateX: [dir * 42, 0],
-        ease: anime.spring ? anime.spring({ bounce: 0.44, duration: 580 }) : "outCubic"
+        scale: [0.97, 1],
+        ease: veilTabSpring("enter")
       });
     } catch (err) {}
-    setTimeout(() => {
-      prev.style.opacity = "";
-      prev.style.translate = "";
-      prev.style.visibility = "";
-      prev.style.pointerEvents = "";
-      next.style.opacity = "";
-      next.style.translate = "";
-      next.style.visibility = "";
-    }, 580);
+    const btn = sw && sw.querySelector('[data-ent="' + name + '"]');
+    if (btn) veilTabSelect(btn);
+    showEntPane.timer = setTimeout(() => {
+      [prev, next].forEach(pane => {
+        if (pane._veilPane && pane._veilPane.cancel) { try { pane._veilPane.cancel(); } catch (err) {} }
+        pane._veilPane = null;
+        pane.style.opacity = "";
+        pane.style.transform = "";
+        pane.style.translate = "";
+        pane.style.visibility = "";
+        pane.style.pointerEvents = "";
+      });
+    }, VEIL_TAB_MOTION.enter.duration * 3);
   }
   if (name === "music" && next) mountEntMusic(next);
   else if (name !== "music") {
@@ -9402,26 +9514,44 @@ function syncRangeKnob(input, animate) {
   const max = Number(input.max);
   const span = (Number.isFinite(max) ? max : 100) - (Number.isFinite(min) ? min : 0) || 1;
   const pct = ((Number(input.value) || 0) - (Number.isFinite(min) ? min : 0)) / span;
-  const left = Math.max(0, Math.min(1, pct)) * 100;
+  const target = Math.max(0, Math.min(1, pct));
+  // The knob centre travels the same path as the native thumb (half a knob in from each end), the
+  // spring is clamped to 0..1 so its bounce cannot carry it past an end, and the squash grows away
+  // from the nearest end so the bigger frames of the jiggle stay inside the track too.
+  const size = knob.offsetWidth || 18;
+  const place = value => {
+    const v = Math.max(0, Math.min(1, value));
+    knob._veilPct = v;
+    knob.style.left = "calc((100% - " + size + "px) * " + v.toFixed(4) + " + " + (size / 2) + "px)";
+    knob.style.transformOrigin = (v * 100).toFixed(1) + "% 50%";
+  };
   if (knob._veilKnob && knob._veilKnob.cancel) {
     try { knob._veilKnob.cancel(); } catch (err) {}
     knob._veilKnob = null;
   }
   const anime = window.anime;
   if (!animate || motionOff() || !anime || !anime.animate) {
-    knob.style.left = left + "%";
+    place(target);
     knob.style.transform = "translateY(-50%)";
     return;
   }
   try {
-    knob._veilKnob = anime.animate(knob, {
-      left: left + "%",
+    const from = typeof knob._veilPct === "number" ? knob._veilPct : target;
+    const state = { p: from };
+    place(from);
+    const move = anime.animate(state, {
+      p: target,
+      ease: veilSpring(0.62, 700),
+      onUpdate: () => place(state.p)
+    });
+    const squash = anime.animate(knob, {
       translateY: "-50%",
       scale: [1.28, 0.9, 1.12, 1],
       ease: veilSpring(0.62, 700)
     });
+    knob._veilKnob = { cancel() { try { move.cancel(); } catch (err) {} try { squash.cancel(); } catch (err) {} } };
   } catch (err) {
-    knob.style.left = left + "%";
+    place(target);
     knob.style.transform = "translateY(-50%)";
   }
 }
@@ -9683,7 +9813,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=96";
+      script.src = BASE + "/veilos.js?v=97";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9792,23 +9922,65 @@ function buildEntMusic(pane, api) {
       return;
     }
     ui.explicit[track.id] = false;
-    const query = new URLSearchParams({ term: ((track.title || "") + " " + (track.author || "")).slice(0, 120), entity: "song", limit: "5" });
-    fetch("https://itunes.apple.com/search?" + query.toString()).then(res => res.ok ? res.json() : null).then(data => {
-      const wantT = String(track.title || "").toLowerCase().slice(0, 18);
-      const wantA = String(track.author || "").toLowerCase().split(/\s+/)[0] || "";
-      const rows = data && data.results || [];
-      const hit = rows.find(item => {
-        const name = String(item.trackName || "").toLowerCase();
-        const artist = String(item.artistName || "").toLowerCase();
-        return wantT && name.indexOf(wantT.slice(0, 8)) !== -1 && (!wantA || artist.indexOf(wantA) !== -1);
-      });
-      const yes = !!(hit && hit.trackExplicitness === "explicit");
-      ui.explicit[track.id] = yes;
-      if (!yes) return;
+    const norm = value => String(value || "").toLowerCase().replace(/\s*[\(\[][^\)\]]*[\)\]]/g, "").replace(/\s*-\s*topic$/, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const wantT = norm(lyricQueryOf(track).title || track.title);
+    const wantA = norm(lyricQueryOf(track).artist || track.author).split(" ")[0] || "";
+    const match = (name, artist) => {
+      const n = norm(name);
+      const a = norm(artist);
+      return !!wantT && (n === wantT || n.indexOf(wantT) === 0 || wantT.indexOf(n) === 0) && (!wantA || a.indexOf(wantA) !== -1);
+    };
+    const mark = () => {
+      ui.explicit[track.id] = true;
       document.querySelectorAll("[data-exp]").forEach(el => {
         if (el.getAttribute("data-exp") === track.id) el.hidden = false;
       });
-    }).catch(() => {});
+    };
+    const term = ((lyricQueryOf(track).title || track.title || "") + " " + (lyricQueryOf(track).artist || track.author || "")).slice(0, 120);
+    // Deezer carries the explicit-lyrics flag for far more songs than iTunes (Lil Darkie, SoundCloud
+    // rap, etc.). It has no CORS headers, so it is read through JSONP; iTunes stays as the fallback.
+    const viaItunes = () => {
+      const query = new URLSearchParams({ term: term, entity: "song", limit: "8" });
+      return fetch("https://itunes.apple.com/search?" + query.toString()).then(res => res.ok ? res.json() : null).then(data => {
+        const hit = (data && data.results || []).find(item => match(item.trackName, item.artistName));
+        return hit ? hit.trackExplicitness === "explicit" : null;
+      }).catch(() => null);
+    };
+    // Deezer allows ~50 calls per 5s per user; space them out and retry once on its quota error.
+    const viaDeezer = (retry) => {
+      const run = () => askDeezer().then(res => {
+        if (res === "quota" && !retry) return new Promise(r => setTimeout(r, 5200)).then(() => viaDeezer(true));
+        return res === "quota" ? null : res;
+      });
+      const prev = window.__veilDzQueue || Promise.resolve();
+      const next = prev.then(() => new Promise(r => setTimeout(r, 140))).then(run);
+      window.__veilDzQueue = next.catch(() => null);
+      return next;
+    };
+    const askDeezer = () => new Promise(resolve => {
+      const cb = "__veilDz" + Math.random().toString(36).slice(2);
+      const tag = document.createElement("script");
+      let done = false;
+      const end = value => {
+        if (done) return;
+        done = true;
+        try { delete window[cb]; } catch (err) { window[cb] = undefined; }
+        tag.remove();
+        resolve(value);
+      };
+      window[cb] = data => {
+        if (data && data.error) { end("quota"); return; }
+        const hit = (data && data.data || []).find(item => match(item.title_short || item.title, item.artist && item.artist.name));
+        end(hit ? !!(hit.explicit_lyrics || hit.explicit_content_lyrics === 1) : null);
+      };
+      tag.onerror = () => end(null);
+      setTimeout(() => end(null), 6000);
+      tag.src = "https://api.deezer.com/search?" + new URLSearchParams({ q: term, limit: "8", output: "jsonp", callback: cb }).toString();
+      document.head.appendChild(tag);
+    });
+    viaDeezer(false).then(yes => yes == null ? viaItunes() : yes).then(yes => {
+      if (yes) mark();
+    });
   }
   function scanExplicit(scope) {
     const nodes = (scope || root).querySelectorAll("[data-exp]");
@@ -9827,6 +9999,8 @@ function buildEntMusic(pane, api) {
     if (!box) return;
     ui.lines = lines || [];
     ui.line = -1;
+    ui.linePast = 0;
+    box.__veilOnLine = null;
     if (!ui.lines.length) {
       box.innerHTML = '<div class="sp-lyric-empty">No lyrics for this song.</div>';
       return;
@@ -9909,17 +10083,40 @@ function buildEntMusic(pane, api) {
     const box = lyricBox();
     if (!box) return;
     const nodes = box.querySelectorAll(".sp-line");
-    nodes.forEach((el, i) => {
-      el.classList.toggle("is-on", i === index);
-      el.classList.toggle("is-past", index >= 0 && i < index);
-      if (i !== index) el.style.transform = "";
-    });
+    const prev = box.__veilOnLine;
+    // Only the two lines that change get touched: no sweep over every line, no inline styles left
+    // behind, and the old spring is stopped before the new one starts so they never stack.
+    if (prev && prev !== nodes[index]) {
+      if (prev._veilLine && prev._veilLine.cancel) {
+        try { prev._veilLine.cancel(); } catch (err) {}
+      }
+      prev._veilLine = null;
+      prev.style.transform = "";
+      prev.style.willChange = "";
+      prev.classList.remove("is-on");
+    }
+    for (let i = Math.max(0, Math.min(ui.linePast || 0, index)); i < nodes.length; i++) {
+      const past = index >= 0 && i < index;
+      if (nodes[i].classList.contains("is-past") !== past) nodes[i].classList.toggle("is-past", past);
+      else if (!past && i > index) break;
+    }
+    ui.linePast = Math.max(0, index);
     const on = nodes[index];
+    box.__veilOnLine = on || null;
+    if (on) on.classList.add("is-on");
     if (on && !motionOff() && window.anime && window.anime.animate) {
       try {
-        window.anime.animate(on, {
-          translateY: [18, -12, 7, -3, 0],
-          ease: veilSpring(0.7, 900)
+        if (on._veilLine && on._veilLine.cancel) on._veilLine.cancel();
+        on.style.willChange = "transform";
+        // One spring per line change: it overshoots once and settles on its own, so it reads as a
+        // single smooth bounce rather than four eased keyframes stitched together.
+        on._veilLine = window.anime.animate(on, {
+          translateY: [16, 0],
+          ease: veilSpring(0.42, 760),
+          onComplete: () => {
+            on._veilLine = null;
+            on.style.willChange = "";
+          }
         });
       } catch (err) {}
     }
@@ -10638,11 +10835,21 @@ function buildEntMusic(pane, api) {
     const unlike = event.target.closest("[data-unlike]");
     if (unlike) {
       const track = (lib().liked || []).find(item => item.id === unlike.getAttribute("data-unlike"));
-      if (track) api.like(track);
+      const row = unlike.closest(".sp-song");
+      if (track) {
+        if (row && window.veilMotion && window.veilMotion.ok()) window.veilMotion.exit(row, () => api.like(track));
+        else api.like(track);
+      }
       return;
     }
     const remove = event.target.closest("[data-remove-track]");
-    if (remove) api.removeTrack(ui.albumId, Number(remove.getAttribute("data-remove-track")));
+    if (remove) {
+      const at = Number(remove.getAttribute("data-remove-track"));
+      const album = ui.albumId;
+      const row = remove.closest(".sp-song");
+      if (row && window.veilMotion && window.veilMotion.ok()) window.veilMotion.exit(row, () => api.removeTrack(album, at));
+      else api.removeTrack(album, at);
+    }
   });
   root.addEventListener("submit", event => {
     const form = event.target.closest("[data-search]");
@@ -10835,16 +11042,45 @@ function buildEntMusic(pane, api) {
     dock.hidden = true;
     dock.innerHTML = '<div class="sp-dock-line"></div><div class="sp-dock-card"><button type="button" class="sp-dock-id" data-dock-open><span class="sp-art sp-ph" data-dock-art>' + ico("music_default.svg") + '</span><span class="sp-dock-meta"><b data-dock-title>Nothing playing</b><small data-dock-by></small></span></button><div class="sp-dock-controls"><button type="button" data-dock-prev aria-label="Previous">' + ico("rewind.svg") + '</button><button type="button" class="play" data-dock-toggle aria-label="Play">' + ico("play.svg") + '</button><button type="button" data-dock-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div><div class="sp-dock-seek"><span data-dock-cur>0:00</span><input data-dock-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dock-dur>0:00</span></div><input class="sp-dock-vol" data-dock-vol type="range" min="0" max="100" value="100" aria-label="Volume"><button type="button" data-dock-lyrics aria-label="Lyrics">' + ico("lyrics.svg") + '</button><button type="button" class="sp-ghost" data-dock-video aria-label="Music video">' + ico("video.svg") + '</button></div>';
     document.body.appendChild(dock);
+    // One spring drives one number (--dock-p) that both the bar and the card read, so they slide
+    // down together and back up together, and a new hover simply retargets the running spring.
+    const state = { p: 0 };
+    const moveDock = to => {
+      if (dock._veilDockJob && dock._veilDockJob.cancel) {
+        try { dock._veilDockJob.cancel(); } catch (err) {}
+      }
+      dock._veilDockJob = null;
+      const anime = window.anime;
+      if (motionOff() || !anime || !anime.animate) {
+        state.p = to;
+        dock.style.setProperty("--dock-p", String(to));
+        return;
+      }
+      try {
+        dock._veilDockJob = anime.animate(state, {
+          p: to,
+          ease: to ? veilTabSpring("enter") : veilTabSpring("exit"),
+          onUpdate: () => dock.style.setProperty("--dock-p", state.p.toFixed(4))
+        });
+      } catch (err) {
+        state.p = to;
+        dock.style.setProperty("--dock-p", String(to));
+      }
+    };
+    dock.__veilDockMove = moveDock;
     const openDock = () => {
-      if (dock.hidden) return;
+      if (dock.hidden || dock.classList.contains("is-open")) return;
       dock.classList.add("is-open");
-      const card = dock.querySelector(".sp-dock-card");
-      if (window.__veilDockSpring) window.__veilDockSpring(card);
+      moveDock(1);
     };
     const line = dock.querySelector(".sp-dock-line");
     if (line) line.addEventListener("pointerenter", openDock);
     dock.addEventListener("pointerenter", openDock);
-    dock.addEventListener("pointerleave", () => dock.classList.remove("is-open"));
+    dock.addEventListener("pointerleave", () => {
+      if (!dock.classList.contains("is-open")) return;
+      dock.classList.remove("is-open");
+      moveDock(0);
+    });
     return dock;
   }
   function syncDock() {
@@ -10853,7 +11089,10 @@ function buildEntMusic(pane, api) {
     const track = snap.track;
     const show = !!(track && (snap.playing || (snap.currentTime || 0) > 0.15) && !musicPaneOn());
     dock.hidden = !show;
-    if (!show) dock.classList.remove("is-open");
+    if (!show && dock.classList.contains("is-open")) {
+      dock.classList.remove("is-open");
+      if (dock.__veilDockMove) dock.__veilDockMove(0);
+    }
     const id = track && track.id || "";
     if (dock.dataset.track !== id) {
       dock.dataset.track = id;
@@ -10913,7 +11152,6 @@ function buildEntMusic(pane, api) {
   }
   const dock = ensureDock();
   window.__veilLoadLyrics = loadLyrics;
-  window.__veilDockSpring = card => spring(card, 0.985, 1, 0.16, 680);
   window.__veilSyncDock = syncDock;
   window.__veilSyncDockTime = syncDockTime;
   dock.onclick = event => {
