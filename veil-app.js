@@ -52,7 +52,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=5";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=16";
+const SW_URL = BASE + "/sw.js?v=17";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -176,6 +176,11 @@ let muxConnection = null;
 function exposeBarePort() {
   if (window.__veilBarePort || !("serviceWorker" in navigator)) return;
   window.__veilBarePort = true;
+  try {
+    const warm = new SharedWorker(BAREMUX_WORKER, "bare-mux-worker");
+    window.__veilBareWarm = warm;
+    try { warm.port.start(); } catch (err) {}
+  } catch (err) {}
   navigator.serviceWorker.addEventListener("message", (event) => {
     const data = event.data;
     if (!data || data.type !== "getPort" || !data.port) return;
@@ -7622,7 +7627,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=93";
+  link.href = BASE + "/veilos.css?v=94";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7634,7 +7639,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=93";
+  script.src = BASE + "/veilos.js?v=94";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8832,7 +8837,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=93";
+    script.src = REPO_PATH + "anime.min.js?v=94";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -9303,7 +9308,7 @@ function installVeilScrolls() {
       try { knob._veilMotion.cancel(); } catch (err) {}
       knob._veilMotion = null;
     }
-    knob.style.transform = "";
+    knob.style.transform = "none";
     if (g.vertical) {
       bar.style.left = Math.max(0, g.rect.right - 14) + "px";
       bar.style.top = (g.rect.top + 6) + "px";
@@ -9328,9 +9333,12 @@ function installVeilScrolls() {
     bar._hide = setTimeout(() => { if (!bar._drag) bar.classList.remove("is-on"); }, 800);
     if (!settle || motionOff() || !window.anime || !window.anime.animate) return;
     try {
+      const vel = bar._vel || 0;
+      let kick = Math.max(-14, Math.min(14, vel));
+      if (Math.abs(vel) < 1) kick = vel < 0 ? -6 : 6;
       knob._veilMotion = window.anime.animate(knob, {
-        scale: [1.06, 1],
-        ease: veilSpring(0.14, 700)
+        translateY: [kick, 0],
+        ease: veilSpring(0.42, 720)
       });
     } catch (err) {}
   }
@@ -9445,7 +9453,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=93";
+      script.src = BASE + "/veilos.js?v=94";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9515,7 +9523,16 @@ function buildEntMusic(pane, api) {
   function glide(el, scale) {
     const anime = window.anime;
     if (!el || motionOff() || !anime || !anime.animate) return;
-    try { anime.animate(el, { scale: scale, ease: veilSpring(0.15, 680) }); } catch (err) {}
+    if (el._veilGlide) {
+      try { if (el._veilGlide.revert) el._veilGlide.revert(); } catch (err) {}
+      try { if (el._veilGlide.cancel) el._veilGlide.cancel(); } catch (err) {}
+      el._veilGlide = null;
+    }
+    const from = el._veilScale || 1;
+    try {
+      el._veilGlide = anime.animate(el, { scale: [from, scale], ease: veilSpring(0.15, 680) });
+      el._veilScale = scale;
+    } catch (err) {}
   }
   function prettySrc(src, big) {
     const url = String(src || "");

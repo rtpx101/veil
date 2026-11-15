@@ -3771,6 +3771,7 @@
       });
       if (!extra.length) return;
       job.urls = job.urls.slice(0, job.i + 1).concat(extra, job.urls.slice(job.i + 1));
+      if (!job.ok && musicState.audio && musicState.audio.readyState < 1) musicBump(job, job.i, musicState.audio);
     }).catch(function () {});
   }
   function musicDiscoverPiped(id, job) {
@@ -3803,6 +3804,7 @@
           return;
         }
         job.urls = job.urls.slice(0, job.i + 1).concat(extra, job.urls.slice(job.i + 1));
+        if (!job.ok && musicState.audio && musicState.audio.readyState < 1) musicBump(job, job.i, musicState.audio);
       }).catch(function () { step(); });
     }
     step();
@@ -3833,21 +3835,8 @@
     if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
     musicKick(audio, job.id);
   }
-  function musicRetryEcho(job, attempt, audio, url) {
-    if (!/echostreamz\.com/.test(String(url || ""))) return false;
-    if ((job.echoTry || 0) >= 2) return false;
-    if (job.echoWait) return true;
-    job.echoTry = (job.echoTry || 0) + 1;
-    job.echoWait = true;
-    job.busy = false;
-    if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
-    setTimeout(function () {
-      job.echoWait = false;
-      if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
-      if (job.i !== attempt) return;
-      musicKick(audio, job.id);
-    }, 180);
-    return true;
+  function musicRetryEcho() {
+    return false;
   }
   function musicLiked(id) {
     var hit = false;
@@ -4107,7 +4096,9 @@
         musicPaint();
         return;
       }
-      if (Date.now() - job.started > (/echostreamz\.com/.test(url) ? 5000 : 2800)) {
+      var waited = Date.now() - job.started;
+      var limit = audio.readyState >= 1 ? 4000 : 1200;
+      if (waited > limit) {
         musicBump(job, attempt, audio);
         return;
       }
@@ -4126,6 +4117,7 @@
       musicBump(job, attempt, audio);
     };
     try { audio.pause(); } catch (err) {}
+    audio.preload = "auto";
     audio.src = url;
     audio.play().then(function () {
       if (!musicState || musicState.failovers !== job || job.i !== attempt) return;

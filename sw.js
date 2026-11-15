@@ -63,7 +63,7 @@ self.fetch = function (input, init) {
   return rawFetch(input, init);
 };
 
-importScripts((BASE || "") + "/scramjet/scramjet.all.js?v=6");
+importScripts((BASE || "") + "/scramjet/scramjet.all.js?v=7");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
