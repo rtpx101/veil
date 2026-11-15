@@ -47,8 +47,8 @@ const SCRAMJET_FILES = {
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
-const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
-const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
+const BAREMUX_SCRIPT = BASE + "/baremux/index.js?v=5";
+const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=5";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
@@ -181,6 +181,7 @@ function exposeBarePort() {
     if (!data || data.type !== "getPort" || !data.port) return;
     try {
       const worker = new SharedWorker(BAREMUX_WORKER, "bare-mux-worker");
+      try { worker.port.start(); } catch (err) {}
       data.port.postMessage(worker.port, [worker.port]);
     } catch (err) {
       console.warn("[veil] bare port", err);
@@ -455,9 +456,24 @@ async function initEngine() {
 async function applyMuxTransport() {
   const wisp = currentWisp();
   const entry = transportModule();
-  if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-  await muxConnection.setTransport(entry, [{ wisp: wisp, websocket: wisp }]);
-  return entry;
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (!muxConnection || attempt > 0) {
+        muxConnection = new BareMux.BareMuxConnection(attempt ? BAREMUX_WORKER + "&try=" + Date.now() : BAREMUX_WORKER);
+      }
+      const port = muxConnection && muxConnection.port;
+      if (port && typeof port.start === "function") {
+        try { port.start(); } catch (err) {}
+      }
+      await muxConnection.setTransport(entry, [{ wisp: wisp, websocket: wisp }]);
+      return entry;
+    } catch (err) {
+      lastErr = err;
+      muxConnection = null;
+    }
+  }
+  throw lastErr || new Error("Connection worker did not respond.");
 }
 async function reconnectTransport() {
   try {
@@ -7606,7 +7622,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=92";
+  link.href = BASE + "/veilos.css?v=93";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7618,7 +7634,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=92";
+  script.src = BASE + "/veilos.js?v=93";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8816,7 +8832,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=92";
+    script.src = REPO_PATH + "anime.min.js?v=93";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -9203,20 +9219,9 @@ try { dressRanges(); } catch (err) {}
 function installVeilScrolls() {
   if (installVeilScrolls.ready || !document.body) return;
   installVeilScrolls.ready = true;
-  const bar = document.createElement("div");
-  bar.className = "veil-scroll";
-  bar.innerHTML = '<i class="veil-scroll-track"></i><i class="veil-scroll-knob"></i>';
-  document.body.appendChild(bar);
-  const knob = bar.querySelector(".veil-scroll-knob");
-  let host = null;
-  let axis = "y";
-  let hideTimer = 0;
-  let settleTimer = 0;
-  let drag = null;
-  let lastPos = 0;
-  let velocity = 0;
+  const bars = new Map();
   function geom(el) {
-    if (!el || !el.getBoundingClientRect) return null;
+    if (!el || !el.getBoundingClientRect || !el.isConnected) return null;
     const rect = el.getBoundingClientRect();
     if (rect.width < 20 || rect.height < 20) return null;
     const maxY = el.scrollHeight - el.clientHeight;
@@ -9225,20 +9230,73 @@ function installVeilScrolls() {
     const max = vertical ? maxY : maxX;
     if (max < 12) return null;
     const track = Math.max(48, (vertical ? rect.height : rect.width) - 12);
-    const thumb = Math.max(28, Math.min(52, Math.round(track * 0.2)));
+    const thumb = Math.max(28, Math.min(56, Math.round(track * 0.22)));
     const travel = Math.max(1, track - thumb);
     const pos = ((vertical ? el.scrollTop : el.scrollLeft) / max) * travel;
     return { rect: rect, vertical: vertical, track: track, travel: travel, pos: pos, max: max, thumb: thumb };
   }
+  function prune() {
+    if (bars.size < 24) return;
+    bars.forEach((bar, node) => {
+      if (!node.isConnected || !bar.classList.contains("is-on")) {
+        bar.remove();
+        bars.delete(node);
+      }
+    });
+  }
+  function barFor(el) {
+    let bar = bars.get(el);
+    if (bar) return bar;
+    prune();
+    bar = document.createElement("div");
+    bar.className = "veil-scroll";
+    bar.innerHTML = '<i class="veil-scroll-track"></i><i class="veil-scroll-knob"></i>';
+    bar._host = el;
+    document.body.appendChild(bar);
+    bars.set(el, bar);
+    let drag = null;
+    bar.addEventListener("pointerdown", event => {
+      const host = bar._host;
+      const g = geom(host);
+      if (!host || !g) return;
+      event.preventDefault();
+      event.stopPropagation();
+      drag = { x: event.clientX, y: event.clientY, scroll: g.vertical ? host.scrollTop : host.scrollLeft, max: g.max, travel: g.travel, vertical: g.vertical };
+      bar._drag = drag;
+      try { bar.setPointerCapture(event.pointerId); } catch (err) {}
+    });
+    bar.addEventListener("pointermove", event => {
+      const host = bar._host;
+      if (!drag || !host) return;
+      host.__veilQuiet = 1;
+      const delta = drag.vertical ? event.clientY - drag.y : event.clientX - drag.x;
+      const next = drag.scroll + (delta / drag.travel) * drag.max;
+      if (drag.vertical) host.scrollTop = next;
+      else host.scrollLeft = next;
+      clearTimeout(host.__veilQuietTimer);
+      host.__veilQuietTimer = setTimeout(() => { host.__veilQuiet = 0; }, 80);
+      place(host, false);
+    });
+    const endDrag = () => {
+      if (!drag) return;
+      drag = null;
+      bar._drag = null;
+      if (bar._host) place(bar._host, true);
+    };
+    bar.addEventListener("pointerup", endDrag);
+    bar.addEventListener("pointercancel", endDrag);
+    return bar;
+  }
   function place(el, settle) {
     if (!el || (el.closest && el.closest(".tabs"))) return;
     const g = geom(el);
+    const bar = g ? barFor(el) : bars.get(el);
+    if (!bar) return;
     if (!g || g.rect.bottom < 0 || g.rect.top > window.innerHeight) {
       bar.classList.remove("is-on");
       return;
     }
-    host = el;
-    axis = g.vertical ? "y" : "x";
+    const knob = bar.querySelector(".veil-scroll-knob");
     bar.classList.toggle("is-x", !g.vertical);
     bar.classList.add("is-on");
     if (knob._veilMotion && knob._veilMotion.cancel) {
@@ -9266,59 +9324,37 @@ function installVeilScrolls() {
       knob.style.top = "5px";
       knob.style.left = g.pos + "px";
     }
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => { if (!drag) bar.classList.remove("is-on"); }, 720);
+    clearTimeout(bar._hide);
+    bar._hide = setTimeout(() => { if (!bar._drag) bar.classList.remove("is-on"); }, 800);
     if (!settle || motionOff() || !window.anime || !window.anime.animate) return;
-    const over = Math.max(-5, Math.min(5, velocity * 0.28));
     try {
       knob._veilMotion = window.anime.animate(knob, {
-        translateY: g.vertical ? [over, 0] : 0,
-        translateX: g.vertical ? 0 : [over, 0],
-        scale: [1.04, 1],
+        scale: [1.06, 1],
         ease: veilSpring(0.14, 700)
       });
     } catch (err) {}
   }
   function follow(el) {
     if (!el || el.__veilQuiet) return;
-    const before = lastPos;
+    if (el.closest && el.closest(".tabs")) return;
+    const bar = bars.get(el);
+    const before = bar ? bar._pos || 0 : 0;
     place(el, false);
     const g = geom(el);
-    if (g) {
-      velocity = g.pos - before;
-      lastPos = g.pos;
+    const live = bars.get(el);
+    if (g && live) {
+      live._vel = g.pos - before;
+      live._pos = g.pos;
     }
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(() => { if (host) place(host, true); }, 80);
+    clearTimeout(el.__veilSettle);
+    el.__veilSettle = setTimeout(() => { if (el.isConnected) place(el, true); }, 90);
   }
   document.addEventListener("scroll", event => {
     const el = event.target;
-    if (!el || el.nodeType !== 1 || el === bar || bar.contains(el)) return;
+    if (!el || el.nodeType !== 1) return;
+    if (el.classList && el.classList.contains("veil-scroll")) return;
     follow(el);
   }, true);
-  bar.addEventListener("pointerdown", event => {
-    if (!host) return;
-    const g = geom(host);
-    if (!g) return;
-    event.preventDefault();
-    event.stopPropagation();
-    drag = { x: event.clientX, y: event.clientY, scroll: axis === "y" ? host.scrollTop : host.scrollLeft, max: g.max, travel: g.travel };
-    try { bar.setPointerCapture(event.pointerId); } catch (err) {}
-  });
-  bar.addEventListener("pointermove", event => {
-    if (!drag || !host) return;
-    const delta = axis === "y" ? event.clientY - drag.y : event.clientX - drag.x;
-    const next = drag.scroll + (delta / drag.travel) * drag.max;
-    if (axis === "y") host.scrollTop = next;
-    else host.scrollLeft = next;
-  });
-  const endDrag = () => {
-    if (!drag) return;
-    drag = null;
-    if (host) place(host, true);
-  };
-  bar.addEventListener("pointerup", endDrag);
-  bar.addEventListener("pointercancel", endDrag);
 }
 try { installVeilScrolls(); } catch (err) {}
 function moveStagePill(name, animate) {
@@ -9409,7 +9445,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=92";
+      script.src = BASE + "/veilos.js?v=93";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -10888,7 +10924,10 @@ async function bootVeilAppInner() {
   } catch (err) {}
   setBootLine("Starting proxy…");
   try {
-    await initEngine();
+    await Promise.race([
+      initEngine(),
+      new Promise(resolve => setTimeout(resolve, 12000))
+    ]);
   } catch (err) {
     const msg = String(err && err.message || err);
     if (/did not load|unavailable|Service workers/i.test(msg)) throw err;
