@@ -725,10 +725,10 @@
       return loadScript("baremux/index.js?v=6");
     }).then(function () {
       setBootSub("Loading engine…");
-      return loadScript("scramjet/scramjet.all.js?v=9");
+      return loadScript("scramjet/scramjet.all.js?v=10");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=96");
+      return loadScript("veil-app.js?v=97");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);

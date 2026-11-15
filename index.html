@@ -1268,8 +1268,8 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     if (!gate) throw new Error("Sign-in screen failed to load (missing access gate)");
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
-    await prefetch("scramjet/scramjet.all.js?v=9", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=96", "Loading browser…", 5);
+    await prefetch("scramjet/scramjet.all.js?v=10", "Loading engine…", 4);
+    await prefetch("veil-app.js?v=97", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1756,6 +1756,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=96"></script>
+<script src="access-gate.js?v=97"></script>
 </body>
 </html>
