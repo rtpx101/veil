@@ -43,16 +43,16 @@ const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js?v=5",
+  all: BASE + "/scramjet/scramjet.all.js?v=8",
   sync: BASE + "/scramjet/scramjet.sync.js",
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
 const BAREMUX_SCRIPT = BASE + "/baremux/index.js?v=5";
-const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=5";
+const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=6";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=17";
+const SW_URL = BASE + "/sw.js?v=18";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -173,21 +173,32 @@ let engineReady = false;
 let engineController = null;
 let engineInitPromise = null;
 let muxConnection = null;
+let bareWorker = null;
+function bareWorkerInstance() {
+  if (bareWorker) return bareWorker;
+  bareWorker = new Worker(BAREMUX_WORKER);
+  bareWorker.onerror = (err) => {
+    console.warn("[veil] connection worker", (err && err.message) || err);
+  };
+  return bareWorker;
+}
+function mintBarePort() {
+  const channel = new MessageChannel();
+  bareWorkerInstance().postMessage({ port: channel.port1 }, [channel.port1]);
+  try { channel.port2.start(); } catch (err) {}
+  return channel.port2;
+}
 function exposeBarePort() {
   if (window.__veilBarePort || !("serviceWorker" in navigator)) return;
   window.__veilBarePort = true;
-  try {
-    const warm = new SharedWorker(BAREMUX_WORKER, "bare-mux-worker");
-    window.__veilBareWarm = warm;
-    try { warm.port.start(); } catch (err) {}
-  } catch (err) {}
+  try { bareWorkerInstance(); } catch (err) {}
   navigator.serviceWorker.addEventListener("message", (event) => {
     const data = event.data;
     if (!data || data.type !== "getPort" || !data.port) return;
+    try { event.stopImmediatePropagation(); } catch (err) {}
     try {
-      const worker = new SharedWorker(BAREMUX_WORKER, "bare-mux-worker");
-      try { worker.port.start(); } catch (err) {}
-      data.port.postMessage(worker.port, [worker.port]);
+      const port = mintBarePort();
+      data.port.postMessage(port, [port]);
     } catch (err) {
       console.warn("[veil] bare port", err);
     }
@@ -399,7 +410,7 @@ async function initEngine() {
       paintEngineStatus();
       setBootLine("Starting proxy…");
       exposeBarePort();
-      if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
+      if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(mintBarePort());
       await navigator.serviceWorker.register(SW_URL, {
         scope: SW_SCOPE,
         updateViaCache: "none"
@@ -465,7 +476,7 @@ async function applyMuxTransport() {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       if (!muxConnection || attempt > 0) {
-        muxConnection = new BareMux.BareMuxConnection(attempt ? BAREMUX_WORKER + "&try=" + Date.now() : BAREMUX_WORKER);
+        muxConnection = new BareMux.BareMuxConnection(mintBarePort());
       }
       const port = muxConnection && muxConnection.port;
       if (port && typeof port.start === "function") {
@@ -7627,7 +7638,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=94";
+  link.href = BASE + "/veilos.css?v=95";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7639,7 +7650,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=94";
+  script.src = BASE + "/veilos.js?v=95";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8837,7 +8848,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=94";
+    script.src = REPO_PATH + "anime.min.js?v=95";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -9184,15 +9195,19 @@ function syncRangeKnob(input, animate) {
   const anime = window.anime;
   if (!animate || motionOff() || !anime || !anime.animate) {
     knob.style.left = left + "%";
+    knob.style.transform = "translateY(-50%)";
     return;
   }
   try {
     knob._veilKnob = anime.animate(knob, {
       left: left + "%",
-      ease: veilSpring(0.16, 640)
+      translateY: "-50%",
+      scale: [1.28, 0.9, 1.12, 1],
+      ease: veilSpring(0.62, 700)
     });
   } catch (err) {
     knob.style.left = left + "%";
+    knob.style.transform = "translateY(-50%)";
   }
 }
 function dressRangeInput(input) {
@@ -9334,12 +9349,12 @@ function installVeilScrolls() {
     if (!settle || motionOff() || !window.anime || !window.anime.animate) return;
     try {
       const vel = bar._vel || 0;
-      let kick = Math.max(-14, Math.min(14, vel));
-      if (Math.abs(vel) < 1) kick = vel < 0 ? -6 : 6;
-      knob._veilMotion = window.anime.animate(knob, {
-        translateY: [kick, 0],
-        ease: veilSpring(0.42, 720)
-      });
+      let kick = Math.max(-40, Math.min(40, vel * 1.1));
+      if (Math.abs(kick) < 18) kick = vel < 0 ? -26 : 26;
+      const frames = [kick, kick * -0.78, kick * 0.48, kick * -0.22, 0];
+      const spec = { ease: veilSpring(0.78, 1100) };
+      spec[g.vertical ? "translateY" : "translateX"] = frames;
+      knob._veilMotion = window.anime.animate(knob, spec);
     } catch (err) {}
   }
   function follow(el) {
@@ -9453,7 +9468,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=94";
+      script.src = BASE + "/veilos.js?v=95";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9653,6 +9668,14 @@ function buildEntMusic(pane, api) {
       if (i !== index) el.style.transform = "";
     });
     const on = nodes[index];
+    if (on && !motionOff() && window.anime && window.anime.animate) {
+      try {
+        window.anime.animate(on, {
+          translateY: [18, -12, 7, -3, 0],
+          ease: veilSpring(0.7, 900)
+        });
+      } catch (err) {}
+    }
     if (!on) return;
     const anime = window.anime;
     const target = Math.max(0, on.offsetTop - box.clientHeight * 0.42);

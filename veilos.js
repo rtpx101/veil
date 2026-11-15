@@ -4163,8 +4163,6 @@
     musicStatus("Loading…");
     musicState.failovers = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: false, done: false, ok: false };
     musicKick(audio, track.id);
-    musicDiscover(track.id, musicState.failovers);
-    musicDiscoverPiped(track.id, musicState.failovers);
   }
   function musicWire(audio) {
     if (!audio || audio.dataset.wired === "1") return;
