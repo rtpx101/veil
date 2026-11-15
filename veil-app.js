@@ -52,7 +52,7 @@ const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=4";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
-const SW_URL = BASE + "/sw.js?v=15";
+const SW_URL = BASE + "/sw.js?v=16";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
@@ -7606,7 +7606,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=91";
+  link.href = BASE + "/veilos.css?v=92";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7618,7 +7618,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=91";
+  script.src = BASE + "/veilos.js?v=92";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -8816,7 +8816,7 @@ function ensureAnime() {
   }
   animeLoad = new Promise(resolve => {
     const script = document.createElement("script");
-    script.src = REPO_PATH + "anime.min.js?v=91";
+    script.src = REPO_PATH + "anime.min.js?v=92";
     script.async = true;
     script.onload = () => resolve(window.anime || null);
     script.onerror = () => resolve(null);
@@ -9146,39 +9146,58 @@ function moveSettingsPill(animate) {
     pill.style.width = width + "px";
   }
 }
-function dressRanges() {
-  document.querySelectorAll("#settingsPanel input[type=range]").forEach(input => {
-    if (input.closest(".range-track")) return;
+function syncRangeKnob(input, animate) {
+  if (!input) return;
+  const track = input.closest(".range-track");
+  const knob = track && track.querySelector(".range-knob");
+  if (!knob) return;
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const span = (Number.isFinite(max) ? max : 100) - (Number.isFinite(min) ? min : 0) || 1;
+  const pct = ((Number(input.value) || 0) - (Number.isFinite(min) ? min : 0)) / span;
+  const left = Math.max(0, Math.min(1, pct)) * 100;
+  if (knob._veilKnob && knob._veilKnob.cancel) {
+    try { knob._veilKnob.cancel(); } catch (err) {}
+    knob._veilKnob = null;
+  }
+  const anime = window.anime;
+  if (!animate || motionOff() || !anime || !anime.animate) {
+    knob.style.left = left + "%";
+    return;
+  }
+  try {
+    knob._veilKnob = anime.animate(knob, {
+      left: left + "%",
+      ease: veilSpring(0.16, 640)
+    });
+  } catch (err) {
+    knob.style.left = left + "%";
+  }
+}
+function dressRangeInput(input) {
+  if (!input) return;
+  if (!input.closest(".range-track")) {
     const track = document.createElement("span");
     track.className = "range-track";
+    if (input.classList.contains("sp-vol")) track.classList.add("sp-vol-track");
+    if (input.classList.contains("sp-dock-vol")) {
+      track.classList.add("sp-dock-vol");
+      input.classList.remove("sp-dock-vol");
+    }
     input.parentNode.insertBefore(track, input);
     track.appendChild(input);
     const knob = document.createElement("i");
     knob.className = "range-knob";
     track.appendChild(knob);
-    const place = animate => {
-      const min = Number(input.min);
-      const max = Number(input.max);
-      const span = (Number.isFinite(max) ? max : 100) - (Number.isFinite(min) ? min : 0) || 1;
-      const pct = ((Number(input.value) || 0) - (Number.isFinite(min) ? min : 0)) / span;
-      const left = Math.max(0, Math.min(1, pct)) * 100;
-      const anime = window.anime;
-      if (!animate || motionOff() || !anime || !anime.animate || !anime.spring) {
-        knob.style.left = left + "%";
-        return;
-      }
-      try {
-        anime.animate(knob, {
-          left: left + "%",
-          ease: anime.spring({ bounce: 0.34, duration: 460 })
-        });
-      } catch (err) {
-        knob.style.left = left + "%";
-      }
-    };
-    place(false);
-    input.addEventListener("input", () => place(true));
-  });
+    if (!input.__veilRange) {
+      input.__veilRange = true;
+      input.addEventListener("input", () => syncRangeKnob(input, true));
+    }
+  }
+  syncRangeKnob(input, false);
+}
+function dressRanges() {
+  document.querySelectorAll("#settingsPanel input[type=range]").forEach(dressRangeInput);
 }
 try { dressRanges(); } catch (err) {}
 function installVeilScrolls() {
@@ -9205,10 +9224,11 @@ function installVeilScrolls() {
     const vertical = maxY >= maxX;
     const max = vertical ? maxY : maxX;
     if (max < 12) return null;
-    const track = Math.max(36, (vertical ? rect.height : rect.width) - 8);
-    const travel = Math.max(1, track - 18);
+    const track = Math.max(48, (vertical ? rect.height : rect.width) - 12);
+    const thumb = Math.max(28, Math.min(52, Math.round(track * 0.2)));
+    const travel = Math.max(1, track - thumb);
     const pos = ((vertical ? el.scrollTop : el.scrollLeft) / max) * travel;
-    return { rect: rect, vertical: vertical, track: track, travel: travel, pos: pos, max: max };
+    return { rect: rect, vertical: vertical, track: track, travel: travel, pos: pos, max: max, thumb: thumb };
   }
   function place(el, settle) {
     if (!el || (el.closest && el.closest(".tabs"))) return;
@@ -9227,34 +9247,40 @@ function installVeilScrolls() {
     }
     knob.style.transform = "";
     if (g.vertical) {
-      bar.style.left = Math.max(0, g.rect.right - 18) + "px";
-      bar.style.top = (g.rect.top + 4) + "px";
-      bar.style.width = "18px";
+      bar.style.left = Math.max(0, g.rect.right - 14) + "px";
+      bar.style.top = (g.rect.top + 6) + "px";
+      bar.style.width = "14px";
       bar.style.height = g.track + "px";
-      knob.style.left = "0";
+      knob.style.width = "4px";
+      knob.style.height = g.thumb + "px";
+      knob.style.left = "5px";
+      knob.style.right = "auto";
       knob.style.top = g.pos + "px";
     } else {
-      bar.style.top = Math.max(0, g.rect.bottom - 18) + "px";
-      bar.style.left = (g.rect.left + 4) + "px";
-      bar.style.height = "18px";
+      bar.style.top = Math.max(0, g.rect.bottom - 14) + "px";
+      bar.style.left = (g.rect.left + 6) + "px";
+      bar.style.height = "14px";
       bar.style.width = g.track + "px";
-      knob.style.top = "0";
+      knob.style.height = "4px";
+      knob.style.width = g.thumb + "px";
+      knob.style.top = "5px";
       knob.style.left = g.pos + "px";
     }
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => { if (!drag) bar.classList.remove("is-on"); }, 680);
+    hideTimer = setTimeout(() => { if (!drag) bar.classList.remove("is-on"); }, 720);
     if (!settle || motionOff() || !window.anime || !window.anime.animate) return;
-    const over = Math.max(-8, Math.min(8, velocity));
+    const over = Math.max(-5, Math.min(5, velocity * 0.28));
     try {
       knob._veilMotion = window.anime.animate(knob, {
         translateY: g.vertical ? [over, 0] : 0,
         translateX: g.vertical ? 0 : [over, 0],
-        scale: [1.16, 1],
-        ease: veilSpring(0.42, 460)
+        scale: [1.04, 1],
+        ease: veilSpring(0.14, 700)
       });
     } catch (err) {}
   }
   function follow(el) {
+    if (!el || el.__veilQuiet) return;
     const before = lastPos;
     place(el, false);
     const g = geom(el);
@@ -9383,7 +9409,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=91";
+      script.src = BASE + "/veilos.js?v=92";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9408,7 +9434,7 @@ function mountEntMusic(pane) {
   });
 }
 function buildEntMusic(pane, api) {
-  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: {}, query: "", cover: "", animFold: "", foldDir: "", lines: [], line: -1, lyricFor: "", videoWasPlaying: false, explicit: {} };
+  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: {}, query: "", cover: "", animFold: "", foldDir: "", foldAt: {}, lines: [], line: -1, lyricFor: "", videoWasPlaying: false, explicit: {} };
   function iconCss(file) {
     return encodeURI(IMG + file).replace(/\(/g, "%28").replace(/\)/g, "%29");
   }
@@ -9448,8 +9474,13 @@ function buildEntMusic(pane, api) {
   const spring = (el, from, to, bounce, duration) => {
     const anime = window.anime;
     if (!el || motionOff() || !anime || !anime.animate) return;
-    try { anime.animate(el, { scale: [from, to], ease: veilSpring(bounce == null ? 0.22 : bounce, duration || 380) }); } catch (err) {}
+    try { anime.animate(el, { scale: [from, to], ease: veilSpring(bounce == null ? 0.16 : bounce, duration || 640) }); } catch (err) {}
   };
+  function glide(el, scale) {
+    const anime = window.anime;
+    if (!el || motionOff() || !anime || !anime.animate) return;
+    try { anime.animate(el, { scale: scale, ease: veilSpring(0.15, 680) }); } catch (err) {}
+  }
   function prettySrc(src, big) {
     const url = String(src || "");
     if (!/i\.ytimg\.com/.test(url)) return url;
@@ -9468,7 +9499,7 @@ function buildEntMusic(pane, api) {
   }
   function expMark(track) {
     const on = !!(track && (ui.explicit[track.id] === true || /\bexplicit\b/i.test(track.title || "")));
-    return '<i class="sp-exp" data-exp="' + escapeHTML(track && track.id || "") + '"' + (on ? "" : " hidden") + ">" + ico("explicit.svg") + "</i>";
+    return '<i class="sp-exp" data-exp="' + escapeHTML(track && track.id || "") + '"' + (on ? "" : " hidden") + "><b>E</b></i>";
   }
   function checkExplicit(track) {
     if (!track || track.local || !track.id || ui.explicit[track.id] != null) return;
@@ -9571,12 +9602,15 @@ function buildEntMusic(pane, api) {
     const on = nodes[index];
     if (!on) return;
     const anime = window.anime;
-    if (!motionOff() && anime && anime.animate) {
-      try { anime.animate(on, { scale: [0.96, 1], ease: veilSpring(0.36, 420) }); } catch (err) {}
-    }
-    const target = Math.max(0, on.offsetTop - box.clientHeight * 0.38);
+    const target = Math.max(0, on.offsetTop - box.clientHeight * 0.42);
+    const write = y => {
+      box.__veilQuiet = 1;
+      box.scrollTop = y;
+      clearTimeout(box.__veilQuietTimer);
+      box.__veilQuietTimer = setTimeout(() => { box.__veilQuiet = 0; }, 90);
+    };
     if (motionOff() || !anime || !anime.animate) {
-      box.scrollTop = target;
+      write(target);
       return;
     }
     const proxy = { y: box.scrollTop };
@@ -9586,11 +9620,11 @@ function buildEntMusic(pane, api) {
     try {
       box._lyricJob = anime.animate(proxy, {
         y: target,
-        ease: veilSpring(0.28, 680),
-        onUpdate: () => { box.scrollTop = proxy.y; }
+        ease: veilSpring(0.12, 860),
+        onUpdate: () => { write(proxy.y); }
       });
     } catch (err) {
-      box.scrollTop = target;
+      write(target);
     }
   }
   function openAdd(anchor, track) {
@@ -9637,12 +9671,19 @@ function buildEntMusic(pane, api) {
   const inFolder = folderId => (lib().playlists || []).filter(item => (item.folderId || "") === (folderId || ""));
   const albumRow = item => '<div class="sp-row' + (ui.page === "album" && ui.albumId === item.id ? " on" : "") + '" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></span></button></div>';
   const albumCard = item => '<div class="sp-cardwrap" draggable="true" data-kind="album" data-flip="a' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '" data-folder="' + escapeHTML(item.folderId || "") + '"><button type="button" class="sp-card" data-open-album="' + escapeHTML(item.id) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name || "Album") + '</b><small>' + (item.tracks || []).length + ' songs</small></button><button type="button" class="sp-quick" data-play-card="' + escapeHTML(item.id) + '" aria-label="Play album">' + ico("play.svg") + '</button></div>';
+  function subLine(track) {
+    const author = track && track.author ? track.author : "";
+    return '<small class="sp-sub">' + expMark(track) + "<span>Song</span>" + (author ? '<span class="sp-dot">•</span><span data-artist="' + escapeHTML(author) + '">' + escapeHTML(author) + "</span>" : "") + "</small>";
+  }
   let nowId = "";
   function songRow(track, index, extra) {
     const on = nowId && nowId === track.id ? " is-on" : "";
     const drag = ui.page === "album" ? "true" : "false";
     const time = track.seconds ? api.clock(track.seconds) : "";
-    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + '</span>' + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><span class="sp-titleline"><b>' + escapeHTML(track.title || "Untitled") + "</b>" + expMark(track) + '</span><small data-artist="' + escapeHTML(track.author || "") + '">' + escapeHTML(track.author || "") + '</small></span></button><span class="sp-time">' + time + '</span>' + (extra || "") + '</div>';
+    return '<div class="sp-song' + on + '" draggable="' + drag + '" data-kind="track" data-flip="t' + escapeHTML(track.id) + '" data-track="' + escapeHTML(track.id) + '" data-index="' + index + '"><span class="n">' + (index + 1) + "</span>" + art(track.thumb) + '<button type="button" class="meta" data-play-index="' + index + '"><span><b>' + escapeHTML(track.title || "Untitled") + "</b>" + subLine(track) + "</span></button><span class=\"sp-time\">" + time + "</span>" + (extra || "") + "</div>";
+  }
+  function topHit(track) {
+    return '<button type="button" class="sp-top" data-play-index="0">' + art(track.thumb, true) + '<span class="sp-top-copy"><b>' + escapeHTML(track.title || "Untitled") + "</b>" + subLine(track) + '</span><span class="sp-top-play" aria-hidden="true">' + ico("play.svg") + "</span></button>";
   }
   function paintSide() {
     const data = lib();
@@ -9652,7 +9693,8 @@ function buildEntMusic(pane, api) {
       const closing = ui.animFold === item.id && ui.foldDir === "close";
       const opening = ui.animFold === item.id && ui.foldDir !== "close";
       const shown = (open && !opening) || closing;
-      html += '<div class="sp-folder"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x sp-fold' + (shown ? " open" : "") + '" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '"><span class="sp-ico sp-chev" style="--ico:url(' + iconCss("expand.svg") + ");transform:rotate(" + (shown ? 90 : 0) + 'deg)"></span></button><button type="button" data-open-folder="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button></div>';
+      const shut = !(open || closing);
+      html += '<div class="sp-folder' + (shut ? " is-shut" : "") + '"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x sp-fold' + (shown ? " open" : "") + '" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '"><span class="sp-ico sp-chev" style="--ico:url(' + iconCss("expand.svg") + ");transform:rotate(" + (shown ? 90 : 0) + 'deg)"></span></button><button type="button" data-open-folder="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button></div>';
       if (open || closing) html += '<div class="sp-kids" data-kids="' + escapeHTML(item.id) + '">' + inFolder(item.id).map(albumRow).join("") + '</div>';
       html += '</div>';
     });
@@ -9694,7 +9736,15 @@ function buildEntMusic(pane, api) {
     }
     if (ui.page === "home") {
       html = '<form class="sp-search" data-search><input data-q type="search" placeholder="Search for a song" value="' + escapeHTML(ui.query) + '" aria-label="Search"><button type="submit">Search</button></form><div class="sp-status">' + escapeHTML(snap.status || "") + '</div>';
-      if ((snap.results || []).length) html += '<div class="sp-label">Songs</div>' + snap.results.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("");
+      if ((snap.results || []).length) {
+        const acts = index => {
+          const track = snap.results[index];
+          return '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + "</button>";
+        };
+        html += '<div class="sp-label">Top result</div><div class="sp-topwrap">' + topHit(snap.results[0]) + '<span class="sp-top-acts">' + acts(0) + "</span></div>";
+        const rest = snap.results.slice(1);
+        if (rest.length) html += '<div class="sp-label">Songs</div>' + rest.map((track, index) => songRow(track, index + 1, acts(index + 1))).join("");
+      }
       (lib().folders || []).forEach(folder => {
         const kids = inFolder(folder.id);
         html += '<div class="sp-label">' + escapeHTML(folder.name || "Folder") + '</div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(folder.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
@@ -9793,7 +9843,7 @@ function buildEntMusic(pane, api) {
     }
     box.innerHTML = q.map((track, index) => {
       const on = index === snap.index ? " is-on" : "";
-      return '<button type="button" class="sp-q' + on + '" data-queue-index="' + index + '">' + art(track.thumb) + '<span><span class="sp-titleline"><b>' + escapeHTML(track.title || "Untitled") + "</b>" + expMark(track) + '</span><small>' + escapeHTML(track.author || "") + "</small></span></button>";
+      return '<button type="button" class="sp-q' + on + '" data-queue-index="' + index + '">' + art(track.thumb) + '<span><b>' + escapeHTML(track.title || "Untitled") + '</b><small class="sp-sub">' + expMark(track) + (track.author ? "<span>" + escapeHTML(track.author) + "</span>" : "") + "</small></span></button>";
     }).join("");
     scanExplicit(box);
   }
@@ -9839,6 +9889,8 @@ function buildEntMusic(pane, api) {
     if (!id) return;
     ui.animFold = "";
     ui.foldDir = "";
+    const token = (ui.foldToken || 0) + 1;
+    ui.foldToken = token;
     let kids = null;
     let btn = null;
     side.querySelectorAll("[data-kids]").forEach(el => {
@@ -9851,47 +9903,62 @@ function buildEntMusic(pane, api) {
     const anime = window.anime;
     const finishClose = () => {
       ui.open[id] = false;
-      if (kids && kids.parentNode) kids.remove();
+      side.querySelectorAll("[data-kids]").forEach(el => {
+        if (el.getAttribute("data-kids") === id) el.remove();
+      });
+      if (kids) {
+        kids.style.display = "none";
+        if (kids.parentNode) kids.remove();
+      }
       if (chev) chev.style.transform = "rotate(0deg)";
+      const folder = btn && btn.closest(".sp-folder");
+      if (folder) folder.classList.add("is-shut");
     };
     if (motionOff() || !anime || !anime.animate) {
       if (dir === "close") finishClose();
       return;
     }
     if (chev) {
-      try { anime.animate(chev, { rotate: dir === "close" ? [90, 0] : [0, 90], ease: veilSpring(0.4, 420) }); } catch (err) {}
+      try { anime.animate(chev, { rotate: dir === "close" ? [90, 0] : [0, 90], ease: veilSpring(0.22, 520) }); } catch (err) {}
     }
     if (!kids) {
       if (dir === "close") ui.open[id] = false;
       return;
     }
     kids.style.overflow = "hidden";
+    kids.style.border = "0";
+    kids.style.boxShadow = "none";
     const height = kids.scrollHeight || 0;
     if (dir === "close") {
+      if (height < 8) {
+        finishClose();
+        return;
+      }
       let done = false;
       const end = () => {
-        if (done) return;
+        if (done || ui.foldToken !== token) return;
         done = true;
         finishClose();
       };
       try {
-        const job = anime.animate(kids, { height: [height, 0], opacity: [1, 0], translateY: [0, -8], ease: veilSpring(0.24, 460) });
+        const job = anime.animate(kids, { height: [height, 0], opacity: [1, 0], ease: veilSpring(0.12, 480) });
         if (job && typeof job.then === "function") job.then(end);
       } catch (err) { end(); }
-      setTimeout(end, 520);
+      setTimeout(end, 560);
       return;
     }
     kids.style.height = "0px";
     try {
-      const job = anime.animate(kids, { height: [0, height], opacity: [0, 1], translateY: [-8, 0], ease: veilSpring(0.24, 480) });
+      const job = anime.animate(kids, { height: [0, height], opacity: [0, 1], ease: veilSpring(0.14, 520) });
       const end = () => {
+        if (ui.foldToken !== token || ui.open[id] === false) return;
         kids.style.height = "";
         kids.style.overflow = "";
         kids.style.opacity = "";
         kids.style.transform = "";
       };
       if (job && typeof job.then === "function") job.then(end);
-      setTimeout(end, 540);
+      setTimeout(end, 580);
     } catch (err) {
       kids.style.height = "";
       kids.style.overflow = "";
@@ -10075,12 +10142,13 @@ function buildEntMusic(pane, api) {
     }
     lyricFrame.hidden = false;
     lyricFrame.style.opacity = "";
-    spring(lyricFrame, 0.97, 1, 0.26, 480);
+    spring(lyricFrame, 0.985, 1, 0.16, 680);
     const lyricBtn = root.querySelector("[data-lyrics-toggle]");
     if (lyricBtn) lyricBtn.classList.add("on");
     const track = api.snap().track;
+    if (!track || ui.lyricFor !== track.id) loadLyrics(track);
     const bg = lyricFrame.querySelector("[data-lyric-bg]");
-    if (bg && track && track.thumb) bg.style.backgroundImage = "url(\"" + String(prettySrc(track.thumb, true)).replace(/"/g, "") + "\")";
+    if (bg) bg.style.backgroundImage = track && track.thumb ? "url(\"" + String(prettySrc(track.thumb, true)).replace(/"/g, "") + "\")" : "";
   }
   window.__veilCloseVideo = closeVideo;
   let skipClick = false;
@@ -10134,6 +10202,9 @@ function buildEntMusic(pane, api) {
     const fold = event.target.closest("[data-fold]");
     if (fold) {
       const id = fold.getAttribute("data-fold");
+      const now = Date.now();
+      if (ui.foldAt[id] && now - ui.foldAt[id] < 560) return;
+      ui.foldAt[id] = now;
       const opening = ui.open[id] === false;
       ui.animFold = id;
       ui.foldDir = opening ? "open" : "close";
@@ -10258,24 +10329,31 @@ function buildEntMusic(pane, api) {
     ui.page = "home";
     api.search(ui.query);
   });
+  root.addEventListener("pointerover", event => {
+    const btn = event.target.closest("button, .sp-card, .sp-q, .sp-nav, .sp-top");
+    if (!btn || btn.disabled || btn.contains(event.relatedTarget)) return;
+    glide(btn, 1.012);
+  });
+  root.addEventListener("pointerout", event => {
+    const btn = event.target.closest("button, .sp-card, .sp-q, .sp-nav, .sp-top");
+    if (!btn || btn.contains(event.relatedTarget)) return;
+    glide(btn, 1);
+  });
   root.addEventListener("pointerdown", event => {
-    const song = event.target.closest(".sp-song, .sp-q");
-    if (song && !event.target.closest(".sp-x, .sp-exp")) {
-      const rect = song.getBoundingClientRect();
-      song.style.transformOrigin = Math.max(0, event.clientX - rect.left) + "px " + Math.max(0, event.clientY - rect.top) + "px";
-      spring(song, 0.985, 1, 0.2, 440);
+    const btn = event.target.closest("button, .sp-card, .sp-q, .sp-nav, .sp-top");
+    if (btn && !btn.disabled) {
+      glide(btn, 0.986);
       return;
     }
-    const btn = event.target.closest("button, .sp-nav, .sp-card, .sp-row");
-    if (!btn) return;
-    const card = btn.classList && (btn.classList.contains("sp-card") || btn.classList.contains("sp-row"));
-    if (card) {
-      const rect = btn.getBoundingClientRect();
-      btn.style.transformOrigin = Math.max(0, event.clientX - rect.left) + "px " + Math.max(0, event.clientY - rect.top) + "px";
-      spring(btn, 0.975, 1, 0.24, 460);
-      return;
-    }
-    spring(btn, 0.94, 1, 0.28, 380);
+    const song = event.target.closest(".sp-song");
+    if (!song || event.target.closest(".sp-x, .sp-exp")) return;
+    glide(song, 0.992);
+  });
+  root.addEventListener("pointerup", event => {
+    const btn = event.target.closest("button, .sp-card, .sp-q, .sp-nav, .sp-top");
+    if (btn) glide(btn, btn.matches(":hover") ? 1.012 : 1);
+    const song = event.target.closest(".sp-song");
+    if (song) glide(song, 1);
   });
   let drag = null;
   root.addEventListener("dragstart", event => {
@@ -10337,9 +10415,20 @@ function buildEntMusic(pane, api) {
   root.querySelector("[data-prev]").onclick = () => api.prev();
   root.querySelector("[data-next]").onclick = () => api.next();
   root.querySelector("[data-toggle]").onclick = () => api.toggle();
-  root.querySelector("[data-vol]").oninput = event => api.volume(Number(event.target.value) / 100);
+  function pushVolume(value, from) {
+    api.volume(value);
+    const pct = String(Math.round(Math.max(0, Math.min(1, value)) * 100));
+    [root.querySelector("[data-vol]"), document.querySelector("#spDock [data-dock-vol]")].forEach(input => {
+      if (!input || input === from) return;
+      input.value = pct;
+      syncRangeKnob(input, false);
+    });
+  }
+  root.querySelector("[data-vol]").oninput = event => pushVolume(Number(event.target.value) / 100, event.target);
   const seek = root.querySelector("[data-seek]");
   seek.addEventListener("input", () => api.seek(Number(seek.value) / 1000));
+  dressRangeInput(seek);
+  dressRangeInput(root.querySelector("[data-vol]"));
   const off = api.on(() => {
     if (!pane.isConnected) {
       off();
@@ -10358,7 +10447,10 @@ function buildEntMusic(pane, api) {
     const dur = audio.duration && isFinite(audio.duration) ? audio.duration : known;
     root.querySelector("[data-cur]").textContent = api.clock(audio.currentTime);
     root.querySelector("[data-dur]").textContent = api.clock(dur);
-    if (dur && document.activeElement !== seek) seek.value = String(Math.round(((audio.currentTime || 0) / dur) * 1000));
+    if (dur && document.activeElement !== seek) {
+      seek.value = String(Math.round(((audio.currentTime || 0) / dur) * 1000));
+      syncRangeKnob(seek, false);
+    }
     tickLyrics(audio.currentTime || 0);
   });
   root.addEventListener("error", event => {
@@ -10381,11 +10473,21 @@ function buildEntMusic(pane, api) {
   lyricFrame.onpointerdown = event => {
     const line = event.target.closest(".sp-line");
     if (line) {
-      spring(line, 0.985, 1, 0.18, 380);
+      glide(line, 0.992);
       return;
     }
     const btn = event.target.closest("button");
-    if (btn) spring(btn, 0.94, 1, 0.26, 360);
+    if (btn) glide(btn, 0.986);
+  };
+  lyricFrame.onpointerup = event => {
+    const line = event.target.closest(".sp-line");
+    if (line) glide(line, 1);
+    const btn = event.target.closest("button");
+    if (btn) glide(btn, btn.matches(":hover") ? 1.012 : 1);
+  };
+  lyricFrame.onpointerout = event => {
+    const line = event.target.closest(".sp-line");
+    if (line && !line.contains(event.relatedTarget)) glide(line, 1);
   };
   if (videoPanel) {
     videoPanel.onclick = event => {
@@ -10399,19 +10501,26 @@ function buildEntMusic(pane, api) {
   }
   function ensureDock() {
     let dock = document.getElementById("spDock");
+    if (dock && !dock.querySelector("[data-dock-vol]")) {
+      dock.remove();
+      dock = null;
+    }
     if (dock) return dock;
     dock = document.createElement("div");
     dock.id = "spDock";
     dock.className = "sp-dock";
     dock.hidden = true;
-    dock.innerHTML = '<div class="sp-dock-line"></div><div class="sp-dock-card"><button type="button" class="sp-dock-id" data-dock-open><span class="sp-art sp-ph" data-dock-art>' + ico("music_default.svg") + '</span><span class="sp-dock-meta"><b data-dock-title>Nothing playing</b><small data-dock-by></small></span></button><div class="sp-dock-controls"><button type="button" data-dock-prev aria-label="Previous">' + ico("rewind.svg") + '</button><button type="button" class="play" data-dock-toggle aria-label="Play">' + ico("play.svg") + '</button><button type="button" data-dock-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div><div class="sp-dock-seek"><span data-dock-cur>0:00</span><input data-dock-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dock-dur>0:00</span></div><button type="button" data-dock-lyrics aria-label="Lyrics">' + ico("lyrics.svg") + '</button><button type="button" class="sp-ghost" data-dock-video aria-label="Music video">' + ico("video.svg") + '</button></div>';
+    dock.innerHTML = '<div class="sp-dock-line"></div><div class="sp-dock-card"><button type="button" class="sp-dock-id" data-dock-open><span class="sp-art sp-ph" data-dock-art>' + ico("music_default.svg") + '</span><span class="sp-dock-meta"><b data-dock-title>Nothing playing</b><small data-dock-by></small></span></button><div class="sp-dock-controls"><button type="button" data-dock-prev aria-label="Previous">' + ico("rewind.svg") + '</button><button type="button" class="play" data-dock-toggle aria-label="Play">' + ico("play.svg") + '</button><button type="button" data-dock-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div><div class="sp-dock-seek"><span data-dock-cur>0:00</span><input data-dock-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dock-dur>0:00</span></div><input class="sp-dock-vol" data-dock-vol type="range" min="0" max="100" value="100" aria-label="Volume"><button type="button" data-dock-lyrics aria-label="Lyrics">' + ico("lyrics.svg") + '</button><button type="button" class="sp-ghost" data-dock-video aria-label="Music video">' + ico("video.svg") + '</button></div>';
     document.body.appendChild(dock);
-    dock.addEventListener("pointerenter", () => {
+    const openDock = () => {
       if (dock.hidden) return;
       dock.classList.add("is-open");
       const card = dock.querySelector(".sp-dock-card");
       if (window.__veilDockSpring) window.__veilDockSpring(card);
-    });
+    };
+    const line = dock.querySelector(".sp-dock-line");
+    if (line) line.addEventListener("pointerenter", openDock);
+    dock.addEventListener("pointerenter", openDock);
     dock.addEventListener("pointerleave", () => dock.classList.remove("is-open"));
     return dock;
   }
@@ -10422,6 +10531,13 @@ function buildEntMusic(pane, api) {
     const show = !!(track && (snap.playing || (snap.currentTime || 0) > 0.15) && !musicPaneOn());
     dock.hidden = !show;
     if (!show) dock.classList.remove("is-open");
+    const id = track && track.id || "";
+    if (dock.dataset.track !== id) {
+      dock.dataset.track = id;
+      try { loadLyrics(track); } catch (err) {}
+      const bg = document.querySelector("#spLyricFrame [data-lyric-bg]");
+      if (bg) bg.style.backgroundImage = track && track.thumb ? "url(\"" + String(prettySrc(track.thumb, true)).replace(/"/g, "") + "\")" : "";
+    }
     const title = dock.querySelector("[data-dock-title]");
     if (title) title.textContent = track ? (track.title || "Untitled") : "Nothing playing";
     const by = dock.querySelector("[data-dock-by]");
@@ -10449,6 +10565,14 @@ function buildEntMusic(pane, api) {
     const known = snap.duration || (track && track.seconds) || 0;
     const durEl = dock.querySelector("[data-dock-dur]");
     if (durEl) durEl.textContent = api.clock(known);
+    const vol = dock.querySelector("[data-dock-vol]");
+    if (vol && document.activeElement !== vol) {
+      const next = String(Math.round((snap.volume == null ? 1 : snap.volume) * 100));
+      if (vol.value !== next) {
+        vol.value = next;
+        syncRangeKnob(vol, false);
+      }
+    }
   }
   function syncDockTime(audio) {
     const dock = document.getElementById("spDock");
@@ -10459,10 +10583,14 @@ function buildEntMusic(pane, api) {
     const known = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
     if (cur) cur.textContent = api.clock(audio.currentTime || 0);
     if (durEl && known) durEl.textContent = api.clock(known);
-    if (seek && known && document.activeElement !== seek) seek.value = String(Math.round(((audio.currentTime || 0) / known) * 1000));
+    if (seek && known && document.activeElement !== seek) {
+      seek.value = String(Math.round(((audio.currentTime || 0) / known) * 1000));
+      syncRangeKnob(seek, false);
+    }
   }
   const dock = ensureDock();
-  window.__veilDockSpring = card => spring(card, 0.96, 1, 0.28, 440);
+  window.__veilLoadLyrics = loadLyrics;
+  window.__veilDockSpring = card => spring(card, 0.985, 1, 0.16, 680);
   window.__veilSyncDock = syncDock;
   window.__veilSyncDockTime = syncDockTime;
   dock.onclick = event => {
@@ -10473,13 +10601,32 @@ function buildEntMusic(pane, api) {
     if (event.target.closest("[data-dock-video]")) { openVideo(); return; }
     if (event.target.closest("[data-dock-open], .sp-dock-line")) openMusic();
   };
+  dock.onpointerover = event => {
+    const btn = event.target.closest("button");
+    if (!btn || btn.contains(event.relatedTarget)) return;
+    glide(btn, 1.012);
+  };
+  dock.onpointerout = event => {
+    const btn = event.target.closest("button");
+    if (!btn || btn.contains(event.relatedTarget)) return;
+    glide(btn, 1);
+  };
   dock.onpointerdown = event => {
     const btn = event.target.closest("button");
     if (!btn) return;
-    spring(btn, btn.classList.contains("play") ? 0.92 : 0.94, 1, 0.26, 360);
+    glide(btn, 0.986);
+  };
+  dock.onpointerup = event => {
+    const btn = event.target.closest("button");
+    if (!btn) return;
+    glide(btn, btn.matches(":hover") ? 1.012 : 1);
   };
   const dockSeek = dock.querySelector("[data-dock-seek]");
+  const dockVol = dock.querySelector("[data-dock-vol]");
+  dressRangeInput(dockSeek);
+  dressRangeInput(dockVol);
   if (dockSeek) dockSeek.oninput = () => api.seek(Number(dockSeek.value) / 1000);
+  if (dockVol) dockVol.oninput = () => pushVolume(Number(dockVol.value) / 100, dockVol);
   if (!window.__veilDockBound) {
     window.__veilDockBound = true;
     api.on(() => { if (window.__veilSyncDock) window.__veilSyncDock(); });

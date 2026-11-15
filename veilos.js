@@ -3827,9 +3827,27 @@
     if (!musicState || !job || musicState.failovers !== job || job.done || job.ok) return;
     if (attempt == null || job.i !== attempt) return;
     job.busy = false;
+    job.echoTry = 0;
+    job.echoWait = false;
     job.i = attempt + 1;
     if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
     musicKick(audio, job.id);
+  }
+  function musicRetryEcho(job, attempt, audio, url) {
+    if (!/echostreamz\.com/.test(String(url || ""))) return false;
+    if ((job.echoTry || 0) >= 2) return false;
+    if (job.echoWait) return true;
+    job.echoTry = (job.echoTry || 0) + 1;
+    job.echoWait = true;
+    job.busy = false;
+    if (job.timer) { clearTimeout(job.timer); job.timer = 0; }
+    setTimeout(function () {
+      job.echoWait = false;
+      if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
+      if (job.i !== attempt) return;
+      musicKick(audio, job.id);
+    }, 180);
+    return true;
   }
   function musicLiked(id) {
     var hit = false;
@@ -4101,9 +4119,10 @@
     var kicked = Date.now();
     audio.onerror = function () {
       if (audio._veilGen !== gen) return;
-      if (Date.now() - kicked < 50) return;
+      if (Date.now() - kicked < 30) return;
       if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
       if (job.i !== attempt) return;
+      if (musicRetryEcho(job, attempt, audio, url)) return;
       musicBump(job, attempt, audio);
     };
     try { audio.pause(); } catch (err) {}
@@ -4122,6 +4141,7 @@
         return;
       }
       if (err && err.name === "AbortError" && job.i !== attempt) return;
+      if (musicRetryEcho(job, attempt, audio, url)) return;
       musicBump(job, attempt, audio);
     });
   }
