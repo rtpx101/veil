@@ -10174,7 +10174,7 @@ function buildEntMusic(pane, api) {
   function ico(file, cls) {
     return '<span class="sp-ico' + (cls ? " " + cls : "") + '" style="--ico:url(' + iconCss(file) + ')"></span>';
   }
-  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-label">Queue</div><div class="sp-queue" data-queue></div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div class="sp-who-text"><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div><div class="sp-who-acts"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" data-prev aria-label="Previous">' + ico("skip-back.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + veilPPIcon(false) + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("skip-next.svg") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer></div>';
+  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art is-empty"><img data-now-art alt="" hidden><span class="sp-now-empty" aria-hidden="true">' + ico("music_default.svg") + '<small>Nothing playing</small></span></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-label">Queue</div><div class="sp-queue" data-queue></div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div class="sp-who-text"><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div><div class="sp-who-acts"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" data-prev aria-label="Previous">' + ico("skip-back.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + veilPPIcon(false) + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("skip-next.svg") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer></div>';
   const root = pane.querySelector(".sp");
   const side = root.querySelector("[data-side]");
   const main = root.querySelector("[data-main]");
@@ -11038,7 +11038,30 @@ function buildEntMusic(pane, api) {
       } catch (err) {}
     });
   }
+  // A page opening (album, search results, artist, liked songs, a folder) or a skeleton giving way:
+  // everything on screen rises and fades in on a soft spring, one after another, songs included.
+  // Only what is in view takes part (rows below the fold are simply there when you scroll), and each
+  // element ends with its inline transform cleared, so rows finish exactly aligned.
+  function revealMain() {
+    if (!veilMotionOk()) return;
+    const box = main.getBoundingClientRect();
+    const list = Array.from(main.querySelectorAll(".sp-search, .sp-head, .sp-main > .sp-h, .sp-hero, .sp-artist-hero, .sp-main > .sp-label, .sp-main > .sp-acts, .sp-topwrap, .sp-cardwrap, .sp-artist-card, .sp-song, .sp-main > .sp-empty, .sp-grid > .sp-empty, .sp-main > .sp-status"))
+      .filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && r.top < box.bottom + 24 && r.bottom > box.top - 24; });
+    if (!list.length) return;
+    const step = Math.max(12, Math.min(26, Math.round(520 / list.length)));
+    veilStaggerIn(list, "row", { base: 0, step: step, max: 60, bounce: 0.42, duration: 620 });
+    main._veilRevealEnd = performance.now() + step * Math.min(list.length, 60) + 660;
+  }
   function paintMain(animate) {
+    // A quiet repaint that lands while rows are still rising in would rebuild them mid-flight and
+    // snap them to full opacity, so it waits until the reveal has settled.
+    clearTimeout(main._veilRevealWait);
+    const left = (main._veilRevealEnd || 0) - performance.now();
+    if (!animate && left > 0) {
+      main._veilRevealWait = setTimeout(() => paintMain(false), left + 30);
+      return;
+    }
+    main._veilRevealEnd = 0;
     const snap = api.snap();
     nowId = snap.track ? snap.track.id : "";
     let html = "";
@@ -11138,15 +11161,10 @@ function buildEntMusic(pane, api) {
     if (!animate) main.scrollTop = top;
     else main.scrollTop = 0;
     scanExplicit(main);
-    if (main.querySelector("[data-skel]")) startLoaders(main);
-    else if (wasSkel && !animate) {
-      // Skeleton -> content: the real rows spring in one after another instead of popping.
-      veilStaggerIn(main.querySelectorAll(".sp-hero, .sp-artist-hero, .sp-main > .sp-label, .sp-topwrap, .sp-cardwrap, .sp-artist-card, .sp-song"), "row", { base: 0, step: 18, max: 26, bounce: 0.42, duration: 600 });
-    }
-    const anime = window.anime;
-    if (animate && anime && anime.animate && !motionOff()) {
-      try { anime.animate(main.firstElementChild || main, { opacity: [0, 1], translateY: [14, 0], ease: veilSpring(0.46, 560) }); } catch (err) {}
-    }
+    if (main.querySelector("[data-skel]")) {
+      startLoaders(main);
+      if (animate && !wasSkel) veilStaggerIn(main.children, "row", { base: 0, step: 40, max: 4, bounce: 0.4, duration: 560 });
+    } else if (wasSkel || animate) revealMain();
   }
   function paintBar() {
     const snap = api.snap();
@@ -11178,9 +11196,14 @@ function buildEntMusic(pane, api) {
     const big = root.querySelector("[data-now-art]");
     const bigSrc = track && track.thumb ? prettySrc(track.thumb, true) : "";
     if (big) {
+      const box = big.parentNode;
+      const wasEmpty = box.classList.contains("is-empty");
+      box.classList.toggle("is-empty", !bigSrc);
       if (!bigSrc) big.hidden = true;
-      else if (big.getAttribute("src") !== bigSrc) {
-        big.hidden = false;
+      else big.hidden = false;
+      // The placeholder settles in with a soft spring whenever playback ends.
+      if (!bigSrc && !wasEmpty) veilSpringIn(box.querySelector(".sp-now-empty"), "pop", { bounce: 0.5, duration: 700, force: true });
+      if (bigSrc && big.getAttribute("src") !== bigSrc) {
         big.setAttribute("data-fb", prettySrc(track.thumb, false));
         big.src = bigSrc;
       }
@@ -13096,9 +13119,74 @@ function toggleFavorite(value) {
   saveGamesUserData();
   if (gamesRenderRoot && gamesRenderRoot.isConnected) {
     try {
-      paintGamesLists(gamesRenderRoot);
-    } catch (err) {}
+      syncFavoriteUI(gamesRenderRoot, value);
+    } catch (err) {
+      try { paintGamesLists(gamesRenderRoot); } catch (e2) {}
+    }
   }
+}
+// The star: one smooth move from wherever it is now (no jump to a start value), a short dip then a
+// soft zero-velocity jiggle back, while the colour cross-fades in CSS.
+function starJiggle(img) {
+  const anime = window.anime;
+  if (!img || motionOff() || !anime || !anime.animate) return;
+  if (img._veilStar && img._veilStar.cancel) { try { img._veilStar.cancel(); } catch (err) {} }
+  try {
+    img._veilStar = anime.animate(img, {
+      scale: [{ to: 0.74, duration: 150, ease: "outQuad" }, { to: 1, duration: 760, ease: veilSoftJiggle }],
+      rotate: [{ to: -16, duration: 150, ease: "outQuad" }, { to: 0, duration: 760, ease: veilSoftJiggle }]
+    });
+  } catch (err) {}
+}
+// Favouriting updates the cards in place (no reshuffle / repaint of the whole page): the stars
+// animate, a new favourite pops into the Favorites row and a removed one springs out while the rest
+// slide over.
+function syncFavoriteUI(root, id) {
+  const on = isFavorite(id);
+  root.querySelectorAll('.game-tile[data-play="' + CSS.escape(id) + '"]').forEach(tile => {
+    tile.classList.toggle("fav", on);
+    const btn = tile.querySelector("[data-fav]");
+    if (btn) {
+      btn.classList.toggle("on", on);
+      starJiggle(btn.querySelector("img"));
+    }
+  });
+  const sec = root.querySelector("#gamesFavSection");
+  const row = root.querySelector("#gamesFavRow");
+  if (!sec || !row) return;
+  const state = root._gamesState || { activeCat: "all", query: "" };
+  const allowed = state.activeCat === "all" && !state.query;
+  const anime = window.anime;
+  const motion = veilMotionOk();
+  if (on) {
+    if (!allowed || row.querySelector('.game-tile[data-play="' + CSS.escape(id) + '"]')) return;
+    const game = gamesCatalog.find(g => gameId(g) === id);
+    if (!game) return;
+    const wasHidden = sec.style.display === "none";
+    const tmp = document.createElement("div");
+    tmp.innerHTML = tileHTML(game);
+    const tile = tmp.firstElementChild;
+    row.appendChild(tile);
+    sec.style.display = "";
+    if (motion) {
+      if (wasHidden) veilSpringIn(sec, "rise", { bounce: 0.45, duration: 640, force: true });
+      veilSpringIn(tile, "pop", { bounce: 0.5, duration: 680, force: true, delay: wasHidden ? 90 : 0 });
+    }
+    return;
+  }
+  const gone = row.querySelector('.game-tile[data-play="' + CSS.escape(id) + '"]');
+  if (!gone) return;
+  const finish = () => {
+    const rest = Array.from(row.children).filter(el => el !== gone);
+    const before = motion ? veilSnapshot(rest) : null;
+    gone.remove();
+    if (!row.querySelector(".game-tile")) sec.style.display = "none";
+    else if (before) veilFlip(before);
+  };
+  if (!motion) { finish(); return; }
+  gone.style.pointerEvents = "none";
+  try { anime.animate(gone, { opacity: 0, scale: 0.9, ease: veilTabSpring("exit") }); } catch (err) {}
+  setTimeout(finish, 230);
 }
 function pushRecent(value2) {
   let row = (gamesUserData.recent || []).filter(value => value !== value2);
@@ -13223,8 +13311,11 @@ function paintGamesLists(value2, extra, other) {
     const force = extra.query.toLowerCase();
     part = part.filter(value => String(value.name || "").toLowerCase().indexOf(force) !== -1 || String(value.category || "").toLowerCase().indexOf(force) !== -1);
   }
-  part = shuffle(part);
   const gamesAllRow = value2.querySelector("#gamesAllRow");
+  // Shuffle only on a new filter / first paint; other repaints keep the cards where they are.
+  const shown = gamesAllRow ? Array.from(gamesAllRow.querySelectorAll(".game-tile[data-play]")).map(el => el.getAttribute("data-play")) : [];
+  if (other || !shown.length) part = shuffle(part);
+  else part.sort((a, b) => { const ia = shown.indexOf(gameId(a)), ib = shown.indexOf(gameId(b)); return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib); });
   const label = byIds(gamesUserData.favorites || []);
   const gamesFavSection = value2.querySelector("#gamesFavSection");
   const gamesFavRow = value2.querySelector("#gamesFavRow");
@@ -13452,31 +13543,7 @@ async function renderGamesPage(value3) {
     if (key) {
       value2.preventDefault();
       value2.stopPropagation();
-      const row = key.getAttribute("data-fav");
-      toggleFavorite(row);
-      const count = isFavorite(row);
-      value3.querySelectorAll(".game-tile").forEach(value => {
-        if (value.getAttribute("data-play") !== row) {
-          return;
-        }
-        value.classList.toggle("fav", count);
-        const ratio = value.querySelector("[data-fav]");
-        if (ratio) {
-          ratio.classList.toggle("on", count);
-        }
-      });
-      const index2 = byIds(gamesUserData.favorites || []);
-      const gamesFavSection = value3.querySelector("#gamesFavSection");
-      const gamesFavRow = value3.querySelector("#gamesFavRow");
-      if (gamesFavSection && gamesFavRow) {
-        const index = piece.activeCat === "all" && !piece.query && index2.length;
-        if (index) {
-          gamesFavSection.style.display = "";
-          gamesFavRow.innerHTML = index2.map(tileHTML).join("");
-        } else {
-          gamesFavSection.style.display = "none";
-        }
-      }
+      toggleFavorite(key.getAttribute("data-fav"));
       return;
     }
     const id = value2.target.closest("[data-info]");
@@ -13584,6 +13651,12 @@ function veilFsSync() {
     veilFsMove(dock, dockIn ? host : null);
     dock.classList.toggle("is-in-game", dockIn);
   }
+  // Lyrics open from the widget, so they go wherever the widget goes (else they open behind the game).
+  const lyrics = document.getElementById("spLyricFrame");
+  if (lyrics) {
+    veilFsMove(lyrics, dockIn ? host : null);
+    lyrics.classList.toggle("is-in-game", dockIn);
+  }
   document.querySelectorAll(".gp-stage").forEach(stage => stage.classList.toggle("is-fs", stage === fsEl));
 }
 document.addEventListener("fullscreenchange", veilFsSync);
@@ -13599,17 +13672,41 @@ function exitAnyFullscreen() {
 function closeGamePlayer(overlay, save) {
   if (!overlay || overlay._closing) return;
   overlay._closing = true;
+  // Stop everything that could still touch the player: load / reload checks and their timers, the
+  // frame's fade-up spring, the loading dots, pending note saves.
+  try { if (overlay._veilCleanup) overlay._veilCleanup(); } catch (err) {}
   try { if (save) save(); } catch (err) {}
-  const stage = overlay.querySelector(".gp-stage");
-  if (stage && (document.fullscreenElement === stage || document.webkitFullscreenElement === stage)) exitAnyFullscreen();
+  overlay.style.pointerEvents = "none";
+  // "closing" also tells the global overlay remove() hook this one animates itself; without it the
+  // hook ran a second fade from full opacity, so the game flashed back for a moment.
+  overlay.classList.add("closing");
+  overlay.style.animation = "none";
   const box = overlay.querySelector(".game-player");
+  if (box) box.style.animation = "none";
+  const stage = overlay.querySelector(".gp-stage");
+  const wasFs = stage && (document.fullscreenElement === stage || document.webkitFullscreenElement === stage);
+  if (wasFs) exitAnyFullscreen();
+  const frame = overlay.querySelector("#gameFrame");
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    // Blank the game only once it is out of sight, then take the player away for good.
+    try { if (frame) { frame.removeAttribute("src"); frame.remove(); } } catch (err) {}
+    try { Element.prototype.remove.call(overlay); } catch (err) { try { overlay.parentNode.removeChild(overlay); } catch (e2) {} }
+    veilFsSync();
+  };
   const anime = window.anime;
-  if (motionOff() || !anime || !anime.animate) { overlay.remove(); veilFsSync(); return; }
+  if (motionOff() || !anime || !anime.animate) { finish(); return; }
+  const from = parseFloat(getComputedStyle(overlay).opacity) || 1;
   try {
-    anime.animate(overlay, { opacity: [1, 0], ease: "outQuad", duration: 220 });
-    if (box) anime.animate(box, { scale: [1, 0.94], translateY: [0, 10], ease: veilTabSpring("exit") });
-  } catch (err) {}
-  setTimeout(() => { overlay.remove(); veilFsSync(); }, 240);
+    if (box) {
+      if (box._veilIn && box._veilIn.cancel) { try { box._veilIn.cancel(); } catch (err) {} box._veilIn = null; }
+      anime.animate(box, { scale: 0.94, translateY: 10, ease: veilTabSpring("exit") });
+    }
+    anime.animate(overlay, { opacity: [from, 0], duration: 240, ease: "outQuad", onComplete: finish });
+  } catch (err) { finish(); return; }
+  setTimeout(() => { if (overlay.isConnected) finish(); }, 420);
 }
 function openGamePlayer(game) {
   const id = gameId(game);
@@ -13846,6 +13943,15 @@ function openGamePlayer(game) {
   paintList();
   paintEditor();
   const flush = () => { if (saveTimer) persist(); };
+  overlay._veilCleanup = () => {
+    loadToken += 1;
+    try { if (dotsJob && dotsJob.pause) dotsJob.pause(); } catch (err) {}
+    dotsJob = null;
+    [frame, loading.querySelector(".gp-load-card"), errorBox.querySelector(".gp-error-card")].forEach(el => {
+      try { if (el && window.anime && window.anime.utils && window.anime.utils.remove) window.anime.utils.remove(el); } catch (err) {}
+    });
+    flush();
+  };
   function setNotes(open) {
     if (open === player.classList.contains("notes-open")) return;
     player.classList.toggle("notes-open", open);
@@ -13887,8 +13993,7 @@ function openGamePlayer(game) {
     if (act === "star") {
       toggleFavorite(id);
       paintStar();
-      const ico = btn.querySelector("img");
-      gameSpring(ico, { scale: [0.5, 1], rotate: [-72, 0] }, 0.55, 760);
+      starJiggle(btn.querySelector("img"));
       return;
     }
     if (act === "notes") { setNotes(!player.classList.contains("notes-open")); return; }

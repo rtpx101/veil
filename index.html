@@ -758,6 +758,7 @@ body.boot-reveal #veilDash{
 .tile-tool:hover{background:rgba(0,0,0,.82)}
 .tile-tool img{width:13px;height:13px;max-width:13px;max-height:13px;display:block;object-fit:contain;filter:invert(1);opacity:.92}
 .tile-tool.on img{filter:invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg);opacity:1}
+.tile-tool img,.gp2 .game-player-btn[data-gp="star"] img{transition:filter .35s ease,opacity .35s ease}
 .game-tile .meta{padding:8px 9px 10px}
 .game-tile .meta .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
@@ -942,7 +943,8 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 html[data-mode="light"] .gn-del img{filter:none}
 /* Music widget inside a fullscreen game (Customization option). */
 .gp-stage .sp-dock.is-in-game{z-index:7}
-.gp-stage .veil-nt-host{z-index:8}
+.gp-stage .sp-lyric-frame.is-in-game{z-index:9}
+.gp-stage .veil-nt-host{z-index:12}
 .veil-dash{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;gap:14px;padding:16px;background:var(--bg);color:var(--text)}
 body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-wall{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:var(--bg)}
@@ -1009,7 +1011,17 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .sp-main{grid-column:2;grid-row:1;min-width:0;min-height:0;overflow:auto;padding:22px 22px 28px}
 .sp-now{grid-column:3;grid-row:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:16px 16px 12px;border-left:1px solid var(--border);background:var(--bg)}
 .sp-now-art{width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg2);flex:0 0 auto}
-.sp-now-art img{width:100%;height:100%;object-fit:cover;object-position:center;display:block;border:0}
+.sp-now-art{position:relative;box-shadow:inset 0 0 0 1px var(--border)}
+.sp-now-art img{width:100%;height:100%;object-fit:cover;object-position:center;display:block;border:0;border-radius:inherit}
+/* A hidden <img> without src was still display:block, so Chrome drew its broken-image outline. */
+.sp-now-art img[hidden]{display:none}
+.sp-now-empty{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);background:radial-gradient(circle at 50% 42%,rgba(255,255,255,.045),transparent 62%);border-radius:inherit;pointer-events:none}
+.sp-now-art.is-empty .sp-now-empty{display:flex}
+.sp-now-empty .sp-ico{width:44px;height:44px;flex-basis:44px;opacity:.55;animation:spNowIdle 3.2s ease-in-out infinite alternate}
+.sp-now-empty small{font-size:12px;font-weight:650;letter-spacing:.02em;opacity:.8}
+/* alternate + ease-in-out: it eases into each turn, so the idle float never jumps. */
+@keyframes spNowIdle{0%{transform:translateY(3px) rotate(-4deg)}100%{transform:translateY(-4px) rotate(4deg)}}
+@media (prefers-reduced-motion:reduce){.sp-now-empty .sp-ico{animation:none}}
 .sp-now-meta{margin-top:14px;min-width:0}
 .sp-now-meta b,.sp-now-meta small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sp-now-meta b{font-size:22px;font-weight:760;letter-spacing:-.03em}
@@ -1364,8 +1376,11 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 .veil-nt-bar[hidden]{display:none}
 
 .sp-skel{display:block}
-.sp-skel .sk{display:block;border-radius:7px;background:linear-gradient(100deg,rgba(255,255,255,.045) 30%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.045) 70%);background-size:220% 100%;animation:veilShimmer 1.25s ease-in-out infinite}
-@keyframes veilShimmer{0%{background-position:120% 0}100%{background-position:-120% 0}}
+.sp-skel .sk{display:block;border-radius:7px;background-color:rgba(255,255,255,.045);background-image:linear-gradient(100deg,transparent 0,transparent 260px,rgba(255,255,255,.07) 340px,transparent 420px,transparent 680px);background-size:680px 100%;background-repeat:repeat-x;background-attachment:fixed;animation:veilShimmer 1.6s linear infinite}
+/* One tile of the repeating gradient is 680px and the loop moves exactly one tile, at constant speed:
+   frame 100% is identical to frame 0%, so the sweep never stops or resets. background-attachment:fixed
+   keeps every skeleton block on the same sweep. */
+@keyframes veilShimmer{0%{background-position:0 0}100%{background-position:680px 0}}
 .sp-skel .sk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .sp-skel .sk-line{height:11px}
 .sp-skel .sk-thin{height:8px;opacity:.8}
@@ -1527,7 +1542,7 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js?v=11", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=102", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=103", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -2022,6 +2037,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=102"></script>
+<script src="access-gate.js?v=103"></script>
 </body>
 </html>
