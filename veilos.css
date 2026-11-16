@@ -1023,3 +1023,8 @@ html.veil-spring .vos-mu-pop,html.veil-spring .vos-store-detail:not([hidden]){an
   }
   .vos-icon,.vos-taskbar{opacity:1}
 }
+
+/* "Under Development" notice: the dashboard's dash-note, in a small pill at the top of the desktop. */
+.vos-devnote{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:7;display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;background:color-mix(in srgb,var(--bg2) 86%,transparent);border:1px solid var(--border);backdrop-filter:blur(10px);pointer-events:none;white-space:nowrap}
+.vos-devnote .dash-note{font-size:11px;font-weight:650;letter-spacing:.04em;color:var(--muted)}
+.vos-devnote-dot{width:6px;height:6px;border-radius:50%;background:#e8b04a;box-shadow:0 0 0 3px color-mix(in srgb,#e8b04a 22%,transparent)}

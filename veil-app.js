@@ -723,6 +723,7 @@ const DEFAULT_SETTINGS = {
   lockCode: "",
   sleepLock: "",
   confirmLeave: false,
+  gameDockFs: false,
   animEnabled: false,
   animStyle: "orbs",
   animSpeed: 1,
@@ -2238,6 +2239,11 @@ function veilToastHost() {
     host.setAttribute("aria-live", "polite");
     document.body.appendChild(host);
   }
+  // In fullscreen only the fullscreen element is drawn, so the toasts live inside it (games).
+  try {
+    const fs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fs && fs.tagName !== "IFRAME" && fs !== document.documentElement && fs !== document.body && host.parentNode !== fs && typeof veilFsMove === "function") veilFsMove(host, fs);
+  } catch (err) {}
   return host;
 }
 function veilToastFlip(host, change) {
@@ -2744,6 +2750,10 @@ const SETTINGS_INFO = {
   lockveil: {
     title: "Lock Veil",
     body: "Locks Veil behind your password. Bind a key the same way as the panic key. Sleep lock uses the same time format as the screen saver: 30s, 5m, 1h, or 1h;30m. Leave it blank or type off and Veil will not lock when the computer sleeps."
+  },
+  gamedockfs: {
+    title: "Music widget in fullscreen games",
+    body: "When a game is in fullscreen, keeps the music mini widget available over it (hover the line at the top to open it). Off by default. Notifications always show in fullscreen."
   },
   confirmleave: {
     title: "Close Prevention",
@@ -5050,6 +5060,7 @@ function highlightTheme() {
     if (lockKeyInput && !bindingLock) lockKeyInput.textContent = settings.lockKey ? settings.lockKey : "Not bound";
     setSwitch(document.getElementById("closeOriginSwitch"), !!settings.closeOriginOnBlank);
     setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
+    setSwitch(document.getElementById("gameDockFsSwitch"), !!settings.gameDockFs);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
     const animOpts = document.getElementById("animOpts");
     if (animOpts) {
@@ -5172,6 +5183,7 @@ function applyTheme(value) {
     searchEngine: settings.searchEngine,
     lockUnload: settings.lockUnload,
     confirmLeave: settings.confirmLeave,
+    gameDockFs: settings.gameDockFs,
     animEnabled: settings.animEnabled,
     animStyle: settings.animStyle,
     animSpeed: settings.animSpeed,
@@ -7784,12 +7796,12 @@ function openDesktop() {
   } catch (err) {}
   const bootStyle = document.createElement("style");
   bootStyle.id = "veilOsBootStyle";
-  bootStyle.textContent = "#veilOsBoot{position:fixed;inset:0;z-index:250000;display:flex;flex-direction:column;background:#0a0a0a;color:#f2f2f2;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;transition:opacity .45s ease}" + "#veilOsBoot.done{opacity:0;pointer-events:none}" + ".vosb-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#121212 0%,#0a0a0a 62%)}" + ".vosb-mark{width:76px;height:76px;border-radius:18px;background:#121212;border:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center}" + ".vosb-mark img{width:42px;height:42px;object-fit:contain;display:block}" + ".vosb-name{margin-top:18px;font-size:40px;font-weight:600;letter-spacing:-.045em;line-height:1;color:#f3f3f3}" + ".vosb-bar{width:228px;height:12px;margin-top:26px;background:#141414;border:1px solid #2e2e2e;border-radius:2px;overflow:hidden;position:relative}" + ".vosb-bar i{position:absolute;top:1px;bottom:1px;left:0;width:38%;background:#f2f2f2;border-radius:1px;animation:vosbSlide 1.25s cubic-bezier(.45,0,.2,1) infinite}" + "@keyframes vosbSlide{0%{transform:translateX(-110%)}100%{transform:translateX(340%)}}" + ".vosb-status{margin-top:14px;min-height:16px;font-size:12px;letter-spacing:.01em;color:#8d8d8d}" + ".vosb-foot{flex:0 0 48px;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-top:1px solid #161616;color:#6a6a6a;font-size:12px}";
+  bootStyle.textContent = "#veilOsBoot{position:fixed;inset:0;z-index:250000;display:flex;flex-direction:column;background:#0a0a0a;color:#f2f2f2;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;transition:opacity .45s ease}" + "#veilOsBoot.done{opacity:0;pointer-events:none}" + ".vosb-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#121212 0%,#0a0a0a 62%)}" + ".vosb-mark{width:76px;height:76px;border-radius:18px;background:#121212;border:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center}" + ".vosb-mark img{width:42px;height:42px;object-fit:contain;display:block}" + ".vosb-name{margin-top:18px;font-size:40px;font-weight:600;letter-spacing:-.045em;line-height:1;color:#f3f3f3}" + ".vosb-bar{width:228px;height:12px;margin-top:26px;background:#141414;border:1px solid #2e2e2e;border-radius:2px;overflow:hidden;position:relative}" + ".vosb-bar i{position:absolute;top:1px;bottom:1px;left:0;width:38%;background:#f2f2f2;border-radius:1px;animation:vosbSlide 1.25s cubic-bezier(.45,0,.2,1) infinite}" + "@keyframes vosbSlide{0%{transform:translateX(-110%)}100%{transform:translateX(340%)}}" + ".vosb-dev{margin-top:12px;font-size:11px;font-weight:650;letter-spacing:.04em;color:#8d8d8d;padding:4px 10px;border:1px solid #2a2a2a;border-radius:999px}" + ".vosb-status{margin-top:14px;min-height:16px;font-size:12px;letter-spacing:.01em;color:#8d8d8d}" + ".vosb-foot{flex:0 0 48px;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-top:1px solid #161616;color:#6a6a6a;font-size:12px}";
   document.head.appendChild(bootStyle);
   const boot = document.createElement("div");
   boot.id = "veilOsBoot";
   boot.setAttribute("role", "status");
-  boot.innerHTML = "<div class=\"vosb-main\"><div class=\"vosb-mark\"><img src=\"" + FAVI + "\" alt=\"\"></div><div class=\"vosb-name\">veilOS</div><div class=\"vosb-bar\" aria-hidden=\"true\"><i></i></div><div class=\"vosb-status\" data-boot-status>Starting veilOS</div></div><div class=\"vosb-foot\"><span>Veil</span><span>veilOS</span></div>";
+  boot.innerHTML = "<div class=\"vosb-main\"><div class=\"vosb-mark\"><img src=\"" + FAVI + "\" alt=\"\"></div><div class=\"vosb-name\">veilOS</div><div class=\"vosb-bar\" aria-hidden=\"true\"><i></i></div><div class=\"vosb-dev\">Under Development</div><div class=\"vosb-status\" data-boot-status>Starting veilOS</div></div><div class=\"vosb-foot\"><span>Veil</span><span>veilOS</span></div>";
   document.body.appendChild(boot);
   let cssReady = false;
   let jsReady = false;
@@ -7813,7 +7825,7 @@ function openDesktop() {
   };
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = BASE + "/veilos.css?v=96";
+  link.href = BASE + "/veilos.css?v=97";
   link.onload = () => {
     cssReady = true;
     tryStart();
@@ -7825,7 +7837,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=100";
+  script.src = BASE + "/veilos.js?v=101";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -7921,6 +7933,13 @@ on("confirmLeaveSwitch", () => {
   settings.confirmLeave = !settings.confirmLeave;
   save();
   highlightTheme();
+});
+on("gameDockFsSwitch", () => {
+  settings.gameDockFs = !settings.gameDockFs;
+  save();
+  highlightTheme();
+  // Apply right away if a game is fullscreen now.
+  try { if (window.veilFsSync) window.veilFsSync(); } catch (err) {}
 });
 on("time24Switch", () => {
   settings.timeFormat = settings.timeFormat === "24" ? "12" : "24";
@@ -9113,7 +9132,8 @@ function veilClearMotion(el, keepTransition) {
   const prev = el.__veilPrev || {};
   el.__veilPrev = null;
   el.style.opacity = prev.opacity || "";
-  el.style.transform = prev.transform || "";
+  // A row the pointer is growing keeps its hover scale instead of snapping back to 1.
+  el.style.transform = prev.transform || (el._veilScale && el._veilScale !== 1 ? "scale(" + el._veilScale + ")" : "");
   el.style.scale = prev.scale || "";
   el.style.translate = prev.translate || "";
   el.style.removeProperty("--veil-in-x");
@@ -9131,6 +9151,8 @@ const VEIL_KINDS = {
   drop: { opacity: [0, 1], translateY: [-8, 0], scale: [0.94, 1] },
   lift: { opacity: [0, 1], translateY: [24, 0] },
   side: { opacity: [0, 1], translateX: [18, 0] },
+  // List rows: no scale, so a hover grow that starts mid-reveal never fights it.
+  row: { opacity: [0, 1], translateY: [12, 0] },
   nudge: { scale: [0.96, 1] }
 };
 function veilSpringIn(el, kind, opts) {
@@ -9143,7 +9165,12 @@ function veilSpringIn(el, kind, opts) {
   if (el._veilIn && el._veilIn.cancel) {
     try { el._veilIn.cancel(); } catch (err) {}
   }
-  if (!el.__veilPrev) el.__veilPrev = { opacity: el.style.opacity === "0" ? "" : el.style.opacity, transform: el.style.transform, scale: el.style.scale, translate: el.style.translate };
+  // Inline transforms written by our own springs (a reveal still running, a hover grow, a FLIP)
+  // are not the element's own: remembering or building on them parked panels and rows part-way
+  // (Options slid in to 18px and stayed there, then jumped back when the safety net cleared it).
+  const motionMade = v => !!v && !/%/.test(v) && /^\s*((translate[XYZ]?|scale[XYZ]?|rotate[XYZ]?)\([^)]*\)\s*)+$/.test(v);
+  const ownInline = { transform: motionMade(el.style.transform) || /var\(--veil-in-/.test(el.style.transform) ? "" : el.style.transform, scale: el._veilIn ? "" : el.style.scale, translate: el._veilIn ? "" : el.style.translate };
+  if (!el.__veilPrev) el.__veilPrev = { opacity: el.style.opacity === "0" ? "" : el.style.opacity, transform: ownInline.transform, scale: ownInline.scale, translate: ownInline.translate };
   if (el.__veilTransition == null) {
     el.__veilTransition = el.style.transition || "";
     const keep = opts.keep || "";
@@ -9155,11 +9182,22 @@ function veilSpringIn(el, kind, opts) {
   // that transform replaced mid-spring, or it jumps off-centre and snaps back. Those elements get
   // the spring through CSS variables appended after their own transform instead.
   let own = "";
+  let ownT = "";
+  const liveInline = { transform: el.style.transform, scale: el.style.scale, translate: el.style.translate };
   try {
+    // Measure with only the element's own transform in place.
+    el.style.transform = el.__veilPrev.transform || "";
+    el.style.scale = el.__veilPrev.scale || "";
+    el.style.translate = el.__veilPrev.translate || "";
     const cs = getComputedStyle(el);
-    if (cs.transform && cs.transform !== "none") own = "standalone";
+    if (cs.transform && cs.transform !== "none") { own = "standalone"; ownT = el.__veilPrev.transform || cs.transform; }
     else if ((cs.translate && cs.translate !== "none") || (cs.scale && cs.scale !== "none")) own = "transform";
   } catch (err) {}
+  if (own !== "standalone") {
+    el.style.transform = liveInline.transform;
+    el.style.scale = liveInline.scale;
+    el.style.translate = liveInline.translate;
+  }
   if (own === "standalone") {
     spec = {};
     if (base.opacity) spec.opacity = base.opacity;
@@ -9174,8 +9212,6 @@ function veilSpringIn(el, kind, opts) {
     el.style.setProperty("--veil-in-s", String(sc[0]));
     // Append the spring after the element's own transform so it moves and scales around where it
     // already sits (standalone translate/scale would apply before it and pull centred boxes aside).
-    let ownT = "";
-    try { ownT = el.style.transform || getComputedStyle(el).transform; } catch (err) {}
     el.style.transform = (ownT && ownT !== "none" ? ownT + " " : "") + "translate(calc(var(--veil-in-x) * 1px), calc(var(--veil-in-y) * 1px)) scale(var(--veil-in-s))";
   }
   spec.ease = veilSpring(opts.bounce == null ? VEIL_TAB_FEEL.bounce : opts.bounce, opts.duration || VEIL_TAB_FEEL.duration);
@@ -9783,7 +9819,9 @@ function dressRangeInput(input) {
     const knob = document.createElement("i");
     knob.className = "range-knob";
     track.appendChild(knob);
-    if (!input.closest("#settingsPanel")) {
+    // Every slider (Options too) is smooth like the player's: no spring, the knob tracks the
+    // pointer directly and reaches both ends.
+    {
       track.classList.add("range-smooth");
       const fill = document.createElement("i");
       fill.className = "range-fill";
@@ -10053,7 +10091,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=100";
+      script.src = BASE + "/veilos.js?v=101";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -10171,6 +10209,9 @@ function buildEntMusic(pane, api) {
     if (!el || motionOff() || !anime || !anime.animate) return;
     try { anime.animate(el, { scale: [from, to], ease: veilSpring(bounce == null ? 0.16 : bounce, duration || 640) }); } catch (err) {}
   };
+  // Everything currently grown by a hover; hoverSync() shrinks any of them the pointer has left
+  // without a pointerout (re-render under the pointer, scroll, leaving the window).
+  const grown = new Set();
   function glide(el, scale, soft) {
     const anime = window.anime;
     if (!el || motionOff() || !anime || !anime.animate) return;
@@ -10185,8 +10226,11 @@ function buildEntMusic(pane, api) {
       try { if (el._veilGlide.cancel) el._veilGlide.cancel(); } catch (err) {}
       el._veilGlide = null;
     }
-    try { if (anime.utils && anime.utils.remove) anime.utils.remove(el); else if (anime.remove) anime.remove(el); } catch (err) {}
+    // No anime.utils.remove here: it also killed the row's reveal / FLIP springs half way and left
+    // rows parked part-way (shifted, scaled, faded). Animating scale again simply replaces the old
+    // scale tween and leaves the other transform parts running.
     const from = live != null && isFinite(live) ? live : (el._veilScale || 1);
+    if (scale > 1) grown.add(el); else if (scale === 1) grown.delete(el);
     try {
       const pressing = scale < 1 && scale < from;
       // soft: song cards. A slower, rounder press and a release that overshoots once, instead of
@@ -10309,6 +10353,58 @@ function buildEntMusic(pane, api) {
       document.head.appendChild(tag);
     });
   }
+  // Pages wait for their pictures: resolves once every URL has loaded or failed, or after `cap` ms.
+  function preloadImgs(urls, cap) {
+    const list = Array.from(new Set((urls || []).filter(Boolean))).slice(0, 24);
+    if (!list.length) return Promise.resolve();
+    return new Promise(resolve => {
+      let left = list.length;
+      let finished = false;
+      const finish = () => { if (!finished) { finished = true; resolve(); } };
+      const one = () => { left -= 1; if (left <= 0) finish(); };
+      setTimeout(finish, cap || 5000);
+      list.forEach(url => {
+        const img = new Image();
+        img.decoding = "async";
+        img.onload = () => { if (img.decode) img.decode().then(one, one); else one(); };
+        img.onerror = one;
+        img.src = url;
+      });
+    });
+  }
+  // Search results stay on the skeleton until the songs, the album search and the artist search
+  // have all answered and the pictures at the top are in, then everything springs in together.
+  const searchGate = { q: "", albums: true, artists: true, ready: true, prepping: false, timer: 0 };
+  function gateStart(q) {
+    clearTimeout(searchGate.timer);
+    Object.assign(searchGate, { q: q, albums: !q, artists: !q, ready: !q, prepping: false });
+    if (q) searchGate.timer = setTimeout(() => gateOpen(q), 12000);
+  }
+  function gateMark(q, key) {
+    if (searchGate.q !== q) return;
+    searchGate[key] = true;
+    gateCheck();
+  }
+  function gateCheck() {
+    const g = searchGate;
+    if (g.ready || g.prepping || !g.q) return;
+    const snap = api.snap();
+    if (/^Searching/.test(snap.status || "") || !g.albums || !g.artists) return;
+    g.prepping = true;
+    const q = g.q;
+    const urls = [];
+    if (ui.artistTop && ui.artistsFor === q) urls.push(ui.artistTop.avatar);
+    (ui.artists || []).slice(0, 6).forEach(item => urls.push(item.avatar));
+    (ui.albumsFor === q ? ui.albums || [] : []).slice(0, 8).forEach(item => urls.push(prettySrc(item.cover, false)));
+    (snap.results || []).slice(0, 8).forEach((track, i) => urls.push(track && track.thumb ? prettySrc(track.thumb, i === 0) : ""));
+    preloadImgs(urls, 4000).then(() => gateOpen(q));
+  }
+  function gateOpen(q) {
+    if (searchGate.q !== q || searchGate.ready) return;
+    searchGate.ready = true;
+    clearTimeout(searchGate.timer);
+    if (ui.page === "home") full(false);
+  }
   function searchAlbums(query) {
     const q = String(query || "").trim();
     ui.albumsFor = q;
@@ -10346,7 +10442,7 @@ function buildEntMusic(pane, api) {
       }).sort((a, b) => (b.count > 1) - (a.count > 1)).slice(0, 10);
       ui.albumsKey = q + ":" + ui.albums.length;
       if (ui.page === "home") full(false);
-    });
+    }).catch(() => {}).then(() => gateMark(q, "albums"));
   }
   // Artists are searchable too: YouTube channels (via Invidious) whose name matches the query.
   // An exact name match takes the Top result slot (round picture, opens the artist page); other
@@ -10388,7 +10484,7 @@ function buildEntMusic(pane, api) {
       if (ui.page === "home") full(false);
     }).catch(err => {
       try { console.warn("[Veil music] Artist search failed: " + (err && err.message || err)); } catch (e2) {}
-    });
+    }).then(() => gateMark(q, "artists"));
   }
   function artistTopHit(item) {
     const pic = item.avatar ? '<img class="sp-top-pfp" src="' + escapeHTML(item.avatar) + '" alt="">' : '<span class="sp-top-pfp sp-ph">' + ico("music_default.svg") + "</span>";
@@ -10446,8 +10542,12 @@ function buildEntMusic(pane, api) {
       thumb: "https://i.ytimg.com/vi/" + row.videoId + "/mqdefault.jpg",
       local: false
     }))).catch(err => { console.warn("[Veil music] Couldn't load YouTube album " + id + ": " + (err && err.message || err)); return []; });
-    (meta.src.indexOf("yt:") === 0 ? viaYouTube() : meta.src.indexOf("dz:") === 0 ? viaDeezer() : viaItunes().then(list => list.length ? list : viaDeezerSearch())).then(tracks => {
-      if (ui.remote !== want) return;
+    (meta.src.indexOf("yt:") === 0 ? viaYouTube() : meta.src.indexOf("dz:") === 0 ? viaDeezer() : viaItunes().then(list => list.length ? list : viaDeezerSearch())).catch(() => []).then(tracks => {
+      if (ui.remote !== want) return null;
+      // Hold the skeleton until the cover and the first rows' art are in, then show it all at once.
+      return preloadImgs([prettySrc(want.cover, true)].concat(tracks.slice(0, 12).map(t => t && t.thumb ? prettySrc(t.thumb, false) : "")), 5000).then(() => tracks);
+    }).then(tracks => {
+      if (!tracks || ui.remote !== want) return;
       want.tracks = tracks;
       want.status = tracks.length ? "" : "Couldn't load this album's songs.";
       if (ui.page === "ralbum") full(false);
@@ -10920,6 +11020,7 @@ function buildEntMusic(pane, api) {
   const skelRows = n => Array.from({ length: n }, (_, i) => '<div class="sp-skel-row"><i class="sk sk-n"></i><i class="sk sk-art"></i><span class="sk-col"><i class="sk sk-line" style="width:' + (38 + (i * 17) % 34) + '%"></i><i class="sk sk-line sk-thin" style="width:' + (18 + (i * 11) % 16) + '%"></i></span><i class="sk sk-time"></i></div>').join("");
   const skelCards = n => '<div class="sp-grid sp-skel-cards">' + Array.from({ length: n }, () => '<div class="sp-skel-card"><i class="sk sk-cover"></i><i class="sk sk-line" style="width:72%"></i><i class="sk sk-line sk-thin" style="width:46%"></i></div>').join("") + "</div>";
   const skelTop = () => '<div class="sp-skel-top"><i class="sk sk-bigart"></i><span class="sk-col"><i class="sk sk-line sk-big" style="width:46%"></i><i class="sk sk-line sk-thin" style="width:24%"></i></span><i class="sk sk-play"></i></div>';
+  const skelAlbumHero = () => '<div class="sp-skel-hero sp-skel-album"><i class="sk sk-cover-big"></i><span class="sk-col"><i class="sk sk-line sk-thin" style="width:52px"></i><i class="sk sk-line sk-big" style="width:260px"></i><i class="sk sk-line sk-thin" style="width:160px"></i><i class="sk sk-pill"></i></span></div>';
   const skelArtistHero = () => '<div class="sp-skel-hero"><i class="sk sk-pfp"></i><span class="sk-col"><i class="sk sk-line sk-thin" style="width:60px"></i><i class="sk sk-line sk-big" style="width:220px"></i><i class="sk sk-line sk-thin" style="width:140px"></i></span></div>';
   function startLoaders(scope) {
     const anime = window.anime;
@@ -10970,7 +11071,8 @@ function buildEntMusic(pane, api) {
         html = '<div class="sp-hero">' + art(meta.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(meta.name || "Album") + '</h2><div class="sp-hero-facts">' + facts + '</div><div class="sp-acts"><button type="button" class="sp-play" data-play-ralbum data-pp-ralbum="' + escapeHTML(meta.src || "") + '"' + (tracks.length ? "" : " disabled") + '>' + veilPPIcon(ralbumPlaying(meta.src)) + '<span class="sp-pp-label">' + (ralbumPlaying(meta.src) ? "Pause" : "Play") + '</span></button><button type="button" class="sp-play sp-save' + (saved ? " on" : "") + '" data-save-ralbum' + (tracks.length ? "" : " disabled") + '>' + (saved ? "Saved" : "Save to library") + '</button></div></div></div>';
         const acts = track => '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>';
         const loadingAlbum = !tracks.length && /^(Loading|Finding)/.test(meta.status || "Loading");
-        html += tracks.length ? tracks.map((track, index) => songRow(track, index, acts(track))).join("") : loadingAlbum ? '<div class="sp-skel" data-skel>' + skelLoader(meta.status || "Loading songs…") + skelRows(8) + "</div>" : '<div class="sp-empty">' + escapeHTML(meta.status || "Couldn't load this album's songs.") + '</div>';
+        if (loadingAlbum) html = '<div class="sp-skel" data-skel>' + skelLoader(meta.status || "Loading songs…") + skelAlbumHero() + skelRows(8) + "</div>";
+        if (!loadingAlbum) html += tracks.length ? tracks.map((track, index) => songRow(track, index, acts(track))).join("") : '<div class="sp-empty">' + escapeHTML(meta.status || "Couldn't load this album's songs.") + '</div>';
       }
     }
     if (ui.page === "artist") {
@@ -10980,15 +11082,28 @@ function buildEntMusic(pane, api) {
       const pfp = yt && yt.avatar ? '<img class="sp-artist-pfp" src="' + escapeHTML(yt.avatar) + '" alt="">' : '<span class="sp-artist-pfp sp-ph">' + ico("music_default.svg") + '</span>';
       const facts = yt ? [yt.subs ? compactCount(yt.subs) + " subscribers" : "", yt.views ? compactCount(yt.views) + " views" : ""].filter(Boolean).join('<span class="sp-dot">•</span>') : "";
       const ytLoading = !yt || (!yt.failed && !(yt.popular || []).length && !yt.done);
-      html = !yt || (!yt.found && !yt.failed) ? '<div class="sp-skel" data-skel>' + skelLoader("Loading " + (ui.artist || "artist") + "…") + skelArtistHero() + '</div>' : '<div class="sp-artist-hero' + (yt && yt.banner ? " has-banner" : "") + '">' + (yt && yt.banner ? '<div class="sp-artist-banner" style="background-image:url(&quot;' + escapeHTML(yt.banner) + '&quot;)"></div>' : '<div class="sp-artist-banner"></div>') + '<div class="sp-artist-id">' + pfp + '<div class="sp-artist-text"><div class="sp-label">Artist</div><h2>' + escapeHTML((yt && yt.title) || ui.artist || "Artist") + '</h2>' + (facts ? '<div class="sp-hero-facts">' + facts + '</div>' : "") + (yt && yt.desc ? '<div class="sp-artist-desc' + (ui.artistDescOpen ? " is-open" : "") + '">' + escapeHTML(yt.desc).replace(/\n/g, "<br>") + '</div><button type="button" class="sp-artist-more" data-artist-more>' + (ui.artistDescOpen ? "Less" : "More") + "</button>" : "") + '</div></div></div>';
-      html += '<div class="sp-label">Popular</div>';
-      html += !tracks.length && (ytLoading || /^(Loading|Searching)/.test(note || "")) ? '<div class="sp-skel" data-skel>' + skelRows(7) + "</div>" : tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("") : '<div class="sp-empty">' + escapeHTML(note || "No songs found.") + '</div>';
-      if (yt && (yt.albums || []).length) html += '<div class="sp-label">Albums</div><div class="sp-grid sp-ralbums">' + yt.albums.map(item => '<div class="sp-cardwrap"><button type="button" class="sp-card" data-ralbum="' + escapeHTML(item.src) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name) + '</b><small>' + escapeHTML(songsLabel(item.count || 0)) + '</small></button><button type="button" class="sp-quick" data-ralbum-play="' + escapeHTML(item.src) + '" data-pp-ralbum="' + escapeHTML(item.src) + '" aria-label="Play album">' + veilPPIcon(ralbumPlaying(item.src)) + '</button></div>').join("") + '</div>';
-      if (yt && yt.status) html += '<div class="sp-status">' + escapeHTML(yt.status) + '</div>';
+      const holdArtist = !yt || (!yt.ready && !yt.failed);
+      html = holdArtist ? '<div class="sp-skel" data-skel>' + skelLoader("Loading " + (ui.artist || "artist") + "…") + skelArtistHero() + '<div class="sp-label">Popular</div>' + skelRows(7) + '<div class="sp-label">Albums</div>' + skelCards(4) + '</div>' : '<div class="sp-artist-hero' + (yt && yt.banner ? " has-banner" : "") + '">' + (yt && yt.banner ? '<div class="sp-artist-banner" style="background-image:url(&quot;' + escapeHTML(yt.banner) + '&quot;)"></div>' : '<div class="sp-artist-banner"></div>') + '<div class="sp-artist-id">' + pfp + '<div class="sp-artist-text"><div class="sp-label">Artist</div><h2>' + escapeHTML((yt && yt.title) || ui.artist || "Artist") + '</h2>' + (facts ? '<div class="sp-hero-facts">' + facts + '</div>' : "") + (yt && yt.desc ? '<div class="sp-artist-desc' + (ui.artistDescOpen ? " is-open" : "") + '">' + escapeHTML(yt.desc).replace(/\n/g, "<br>") + '</div><button type="button" class="sp-artist-more" data-artist-more>' + (ui.artistDescOpen ? "Less" : "More") + "</button>" : "") + '</div></div></div>';
+      if (!holdArtist) {
+        html += '<div class="sp-label">Popular</div>';
+        html += !tracks.length && (ytLoading || /^(Loading|Searching)/.test(note || "")) ? '<div class="sp-skel" data-skel>' + skelRows(7) + "</div>" : tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("") : '<div class="sp-empty">' + escapeHTML(note || "No songs found.") + '</div>';
+        if (yt) {
+          // Only real albums in Albums: '- Single' / EP releases and short (under 4 songs) ones get
+          // their own Singles & EPs row underneath.
+          const card = item => '<div class="sp-cardwrap"><button type="button" class="sp-card" data-ralbum="' + escapeHTML(item.src) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name) + '</b><small>' + escapeHTML(songsLabel(item.count || 0)) + '</small></button><button type="button" class="sp-quick" data-ralbum-play="' + escapeHTML(item.src) + '" data-pp-ralbum="' + escapeHTML(item.src) + '" aria-label="Play album">' + veilPPIcon(ralbumPlaying(item.src)) + '</button></div>';
+          const isAlbum = item => !/(^|[\s(\[-])(single|ep)([\s)\]]|$)/i.test(item.name || "") && !(item.count > 0 && item.count < 4);
+          const albumsOnly = (yt.albums || []).filter(isAlbum);
+          const singles = (yt.albums || []).filter(item => !isAlbum(item));
+          if (albumsOnly.length) html += '<div class="sp-label">Albums</div><div class="sp-grid sp-ralbums">' + albumsOnly.map(card).join("") + '</div>';
+          if (singles.length) html += '<div class="sp-label">Singles &amp; EPs</div><div class="sp-grid sp-ralbums sp-singles">' + singles.map(card).join("") + '</div>';
+        }
+        if (yt && yt.status) html += '<div class="sp-status">' + escapeHTML(yt.status) + '</div>';
+      }
     }
     if (ui.page === "home") {
       html = '<form class="sp-search" data-search><input data-q type="search" placeholder="Search for a song or artist" value="' + escapeHTML(ui.query) + '" aria-label="Search"><button type="submit">Search</button></form><div class="sp-status">' + escapeHTML(snap.status || "") + '</div>';
-      const searching = !!ui.query && /^Searching/.test(snap.status || "");
+      if (ui.query && searchGate.q === ui.query && !searchGate.ready) gateCheck();
+      const searching = !!ui.query && (/^Searching/.test(snap.status || "") || (searchGate.q === ui.query && !searchGate.ready));
       if (searching) {
         html = html.replace('<div class="sp-status">' + escapeHTML(snap.status || "") + "</div>", "");
         html += '<div class="sp-skel" data-skel>' + skelLoader("Searching for \u201c" + ui.query + "\u201d…") + '<div class="sp-label">Top result</div>' + skelTop() + '<div class="sp-label">Albums</div>' + skelCards(4) + '<div class="sp-label">Songs</div>' + skelRows(6) + "</div>";
@@ -11015,13 +11130,18 @@ function buildEntMusic(pane, api) {
     }
     const top = main.scrollTop;
     const wasSkel = !!main.querySelector("[data-skel]");
+    // A repaint while still loading that would draw the very same skeleton leaves it alone, so the
+    // shimmer and the loader dots keep going instead of restarting on every bit of data that lands.
+    if (wasSkel && !animate && main._veilSkelHtml === html) return;
+    main._veilSkelHtml = /data-skel/.test(html) ? html : "";
     main.innerHTML = html;
     if (!animate) main.scrollTop = top;
+    else main.scrollTop = 0;
     scanExplicit(main);
     if (main.querySelector("[data-skel]")) startLoaders(main);
     else if (wasSkel && !animate) {
       // Skeleton -> content: the real rows spring in one after another instead of popping.
-      veilStaggerIn(main.querySelectorAll(".sp-artist-hero, .sp-topwrap, .sp-cardwrap, .sp-artist-card, .sp-song"), "rise", { base: 0, step: 28, max: 16, bounce: 0.4, duration: 560 });
+      veilStaggerIn(main.querySelectorAll(".sp-hero, .sp-artist-hero, .sp-main > .sp-label, .sp-topwrap, .sp-cardwrap, .sp-artist-card, .sp-song"), "row", { base: 0, step: 18, max: 26, bounce: 0.42, duration: 600 });
     }
     const anime = window.anime;
     if (animate && anime && anime.animate && !motionOff()) {
@@ -11361,6 +11481,8 @@ function buildEntMusic(pane, api) {
   async function loadArtistYT(name) {
     const want = { name: name, stamp: 0, popular: [], albums: [], status: "" };
     ui.artistYT = want;
+    // Never hold the profile longer than this, whatever is still on its way.
+    setTimeout(() => { if (ui.artistYT === want && !want.ready && !want.failed && want.found) { want.ready = true; bump(); } }, 15000);
     const bump = () => {
       want.stamp += 1;
       if (ui.artistYT === want && ui.page === "artist") {
@@ -11422,6 +11544,11 @@ function buildEntMusic(pane, api) {
         cover: item.playlistThumbnail || "",
         count: item.videoCount || 0
       }));
+      // Keep the skeleton up until the pictures are in too (avatar, banner, the first covers and
+      // song art), then the whole profile springs in at once.
+      await preloadImgs([want.avatar, want.banner].concat(want.albums.slice(0, 8).map(item => prettySrc(item.cover, false)), want.popular.slice(0, 8).map(t => t.thumb)), 4000);
+      if (ui.artistYT !== want) return;
+      want.ready = true;
       bump();
     } catch (err) {
       console.warn("[Veil music] Artist page: couldn't load YouTube channel for \"" + name + "\": " + (err && err.message || err));
@@ -11830,6 +11957,7 @@ function buildEntMusic(pane, api) {
     event.preventDefault();
     ui.query = form.querySelector("[data-q]").value.trim();
     ui.page = "home";
+    gateStart(ui.query);
     api.search(ui.query);
     searchAlbums(ui.query);
     searchArtists(ui.query);
@@ -11838,13 +11966,38 @@ function buildEntMusic(pane, api) {
   // Song cards grow as one piece (title, art and their like / add buttons together), like the
   // album cards, so the buttons inside a card don't also grow on their own.
   const SONG_HOVER = 1.014;
+  let hoverSyncAt = 0;
+  function hoverSync(except) {
+    hoverSyncAt = 0;
+    root.querySelectorAll(".sp-song.is-hover, .sp-topwrap.is-hover").forEach(el => {
+      if (el === except) return;
+      let on = false;
+      try { on = el.matches(":hover"); } catch (err) {}
+      if (on) return;
+      el.classList.remove("is-hover");
+      glide(el, 1, true);
+    });
+    grown.forEach(el => {
+      if (el === except) return;
+      if (!el.isConnected) { grown.delete(el); return; }
+      let on = false;
+      try { on = el.matches(":hover"); } catch (err) {}
+      if (!on) glide(el, 1, el.matches(".sp-song, .sp-topwrap"));
+    });
+  }
+  const hoverSyncSoon = () => { if (!hoverSyncAt) hoverSyncAt = requestAnimationFrame(() => hoverSync()); };
   root.addEventListener("pointerover", event => {
     const song = event.target.closest(".sp-song, .sp-topwrap");
     if (song && !song.contains(event.relatedTarget)) {
+      // Only one row is ever lit: any other row still marked hovered (its pointerout was lost to a
+      // re-render or a scroll) drops back first.
+      hoverSync(song);
       song.classList.add("is-hover");
       glide(song, SONG_HOVER, true);
-    }
+    } else hoverSyncSoon();
   });
+  root.addEventListener("pointerleave", () => hoverSync());
+  root.addEventListener("scroll", () => { clearTimeout(root._veilHoverScroll); root._veilHoverScroll = setTimeout(() => hoverSync(), 90); }, true);
   root.addEventListener("pointerout", event => {
     const song = event.target.closest(".sp-song, .sp-topwrap");
     if (song && !song.contains(event.relatedTarget)) {
@@ -13043,7 +13196,8 @@ function updateGamesChromeLocks() {
 function tileHTML(value) {
   const icon = gameId(value);
   const title = isFavorite(icon);
-  return "<div class=\"game-tile" + (title ? " fav" : "") + "\" data-play=\"" + escapeHTML(icon) + "\"><div class=\"thumb\"><img src=\"" + escapeHTML(smallThumb(value)) + "\" alt=\"\" onerror=\"this.style.opacity=.25\"><div class=\"tile-tools\"><button type=\"button\" class=\"tile-tool" + (title ? " on" : "") + "\" data-fav=\"" + escapeHTML(icon) + "\" title=\"Favorite\" aria-label=\"Favorite\"><img src=\"" + IMG + "star.svg\" alt=\"\"></button><button type=\"button\" class=\"tile-tool\" data-info=\"" + escapeHTML(icon) + "\" title=\"Info\" aria-label=\"Info\"><img src=\"" + IMG + "info.svg\" alt=\"\"></button></div></div><div class=\"meta\"><div class=\"name\">" + escapeHTML(value.name) + "</div><div class=\"cat\">" + escapeHTML(value.category || "") + "</div></div></div>";
+  const sub = [value.category || "", maturityLabel(value)].filter(Boolean).map(escapeHTML).join('<span class="gm-dot">•</span>');
+  return "<div class=\"game-tile" + (title ? " fav" : "") + "\" data-play=\"" + escapeHTML(icon) + "\" role=\"button\" tabindex=\"0\" aria-label=\"Play " + escapeHTML(value.name) + "\"><div class=\"thumb\"><img src=\"" + escapeHTML(smallThumb(value)) + "\" alt=\"\" draggable=\"false\" onerror=\"this.style.opacity=.25\"><span class=\"gm-shade\"></span><div class=\"tile-tools\"><button type=\"button\" class=\"tile-tool" + (title ? " on" : "") + "\" data-fav=\"" + escapeHTML(icon) + "\" title=\"Favorite\" aria-label=\"Favorite\"><img src=\"" + IMG + "star.svg\" alt=\"\"></button><button type=\"button\" class=\"tile-tool\" data-info=\"" + escapeHTML(icon) + "\" title=\"Info\" aria-label=\"Info\"><img src=\"" + IMG + "info.svg\" alt=\"\"></button></div><span class=\"gm-quick\" aria-hidden=\"true\">" + veilPPIcon(false) + "</span></div><div class=\"meta\"><div class=\"name\">" + escapeHTML(value.name) + "</div><div class=\"cat\">" + sub + "</div></div></div>";
 }
 function byIds(value2) {
   const hex = {};
@@ -13101,19 +13255,9 @@ function paintGamesLists(value2, extra, other) {
     }
   }
   if (other && gamesAllRow) {
-    const immediate = [gamesAllRow, gamesFavRow, gamesRecentRow].filter(Boolean);
-    immediate.forEach(value => {
-      value.classList.remove("filtering-done");
-      value.classList.add("filtering");
-    });
-    window.setTimeout(() => {
-      paintGameRows();
-      immediate.forEach(value => {
-        value.classList.remove("filtering");
-        value.offsetWidth;
-        value.classList.add("filtering-done");
-      });
-    }, 160);
+    // Filtering: the new set of cards pops in one after another with a soft spring.
+    paintGameRows();
+    if (veilMotionOk()) veilStaggerIn([gamesAllRow, gamesFavRow, gamesRecentRow].filter(Boolean).reduce((all, row) => all.concat(Array.from(row.querySelectorAll(".game-tile, .games-empty"))), []), "pop", { base: 0, step: 26, max: 18, bounce: 0.45, duration: 560 });
   } else {
     paintGameRows();
   }
@@ -13123,8 +13267,33 @@ async function renderGamesPage(value3) {
     return;
   }
   gamesRenderRoot = value3;
+  // Skeleton first (same shimmer and springy dots as the music page) until the catalog, your games
+  // data and the pictures are in; then everything springs in together.
+  const skelCard = '<div class="gm-skel-card"><i class="sk sk-cover"></i><i class="sk sk-line" style="width:70%"></i><i class="sk sk-line sk-thin" style="width:44%"></i></div>';
+  value3.innerHTML = '<div class="sp-skel gm-skel" data-skel><i class="sk gm-skel-hero"></i><div class="games-inner"><div class="sp-loader"><span class="sp-loader-dots"><i></i><i></i><i></i></span><span class="sp-loader-text">Loading games…</span></div><i class="sk gm-skel-search"></i><div class="gm-skel-chips">' + Array.from({ length: 7 }, (_, i) => '<i class="sk" style="width:' + (52 + (i * 19) % 40) + 'px"></i>').join("") + '</div><i class="sk sk-line gm-skel-h"></i><div class="games-row">' + Array.from({ length: 6 }, () => skelCard).join("") + '</div></div></div>';
+  let skelDots = null;
+  try {
+    const anime = window.anime;
+    if (anime && anime.animate && !motionOff()) skelDots = anime.animate(value3.querySelectorAll(".sp-loader-dots i"), {
+      translateY: [{ to: -9, duration: 300, ease: "outQuad" }, { to: 0, duration: 620, ease: veilSoftJiggle }],
+      scaleY: [{ to: 1.12, duration: 300, ease: "outQuad" }, { to: 1, duration: 620, ease: veilSoftJiggle }],
+      delay: anime.stagger ? anime.stagger(120) : 0,
+      loop: true,
+      loopDelay: 140
+    });
+  } catch (err) {}
   await loadGameCatalog();
   await loadGamesUserData();
+  await new Promise(resolve => {
+    const urls = gamesCatalog.map(smallThumb).concat(gamesCatalog.slice(0, 2).map(largeThumb)).filter(Boolean);
+    let left = urls.length;
+    if (!left) { resolve(); return; }
+    const one = () => { if (--left <= 0) resolve(); };
+    setTimeout(resolve, 4000);
+    urls.forEach(src => { const img = new Image(); img.onload = img.onerror = one; img.src = src; });
+  });
+  try { if (skelDots && skelDots.pause) skelDots.pause(); } catch (err) {}
+  if (!value3.isConnected) return;
   const handler = ["cookieclicker", "minecraft", "escaperoad", "retrobowl", "basketrandom"];
   const nodes = {};
   gamesCatalog.forEach(value => {
@@ -13142,8 +13311,20 @@ async function renderGamesPage(value3) {
   };
   value3._gamesState = piece;
   value3.dataset.ready = "1";
-  playStageIntro(value3, ".games-hero, .games-header, .games-section");
   paintGamesLists(value3, piece);
+  wireGameGlide(value3);
+  value3.addEventListener("keydown", event => {
+    if ((event.key === "Enter" || event.key === " ") && event.target.matches && event.target.matches(".game-tile[data-play]")) {
+      event.preventDefault();
+      event.target.click();
+    }
+  });
+  if (veilMotionOk()) {
+    veilSpringIn(value3.querySelector(".games-hero"), "settle", { bounce: 0.4, duration: 700, force: true });
+    veilStaggerIn(value3.querySelectorAll(".games-hero-content > *"), "side", { base: 120, step: 50, max: 6, bounce: 0.45, duration: 640 });
+    veilStaggerIn(value3.querySelectorAll(".games-search-wrap, .games-cat"), "drop", { base: 60, step: 22, max: 12, bounce: 0.5, duration: 560 });
+    veilStaggerIn(Array.from(value3.querySelectorAll(".games-section")).filter(sec => sec.style.display !== "none").reduce((all, sec) => all.concat(Array.from(sec.querySelectorAll("h3, .game-tile"))), []), "rise", { base: 140, step: 30, max: 24, bounce: 0.45, duration: 640 });
+  } else playStageIntro(value3, ".games-hero, .games-header, .games-section");
   let chunk = 0;
   let bits = false;
   const amount = () => value3.querySelectorAll(".games-hero-slide");
@@ -13319,204 +13500,415 @@ async function renderGamesPage(value3) {
     }
   });
 }
-function openGamePlayer(value2) {
-  const saved = gameId(value2);
-  pushRecent(saved);
-  const fresh = maturityLabel(value2);
-  const old = value2.difficulty || "—";
-  const copy = "<span class=\"gpt-name\" title=\"" + escapeHTML(value2.name) + "\">" + escapeHTML(value2.name) + "</span><span class=\"gpt-sep\">·</span><span class=\"gpt-mat\" title=\"Content rating\">" + escapeHTML(String(fresh)) + "</span><span class=\"gpt-diff\">Difficulty <b>" + escapeHTML(String(old)) + "</b>/10</span>";
-  document.querySelector(".game-player-overlay")?.remove();
-  const base = document.createElement("div");
-  base.className = "game-player-overlay";
-  const full = IMG + "notepad.svg";
-  base.innerHTML = '<div class="game-player" id="gamePlayer">' + '<div class="game-player-main">' + '<div class="game-player-bar">' + '<button type="button" class="game-player-btn gp-close" data-gp="close" title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' + '<div class="game-player-title">' + copy + '</div>' + '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' + IMG + 'info.svg" alt=""></button>' + '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + full + '" alt="" onerror="this.onerror=null;this.src=\'' + IMG + 'pencil.svg\'"></button>' + '<button type="button" class="game-player-btn" data-gp="star" title="Favorite"><img src="' + IMG + 'star.svg" alt=""></button>' + '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' + IMG + 'zoom.svg" alt=""></button>' + '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' + IMG + 'refresh.svg" alt=""></button>' + '</div>' + '<div class="game-player-frame"><iframe id="gameFrame" src="' + escapeHTML(gamePlayUrl(value2)) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe></div>' + '</div>' + '<div class="game-notes" id="gameNotesPanel">' + '<div class="game-notes-header"><span>Notes</span>' + '<button type="button" class="game-player-btn" data-gp="notes-close" title="Close notes"><img src="' + IMG + 'exit.svg" alt=""></button></div>' + '<div class="game-notes-tabs" id="gameNoteTabs"></div>' + '<div class="game-notes-editor">' + '<label class="game-note-label" for="gameNoteTitle">Title</label>' + '<input type="text" class="game-note-title" id="gameNoteTitle" maxlength="60" placeholder="Note title">' + '<label class="game-note-label" for="gameNoteBody">Note</label>' + '<textarea id="gameNoteBody" placeholder="Write a note…"></textarea>' + '</div></div></div>';
-  document.body.appendChild(base);
-  const gamePlayer = base.querySelector("#gamePlayer");
-  const gameFrame = base.querySelector("#gameFrame");
-  function paintStar(value) {
-    if (!value) {
-      return;
-    }
-    const token = isFavorite(saved);
-    value.classList.toggle("star-on", token);
-    const img = value.querySelector("img");
-    if (img) {
-      if (token) {
-        img.style.filter = "invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg)";
-      } else {
-        img.style.filter = "invert(1)";
-      }
-      img.style.opacity = "1";
-    }
-  }
-  paintStar(base.querySelector("[data-gp=\"star\"]"));
-  if (!gamesUserData.notes[saved]) {
-    gamesUserData.notes[saved] = [];
-  }
-  let letter = gamesUserData.notes[saved];
-  if (!letter.length) {
-    letter.push({
-      id: uid(),
-      title: "Note 1",
-      body: ""
-    });
-  }
-  let code = 0;
-  function saveActiveNote() {
-    const gameNoteTitle = base.querySelector("#gameNoteTitle");
-    const gameNoteBody = base.querySelector("#gameNoteBody");
-    if (letter[code]) {
-      letter[code].title = (gameNoteTitle.value || "Note").slice(0, 60);
-      letter[code].body = gameNoteBody.value || "";
-    }
-    gamesUserData.notes[saved] = letter;
-    saveGamesUserData();
-    const note = letter[code] ? letter[code].title || "Note" : "Note";
-    const gameNoteTabActive = base.querySelector(".game-note-tab.active .game-note-tab-title");
-    if (gameNoteTabActive) {
-      gameNoteTabActive.textContent = note;
-    }
-    const gameNoteMenu = base.querySelector("#gameNoteMenu");
-    if (gameNoteMenu && gameNoteMenu.options[code]) {
-      gameNoteMenu.options[code].textContent = note;
-    }
-  }
-  function renderNoteTabs() {
-    const gameNoteTabs = base.querySelector("#gameNoteTabs");
-    const id = gamePlayer.classList.contains("notes-open");
-    const url = "<button type=\"button\" class=\"game-note-add\" data-note-add title=\"New note\" aria-label=\"New note\"><img src=\"" + IMG + "plus.svg\" alt=\"\"></button>";
-    const el = letter.map((value, extra) => "<button type=\"button\" class=\"game-note-tab" + (extra === code ? " active" : "") + "\" data-note=\"" + extra + "\"><span class=\"game-note-tab-title\">" + escapeHTML(value.title || "Note") + "</span>" + (extra === code ? "<span class=\"game-note-x\" data-note-x=\"" + extra + "\" title=\"Close note\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></span>" : "") + "</button>").join("");
-    gameNoteTabs.classList.remove("is-menu");
-    gameNoteTabs.innerHTML = el + url;
-    const node = letter[code] || {
-      title: "",
-      body: ""
-    };
-    base.querySelector("#gameNoteTitle").value = node.title || "";
-    base.querySelector("#gameNoteBody").value = node.body || "";
-    if (!id || letter.length < 2) {
-      return;
-    }
-    requestAnimationFrame(() => {
-      if (!gameNoteTabs.isConnected || !gamePlayer.classList.contains("notes-open")) {
-        return;
-      }
-      const frame = gameNoteTabs.clientWidth;
-      if (frame < 160) {
-        return;
-      }
-      let icon = 0;
-      gameNoteTabs.querySelectorAll(":scope > *").forEach(value => {
-        icon += value.offsetWidth + 6;
-      });
-      if (icon <= frame) {
-        return;
-      }
-      gameNoteTabs.classList.add("is-menu");
-      const title = letter.map((value, extra) => "<option value=\"" + extra + "\"" + (extra === code ? " selected" : "") + ">" + escapeHTML(value.title || "Note " + (extra + 1)) + "</option>").join("");
-      gameNoteTabs.innerHTML = "<select class=\"game-note-menu\" id=\"gameNoteMenu\" aria-label=\"Notes\">" + title + "</select><span class=\"game-note-x\" data-note-x=\"" + code + "\" title=\"Close note\"><img src=\"" + IMG + "exit.svg\" alt=\"\"></span>" + url;
-    });
-  }
-  renderNoteTabs();
-  base.querySelector("#gameNoteTabs").onclick = value => {
-    const node = value.target.closest("[data-note-x]");
-    if (node) {
-      value.preventDefault();
-      value.stopPropagation();
-      saveActiveNote();
-      const color = parseInt(node.getAttribute("data-note-x"), 10) || 0;
-      if (letter.length <= 1) {
-        letter[0] = {
-          id: uid(),
-          title: "Note 1",
-          body: ""
-        };
-        code = 0;
-      } else {
-        letter.splice(color, 1);
-        if (code >= letter.length) {
-          code = letter.length - 1;
-        } else if (color < code) {
-          code -= 1;
-        }
-      }
-      gamesUserData.notes[saved] = letter;
-      saveGamesUserData();
-      renderNoteTabs();
-      return;
-    }
-    if (value.target.closest("[data-note-add]")) {
-      saveActiveNote();
-      letter.push({
-        id: uid(),
-        title: "Note " + (letter.length + 1),
-        body: ""
-      });
-      code = letter.length - 1;
-      gamesUserData.notes[saved] = letter;
-      saveGamesUserData();
-      renderNoteTabs();
-      return;
-    }
-    const err = value.target.closest("[data-note]");
-    if (!err) {
-      return;
-    }
-    saveActiveNote();
-    code = parseInt(err.getAttribute("data-note"), 10) || 0;
-    renderNoteTabs();
-  };
-  base.querySelector("#gameNoteTabs").addEventListener("change", value => {
-    if (!value.target || value.target.id !== "gameNoteMenu") {
-      return;
-    }
-    saveActiveNote();
-    code = parseInt(value.target.value, 10) || 0;
-    renderNoteTabs();
-  });
-  base.querySelector("#gameNoteTitle").addEventListener("input", saveActiveNote);
-  base.querySelector("#gameNoteBody").addEventListener("input", saveActiveNote);
-  base.querySelector(".game-player-bar").onclick = value => {
-    const text = value.target.closest("[data-gp]");
-    if (!text) {
-      return;
-    }
-    const raw = text.getAttribute("data-gp");
-    if (raw === "close") {
-      saveActiveNote();
-      base.remove();
-      return;
-    }
-    if (raw === "reload") {
-      gameFrame.src = gameFrame.src;
-      return;
-    }
-    if (raw === "fs") {
-      const hex = gameFrame.requestFullscreen || gameFrame.webkitRequestFullscreen;
-      if (hex) {
-        hex.call(gameFrame);
-      }
-      return;
-    }
-    if (raw === "star") {
-      toggleFavorite(saved);
-      paintStar(text);
-      return;
-    }
-    if (raw === "notes") {
-      gamePlayer.classList.add("notes-open");
-      setTimeout(renderNoteTabs, 220);
-      return;
-    }
-    if (raw === "info") {
-      showGameInfo(value2);
-    }
-  };
-  base.querySelector("[data-gp=\"notes-close\"]").onclick = () => {
-    saveActiveNote();
-    gamePlayer.classList.remove("notes-open");
-  };
+// ---- Game player (round 7 redo): music-page look, springy toolbar, a stage that holds the game,
+// its loading / error states and (in fullscreen) the toasts and, optionally, the music widget.
+function gameSpring(el, props, bounce, duration) {
+  const anime = window.anime;
+  if (!el || motionOff() || !anime || !anime.animate) return null;
+  try { return anime.animate(el, Object.assign({ ease: veilSpring(bounce == null ? 0.45 : bounce, duration || 620) }, props)); } catch (err) { return null; }
 }
+// Hover / press scale for game cards and player buttons, interruptible like the music cards.
+function gameGlide(el, scale) {
+  const anime = window.anime;
+  if (!el || motionOff() || !anime || !anime.animate) return;
+  const m = /scale\(\s*([\d.]+)/.exec(el.style.transform || "");
+  const from = m ? Number(m[1]) : (el._veilScale || 1);
+  if (el._veilGlide && el._veilGlide.cancel) { try { el._veilGlide.cancel(); } catch (err) {} }
+  const pressing = scale < 1 && scale < from;
+  try {
+    el._veilGlide = anime.animate(el, { scale: [from, scale], ease: pressing ? veilSpring(0.24, 300) : veilSpring(scale >= from ? 0.48 : 0.34, 680) });
+    el._veilScale = scale;
+  } catch (err) {}
+}
+const GAME_GLIDE_SEL = ".game-tile, .games-cat, .games-play-btn, .games-more-btn, .game-player-btn, .gp-chipbtn, .gn-item, .game-note-action, .gp-retry";
+function gameGlideScale(el) {
+  if (el.matches(".game-tile")) return 1.035;
+  if (el.matches(".gn-item")) return 1.015;
+  return 1.06;
+}
+function wireGameGlide(root) {
+  if (!root || root._veilGameGlide) return;
+  root._veilGameGlide = true;
+  root.addEventListener("pointerover", event => {
+    const el = event.target.closest(GAME_GLIDE_SEL);
+    if (!el || el.disabled || el.contains(event.relatedTarget)) return;
+    gameGlide(el, gameGlideScale(el));
+  });
+  root.addEventListener("pointerout", event => {
+    const el = event.target.closest(GAME_GLIDE_SEL);
+    if (!el || el.contains(event.relatedTarget)) return;
+    gameGlide(el, 1);
+  });
+  root.addEventListener("pointerdown", event => {
+    const el = event.target.closest(GAME_GLIDE_SEL);
+    if (!el || el.disabled || event.button) return;
+    gameGlide(el, el.matches(".game-tile") ? 0.97 : 0.92);
+  });
+  root.addEventListener("pointerup", event => {
+    const el = event.target.closest(GAME_GLIDE_SEL);
+    if (!el) return;
+    let over = false;
+    try { over = el.matches(":hover"); } catch (err) {}
+    gameGlide(el, over ? gameGlideScale(el) : 1);
+  });
+  root.addEventListener("pointerleave", () => {
+    root.querySelectorAll(GAME_GLIDE_SEL).forEach(el => { if (el._veilScale && el._veilScale !== 1) gameGlide(el, 1); });
+  });
+}
+// Fullscreen bookkeeping shared by every game stage: toasts always follow the fullscreen element
+// (a fullscreen element hides everything outside it), and the music mini widget follows it too when
+// the Customization option is on.
+const veilFsHome = new Map();
+function veilFsMove(el, into) {
+  if (!el) return;
+  if (into) {
+    if (el.parentNode === into) return;
+    if (!veilFsHome.has(el)) veilFsHome.set(el, { parent: el.parentNode, next: el.nextSibling });
+    into.appendChild(el);
+    return;
+  }
+  const home = veilFsHome.get(el);
+  veilFsHome.delete(el);
+  const parent = home && home.parent && home.parent.isConnected ? home.parent : document.body;
+  if (el.parentNode === parent) return;
+  try { parent.insertBefore(el, home && home.next && home.next.parentNode === parent ? home.next : null); } catch (err) { document.body.appendChild(el); }
+}
+function veilFsSync() {
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement || null;
+  // An iframe can't show children of its own, so only real containers take them in.
+  const host = fsEl && fsEl.tagName !== "IFRAME" && fsEl !== document.documentElement && fsEl !== document.body ? fsEl : null;
+  try { veilFsMove(veilToastHost(), host); } catch (err) {}
+  const dock = document.getElementById("spDock");
+  const dockIn = !!(host && settings.gameDockFs && host.classList.contains("gp-stage"));
+  if (dock) {
+    veilFsMove(dock, dockIn ? host : null);
+    dock.classList.toggle("is-in-game", dockIn);
+  }
+  document.querySelectorAll(".gp-stage").forEach(stage => stage.classList.toggle("is-fs", stage === fsEl));
+}
+document.addEventListener("fullscreenchange", veilFsSync);
+document.addEventListener("webkitfullscreenchange", veilFsSync);
+window.veilFsSync = veilFsSync;
+function exitAnyFullscreen() {
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) return document.exitFullscreen().catch(() => {});
+    if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } catch (err) {}
+  return Promise.resolve();
+}
+function closeGamePlayer(overlay, save) {
+  if (!overlay || overlay._closing) return;
+  overlay._closing = true;
+  try { if (save) save(); } catch (err) {}
+  const stage = overlay.querySelector(".gp-stage");
+  if (stage && (document.fullscreenElement === stage || document.webkitFullscreenElement === stage)) exitAnyFullscreen();
+  const box = overlay.querySelector(".game-player");
+  const anime = window.anime;
+  if (motionOff() || !anime || !anime.animate) { overlay.remove(); veilFsSync(); return; }
+  try {
+    anime.animate(overlay, { opacity: [1, 0], ease: "outQuad", duration: 220 });
+    if (box) anime.animate(box, { scale: [1, 0.94], translateY: [0, 10], ease: veilTabSpring("exit") });
+  } catch (err) {}
+  setTimeout(() => { overlay.remove(); veilFsSync(); }, 240);
+}
+function openGamePlayer(game) {
+  const id = gameId(game);
+  pushRecent(id);
+  const old = document.querySelector(".game-player-overlay");
+  if (old) old.remove();
+  const url = gamePlayUrl(game);
+  const rating = maturityLabel(game);
+  const diff = game.difficulty || "—";
+  const tool = (gp, icon, label, extra) => '<button type="button" class="game-player-btn" data-gp="' + gp + '" title="' + label + '" aria-label="' + label + '"' + (extra || "") + '><img src="' + IMG + icon + '" alt=""></button>';
+  const overlay = document.createElement("div");
+  overlay.className = "game-player-overlay gp2";
+  overlay.innerHTML = '<div class="game-player" id="gamePlayer">' +
+    '<div class="game-player-main">' +
+      '<div class="game-player-bar">' +
+        '<button type="button" class="game-player-btn gp-close" data-gp="close" title="Close" aria-label="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+        '<img class="gp-thumb" src="' + escapeHTML(smallThumb(game)) + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
+        '<div class="game-player-title"><span class="gpt-name" title="' + escapeHTML(game.name) + '">' + escapeHTML(game.name) + '</span>' +
+          '<span class="gpt-chips"><span class="gpt-mat" title="Content rating">' + escapeHTML(String(rating)) + '</span>' + (game.category ? '<span class="gpt-chip">' + escapeHTML(game.category) + '</span>' : "") + '<span class="gpt-diff">Difficulty <b>' + escapeHTML(String(diff)) + '</b>/10</span></span></div>' +
+        '<div class="gp-tools">' + tool("info", "info.svg", "Info") + tool("notes", "notepad.svg", "Notes") + tool("star", "star.svg", "Favorite") + '<span class="gp-tools-sep"></span>' + tool("reload", "refresh.svg", "Reload game") + tool("fs", "zoom.svg", "Fullscreen") + '</div>' +
+      '</div>' +
+      '<div class="game-player-frame gp-stage" id="gameStage">' +
+        '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe>' +
+        '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(largeThumb(game) || smallThumb(game)) + '" alt="" onerror="this.src=\'' + escapeHTML(smallThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
+        '<div class="gp-error" data-gp-error hidden><div class="gp-error-card"><b>This game couldn\u2019t load</b><span data-gp-error-text>The game files aren\u2019t available right now.</span><button type="button" class="gp-retry" data-gp="reload">Try again</button></div></div>' +
+        '<button type="button" class="game-player-btn gp-fs-exit" data-gp="fs" title="Exit fullscreen" aria-label="Exit fullscreen"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+      '</div>' +
+    '</div>' +
+    '<aside class="game-notes" id="gameNotesPanel" aria-label="Notes">' +
+      '<div class="game-notes-header"><span class="gn-head-title">Notes</span><span class="gn-count" data-gn-count></span><button type="button" class="game-player-btn gn-new" data-note-add title="New note" aria-label="New note"><img src="' + IMG + 'plus.svg" alt=""></button><button type="button" class="game-player-btn" data-gp="notes-close" title="Close notes" aria-label="Close notes"><img src="' + IMG + 'exit.svg" alt=""></button></div>' +
+      '<div class="gn-list" id="gameNoteList" role="listbox" aria-label="Your notes"></div>' +
+      '<div class="game-notes-editor">' +
+        '<input type="text" class="game-note-title" id="gameNoteTitle" maxlength="60" placeholder="Note title" aria-label="Note title">' +
+        '<textarea id="gameNoteBody" placeholder="Write a note…" aria-label="Note"></textarea>' +
+        '<div class="gn-foot"><span class="gn-saved" data-gn-saved>Saved</span><button type="button" class="game-note-action gn-del" data-note-del><img src="' + IMG + 'trash.svg" alt="">Delete</button></div>' +
+      '</div>' +
+    '</aside>' +
+  '</div>';
+  document.body.appendChild(overlay);
+  wireGameGlide(overlay);
+  const player = overlay.querySelector("#gamePlayer");
+  const frame = overlay.querySelector("#gameFrame");
+  const stage = overlay.querySelector("#gameStage");
+  const loading = overlay.querySelector("[data-gp-loading]");
+  const errorBox = overlay.querySelector("[data-gp-error]");
+  // Loading veil: springy dots, then the frame fades up once the game has loaded.
+  let dotsJob = null;
+  const anime = window.anime;
+  function startDots() {
+    if (dotsJob || motionOff() || !anime || !anime.animate) return;
+    try {
+      dotsJob = anime.animate(loading.querySelectorAll("[data-gp-dots] i"), {
+        translateY: [{ to: -9, duration: 300, ease: "outQuad" }, { to: 0, duration: 620, ease: veilSoftJiggle }],
+        scaleY: [{ to: 1.12, duration: 300, ease: "outQuad" }, { to: 1, duration: 620, ease: veilSoftJiggle }],
+        delay: anime.stagger ? anime.stagger(120) : 0,
+        loop: true,
+        loopDelay: 140
+      });
+    } catch (err) {}
+  }
+  function showLoading(text) {
+    errorBox.hidden = true;
+    loading.hidden = false;
+    loading.classList.remove("is-done");
+    loading.querySelector("[data-gp-load-text]").textContent = text || "Loading game…";
+    startDots();
+    gameSpring(loading.querySelector(".gp-load-card"), { opacity: [0, 1], scale: [0.92, 1] }, 0.5, 620);
+  }
+  function hideLoading() {
+    if (loading.hidden || loading.classList.contains("is-done")) return;
+    loading.classList.add("is-done");
+    gameSpring(loading.querySelector(".gp-load-card"), { opacity: [1, 0], scale: [1, 0.96] }, 0.2, 320);
+    if (!gameSpring(frame, { opacity: [0, 1], scale: [0.985, 1] }, 0.42, 680)) frame.style.opacity = "1";
+    setTimeout(() => {
+      if (!loading.classList.contains("is-done")) return;
+      loading.hidden = true;
+      if (dotsJob && dotsJob.pause) { try { dotsJob.pause(); } catch (err) {} }
+      dotsJob = null;
+    }, 360);
+  }
+  function showError(text) {
+    loading.hidden = true;
+    errorBox.hidden = false;
+    errorBox.querySelector("[data-gp-error-text]").textContent = text || "The game files aren\u2019t available right now.";
+    gameSpring(errorBox.querySelector(".gp-error-card"), { opacity: [0, 1], scale: [0.9, 1], translateY: [8, 0] }, 0.5, 680);
+  }
+  let loadToken = 0;
+  frame.addEventListener("load", () => {
+    if (!frame.getAttribute("src") || frame.getAttribute("src") === "about:blank") return;
+    hideLoading();
+  });
+  // Check the game is really there first: a missing file would otherwise show a 404 page inside the
+  // player (or Veil itself through the site's fallback page).
+  function loadGame(reload) {
+    const token = ++loadToken;
+    showLoading(reload ? "Reloading game…" : "Loading game…");
+    const fail = text => {
+      if (token !== loadToken) return;
+      frame.removeAttribute("src");
+      showError(text);
+      try { if (window.veilNotify) window.veilNotify({ kind: "error", title: "Couldn\u2019t load " + game.name, text: text || "The game files aren\u2019t available right now." }); } catch (err) {}
+    };
+    if (!url) { fail("This game has no file to play."); return; }
+    fetch(url, { method: "GET", cache: reload ? "reload" : "default" }).then(res => {
+      if (token !== loadToken) return;
+      if (!res.ok) { fail("The game files are missing (" + res.status + ")."); return; }
+      if (reload && frame.contentWindow && frame.getAttribute("src")) {
+        let done = false;
+        try { frame.contentWindow.location.reload(); done = true; } catch (err) {}
+        if (done) return;
+      }
+      frame.setAttribute("src", "about:blank");
+      requestAnimationFrame(() => { if (token === loadToken) frame.setAttribute("src", url); });
+    }).catch(() => {
+      if (token !== loadToken) return;
+      // Offline / blocked check: try the frame anyway.
+      frame.setAttribute("src", url);
+    });
+    // Never leave the veil up forever.
+    setTimeout(() => { if (token === loadToken) hideLoading(); }, 20000);
+  }
+  frame.style.opacity = "0";
+  loadGame(false);
+  // Favorite star.
+  function paintStar() {
+    const btn = overlay.querySelector('[data-gp="star"]');
+    if (!btn) return;
+    const on = isFavorite(id);
+    btn.classList.toggle("star-on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  paintStar();
+  // ---- Notes: a list of notes for this game, an editor, autosave, delete. Stored with the rest of
+  // the games data (localStorage and the account when signed in).
+  if (!gamesUserData.notes || typeof gamesUserData.notes !== "object") gamesUserData.notes = {};
+  const notes = Array.isArray(gamesUserData.notes[id]) ? gamesUserData.notes[id] : [];
+  notes.forEach(note => { if (!note.id) note.id = uid(); });
+  let current = notes.length ? 0 : -1;
+  const list = overlay.querySelector("#gameNoteList");
+  const titleIn = overlay.querySelector("#gameNoteTitle");
+  const bodyIn = overlay.querySelector("#gameNoteBody");
+  const savedEl = overlay.querySelector("[data-gn-saved]");
+  const countEl = overlay.querySelector("[data-gn-count]");
+  const delBtn = overlay.querySelector("[data-note-del]");
+  let saveTimer = 0;
+  function persist() {
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    const kept = notes.filter(note => note);
+    if (kept.length) gamesUserData.notes[id] = kept;
+    else delete gamesUserData.notes[id];
+    saveGamesUserData();
+    savedEl.textContent = "Saved";
+    savedEl.classList.remove("is-saving");
+    gameSpring(savedEl, { scale: [0.86, 1], opacity: [0.4, 1] }, 0.55, 520);
+  }
+  function persistSoon() {
+    savedEl.textContent = "Saving…";
+    savedEl.classList.add("is-saving");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persist, 450);
+  }
+  const preview = note => (String(note.body || "").replace(/\s+/g, " ").trim().slice(0, 60)) || "Empty note";
+  function paintList(springId) {
+    countEl.textContent = notes.length ? String(notes.length) : "";
+    list.innerHTML = notes.length ? notes.map((note, i) => '<button type="button" class="gn-item' + (i === current ? " active" : "") + '" data-note="' + i + '" role="option" aria-selected="' + (i === current) + '"><b>' + escapeHTML(note.title || "Untitled") + '</b><small>' + escapeHTML(preview(note)) + '</small></button>').join("") : '<div class="gn-empty">No notes yet. Tap + to write one.</div>';
+    if (springId != null) {
+      const el = list.querySelector('[data-note="' + springId + '"]');
+      if (el) { gameSpring(el, { opacity: [0, 1], translateY: [-8, 0], scale: [0.94, 1] }, 0.5, 620); try { el.scrollIntoView({ block: "nearest" }); } catch (err) {} }
+    }
+  }
+  function paintEditor() {
+    const note = notes[current];
+    const on = !!note;
+    titleIn.disabled = !on;
+    bodyIn.disabled = !on;
+    delBtn.disabled = !on;
+    titleIn.value = on ? note.title || "" : "";
+    bodyIn.value = on ? note.body || "" : "";
+    bodyIn.placeholder = on ? "Write a note…" : "Create a note with +";
+  }
+  function selectNote(i) {
+    current = Math.max(-1, Math.min(notes.length - 1, i));
+    paintList();
+    paintEditor();
+    gameSpring(overlay.querySelector(".game-notes-editor"), { opacity: [0.5, 1], translateY: [6, 0] }, 0.45, 520);
+  }
+  function addNote() {
+    notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "", at: Date.now() });
+    current = notes.length - 1;
+    paintList(current);
+    paintEditor();
+    persist();
+    try { titleIn.focus(); titleIn.select(); } catch (err) {}
+  }
+  function deleteNote() {
+    if (!notes[current]) return;
+    const gone = list.querySelector('[data-note="' + current + '"]');
+    const at = current;
+    const finish = () => {
+      notes.splice(at, 1);
+      current = notes.length ? Math.min(at, notes.length - 1) : -1;
+      paintList();
+      paintEditor();
+      persist();
+      try { if (window.veilNotify) window.veilNotify({ kind: "info", title: "Note deleted" }); } catch (err) {}
+    };
+    if (gone && !motionOff() && anime && anime.animate) {
+      gameSpring(gone, { opacity: [1, 0], scale: [1, 0.9], translateX: [0, -14] }, 0.2, 300);
+      setTimeout(finish, 200);
+    } else finish();
+  }
+  function editNote() {
+    const note = notes[current];
+    if (!note) return;
+    note.title = (titleIn.value || "").slice(0, 60);
+    note.body = bodyIn.value || "";
+    note.at = Date.now();
+    const row = list.querySelector('[data-note="' + current + '"]');
+    if (row) {
+      row.querySelector("b").textContent = note.title || "Untitled";
+      row.querySelector("small").textContent = preview(note);
+    }
+    persistSoon();
+  }
+  titleIn.addEventListener("input", editNote);
+  bodyIn.addEventListener("input", editNote);
+  list.addEventListener("click", event => {
+    const item = event.target.closest("[data-note]");
+    if (item) selectNote(parseInt(item.getAttribute("data-note"), 10) || 0);
+  });
+  overlay.querySelector("[data-note-add]").addEventListener("click", addNote);
+  delBtn.addEventListener("click", deleteNote);
+  paintList();
+  paintEditor();
+  const flush = () => { if (saveTimer) persist(); };
+  function setNotes(open) {
+    if (open === player.classList.contains("notes-open")) return;
+    player.classList.toggle("notes-open", open);
+    const btn = overlay.querySelector('[data-gp="notes"]');
+    if (btn) btn.classList.toggle("is-on", open);
+    if (open) {
+      paintList();
+      gameSpring(overlay.querySelector("#gameNotesPanel"), { opacity: [0, 1], translateX: [24, 0] }, 0.42, 640);
+      if (window.veilMotion && window.veilMotion.stagger) window.veilMotion.stagger(list.querySelectorAll(".gn-item"), "side", { base: 90, step: 30, max: 8 });
+      if (!notes.length) addNote();
+    } else flush();
+  }
+  // ---- Toolbar.
+  overlay.addEventListener("click", event => {
+    const btn = event.target.closest("[data-gp]");
+    if (!btn) {
+      if (event.target === overlay) closeGamePlayer(overlay, flush);
+      return;
+    }
+    const act = btn.getAttribute("data-gp");
+    if (act === "close") { closeGamePlayer(overlay, flush); return; }
+    if (act === "reload") {
+      const ico = btn.querySelector("img");
+      if (ico && !motionOff() && anime && anime.animate) { try { anime.animate(ico, { rotate: [0, 360], ease: veilSpring(0.4, 760) }); } catch (err) {} }
+      loadGame(true);
+      return;
+    }
+    if (act === "fs") {
+      if (document.fullscreenElement === stage || document.webkitFullscreenElement === stage) { exitAnyFullscreen(); return; }
+      const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+      if (req) {
+        try {
+          const p = req.call(stage);
+          if (p && p.catch) p.catch(err => { try { if (window.veilNotify) window.veilNotify({ kind: "warn", title: "Fullscreen blocked", text: String(err && err.message || err) }); } catch (e2) {} });
+        } catch (err) {}
+      }
+      return;
+    }
+    if (act === "star") {
+      toggleFavorite(id);
+      paintStar();
+      const ico = btn.querySelector("img");
+      gameSpring(ico, { scale: [0.5, 1], rotate: [-72, 0] }, 0.55, 760);
+      return;
+    }
+    if (act === "notes") { setNotes(!player.classList.contains("notes-open")); return; }
+    if (act === "notes-close") { setNotes(false); return; }
+    if (act === "info") showGameInfo(game);
+  });
+  const onKey = event => {
+    if (!overlay.isConnected) { document.removeEventListener("keydown", onKey, true); return; }
+    if (event.key === "Escape" && !document.fullscreenElement && !overlay.querySelector(":focus") && !document.querySelector(".game-info-modal")) closeGamePlayer(overlay, flush);
+  };
+  document.addEventListener("keydown", onKey, true);
+  window.addEventListener("pagehide", flush);
+  // Toolbar buttons and chips spring in after the player pops.
+  if (window.veilMotion && window.veilMotion.stagger) {
+    window.veilMotion.stagger(overlay.querySelectorAll(".game-player-bar > *, .gp-tools > .game-player-btn"), "drop", { base: 80, step: 26, max: 12 });
+  }
+  veilFsSync();
+  return overlay;
+}
+
 function showGameInfo(value2) {
   document.querySelector(".modal-overlay.game-info-modal")?.remove();
   const addr = document.createElement("div");

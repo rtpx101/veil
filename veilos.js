@@ -5263,6 +5263,12 @@
     bar.appendChild(clock);
     shell.appendChild(desk);
     shell.appendChild(bar);
+    // Same notice the unfinished dashboard tiles carry.
+    var devNote = document.createElement("div");
+    devNote.className = "vos-devnote";
+    devNote.setAttribute("role", "note");
+    devNote.innerHTML = '<span class="vos-devnote-dot" aria-hidden="true"></span><span class="dash-note">Under Development</span>';
+    shell.appendChild(devNote);
     ctxEl = document.createElement("div");
     ctxEl.className = "vos-ctx";
     ctxEl.hidden = true;
@@ -5459,6 +5465,10 @@
     boot.classList.add("done");
     var shell = document.getElementById("veilOS");
     if (shell) shell.classList.add("vos-ready");
+    try {
+      var note = shell && shell.querySelector(".vos-devnote");
+      if (note && window.veilMotion && window.veilMotion.in) setTimeout(function () { window.veilMotion.in(note, "drop", { bounce: 0.5, duration: 620, force: true }); }, 380);
+    } catch (err) {}
     setTimeout(function () {
       if (shell) shell.classList.add("vos-settled");
     }, 700);

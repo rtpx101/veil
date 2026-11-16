@@ -841,6 +841,108 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 .game-info-sec h3{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .game-info-sec p{margin:0;font-size:13px;line-height:1.55;color:var(--text);white-space:pre-wrap}
 .game-info-foot{padding:8px 16px 16px}
+/* ---- Games page + player, round 7: the music page's look and motion language. ---- */
+.games-section h3{margin:0 0 10px 8px;font-size:11px;font-weight:720;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.games-row{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.games-inner{padding:20px 20px 48px}
+.games-header{margin:0 8px 20px}
+.games-search{height:44px;border-radius:14px;transition:border-color .25s ease,background-color .25s ease}
+.games-search:focus{border-color:var(--accent)}
+.games-cat{transition:background-color .25s ease,border-color .25s ease,color .25s ease}
+.game-tile{border:0;border-radius:12px;background:transparent;padding:8px;animation:none;transition:background-color .3s ease;outline:none}
+.game-tile::after{display:none}
+.game-tile:hover,.game-tile:focus-visible{background:var(--bg3);border-color:transparent;box-shadow:none}
+.game-tile:focus-visible{box-shadow:0 0 0 2px var(--accent)}
+.game-tile .thumb{border-radius:10px;background:var(--bg3)}
+.game-tile .thumb img{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.game-tile:hover .thumb img{transform:scale(1.04)}
+.gm-shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.55));opacity:0;transition:opacity .3s ease;pointer-events:none}
+.game-tile:hover .gm-shade{opacity:1}
+.gm-quick{position:absolute;right:10px;bottom:10px;z-index:2;width:42px;height:42px;border-radius:50%;background:var(--accent);color:var(--accentText);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(0,0,0,.32);opacity:0;transform:translateY(8px) scale(.86);transition:opacity .22s ease,transform .42s cubic-bezier(.34,1.56,.64,1);pointer-events:none}
+.gm-quick svg{width:16px;height:16px}
+.game-tile:hover .gm-quick,.game-tile:focus-visible .gm-quick{opacity:1;transform:none}
+.game-tile .meta{padding:9px 2px 2px}
+.game-tile .meta .name{font-size:13px;font-weight:700}
+.game-tile .meta .cat{display:flex;align-items:center;gap:5px;font-size:12px;margin-top:3px}
+.gm-dot{opacity:.6}
+.games-play-btn,.games-more-btn{transition:background-color .25s ease,border-color .25s ease}
+.games-hero-dots .games-dot{transition:width .45s cubic-bezier(.34,1.56,.64,1),background-color .3s ease}
+/* Skeleton */
+.sp-skel.gm-skel .gm-skel-hero{display:block;width:100%;height:min(52vh,420px);min-height:260px;border-radius:0}
+.sp-skel.gm-skel .gm-skel-search{display:block;height:44px;border-radius:14px;margin:0 8px 12px}
+.gm-skel-chips{display:flex;gap:8px;margin:0 8px 24px}
+.sp-skel.gm-skel .gm-skel-chips .sk{height:32px;border-radius:999px}
+.gm-skel .gm-skel-h{width:84px;margin:0 8px 14px}
+.gm-skel-card{display:flex;flex-direction:column;gap:8px;padding:8px}
+.sp-skel.gm-skel .gm-skel-card .sk-cover{width:100%;aspect-ratio:1;border-radius:10px}
+.gm-skel .sp-loader{margin:0 8px 14px}
+/* Player */
+.gp2 .game-player{width:min(1180px,100%);height:min(760px,100%);border-radius:16px;background:var(--panel)}
+.gp2 .game-player-bar{height:58px;flex:0 0 58px;gap:10px;padding:0 10px;background:var(--bg2)}
+.gp2 .game-player-btn.gp-close{order:0}
+.gp2 .game-player-btn{width:36px;height:36px;border-radius:10px;transition:background-color .25s ease}
+.gp2 .game-player-btn:hover,.gp2 .game-player-btn.is-on{background:var(--bg3)}
+.gp2 .game-player-btn.star-on img{filter:invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg);opacity:1}
+.gp-thumb{width:36px;height:36px;border-radius:9px;object-fit:cover;flex:0 0 36px;background:var(--bg3)}
+.gp2 .game-player-title{justify-content:flex-start;gap:12px}
+.gp2 .game-player-title .gpt-name{font-size:15px;font-weight:750;letter-spacing:-.01em;max-width:46%}
+.gpt-chips{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
+.gpt-chip{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.gp-tools{display:flex;align-items:center;gap:2px;padding:3px;border-radius:13px;background:var(--panel);border:1px solid var(--border);flex:0 0 auto}
+.gp-tools-sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+.gp-stage{position:relative;overflow:hidden;background:#0a0a0a}
+.gp-stage iframe{position:absolute;inset:0;width:100%;height:100%}
+.gp-stage:fullscreen{background:#000;width:100vw;height:100vh}
+.gp-loading{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,var(--panel) 0%,var(--bg) 75%)}
+.gp-loading[hidden],.gp-error[hidden]{display:none}
+.gp-load-card{display:flex;align-items:center;gap:16px;padding:14px 22px 14px 14px;border-radius:18px;background:var(--panel);border:1px solid var(--border);box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.gp-load-art{width:76px;height:76px;border-radius:12px;object-fit:cover;background:var(--bg3)}
+.gp-load-copy b{display:block;font-size:16px;font-weight:750;margin-bottom:9px}
+.gp-load-row{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px}
+.gp-load-bar{position:relative;width:220px;height:3px;margin-top:20px;border-radius:9px;background:var(--border);overflow:hidden}
+.gp-load-bar i{position:absolute;top:0;bottom:0;left:0;width:36%;border-radius:9px;background:var(--accent);animation:gpLoadSlide 1.25s cubic-bezier(.45,0,.2,1) infinite}
+@keyframes gpLoadSlide{0%{transform:translateX(-110%)}100%{transform:translateX(340%)}}
+.gp-error{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+.gp-error-card{display:flex;flex-direction:column;align-items:center;gap:8px;max-width:340px;padding:22px 26px;border-radius:18px;background:var(--panel);border:1px solid var(--border);text-align:center}
+.gp-error-card b{font-size:16px}
+.gp-error-card span{font-size:13px;color:var(--muted);line-height:1.45}
+.gp-retry{margin-top:8px;height:38px;padding:0 18px;border-radius:999px;border:0;background:var(--accent);color:var(--accentText);font-weight:700;cursor:pointer}
+.gp-fs-exit{display:none !important}
+.gp-stage.is-fs .gp-fs-exit{display:flex !important;position:absolute;top:12px;right:12px;z-index:6;background:rgba(0,0,0,.55);opacity:0;transition:opacity .3s ease}
+.gp-stage.is-fs:hover .gp-fs-exit{opacity:1}
+.gp-stage.is-fs .gp-fs-exit img{filter:invert(1)}
+/* Notes */
+.gp2 .game-notes{width:0;opacity:1;transition:width .42s cubic-bezier(.34,1.32,.64,1)}
+.gp2 .game-player.notes-open .game-notes{width:320px}
+.gp2 .game-notes-header{gap:6px;height:52px;flex:0 0 52px;padding:0 8px 0 14px}
+.gn-head-title{font-size:13px;font-weight:750}
+.gn-count{min-width:18px;height:18px;padding:0 6px;border-radius:99px;background:var(--bg3);color:var(--muted);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.gn-count:empty{display:none}
+.gp2 .gn-new{margin-left:auto}
+.gn-list{display:flex;flex-direction:column;gap:3px;padding:8px;max-height:38%;min-height:58px;overflow:auto;border-bottom:1px solid var(--border);flex:0 0 auto}
+.gn-item{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;padding:9px 11px;border:0;border-radius:10px;background:transparent;color:var(--text);text-align:left;cursor:pointer;transition:background-color .28s ease}
+.gn-item:hover{background:var(--bg3)}
+.gn-item.active{background:var(--panel2);box-shadow:inset 3px 0 0 var(--accent)}
+.gn-item b{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gn-item small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gn-empty{padding:12px 8px;font-size:12px;color:var(--muted);text-align:center}
+.gp2 .game-notes-editor{padding:10px;gap:8px}
+.gp2 .game-note-title{height:38px;border-radius:10px;font-size:13px;font-weight:650;padding:0 12px;transition:border-color .25s ease}
+.gp2 .game-notes-editor textarea{border-radius:10px;font-size:13px;line-height:1.5;padding:12px;transition:border-color .25s ease}
+.gp2 .game-note-title:focus,.gp2 .game-notes-editor textarea:focus{outline:none;border-color:var(--accent)}
+.gp2 .game-note-title:disabled,.gp2 .game-notes-editor textarea:disabled{opacity:.5}
+.gn-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.gn-saved{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.gn-saved::before{content:"";width:6px;height:6px;border-radius:50%;background:#46c46e}
+.gn-saved.is-saving::before{background:#e8b04a}
+.gn-del{display:inline-flex;align-items:center;gap:6px;border-radius:10px;transition:border-color .25s ease,color .25s ease,background-color .25s ease}
+.gn-del img{width:12px;height:12px;filter:invert(var(--icon-invert,1));opacity:.8}
+.gn-del:hover:not(:disabled){border-color:#e5484d;color:#ff6b6b}
+.gn-del:disabled{opacity:.45;cursor:default}
+html[data-mode="light"] .gn-del img{filter:none}
+/* Music widget inside a fullscreen game (Customization option). */
+.gp-stage .sp-dock.is-in-game{z-index:7}
+.gp-stage .veil-nt-host{z-index:8}
 .veil-dash{position:fixed;inset:0;z-index:15;display:none;flex-direction:column;gap:14px;padding:16px;background:var(--bg);color:var(--text)}
 body[data-veil-view="dash"] .veil-dash{display:flex}
 .dash-wall{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:var(--bg)}
@@ -990,6 +1092,7 @@ span.sp-art{display:flex;align-items:center;justify-content:center;color:var(--m
 .sp-hero{display:flex;gap:18px;align-items:flex-end;margin:-22px -22px 18px;padding:28px 22px 8px;background:linear-gradient(180deg,var(--panel),transparent)}
 .sp-hero .sp-art{width:200px;height:200px;flex:0 0 200px;border-radius:8px}
 .sp-hero h2{margin:0 0 6px;font-size:34px;letter-spacing:-.04em}
+.sp-hero .sp-label{margin:0 0 6px;padding:0}
 .sp-acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .sp-song{display:flex;align-items:center;gap:10px;height:64px;padding:0 8px;border-radius:8px;cursor:pointer}
 .sp-song[draggable="true"]{cursor:grab}
@@ -1279,6 +1382,9 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 .sp-skel-card .sk-cover{width:100%;aspect-ratio:1;border-radius:8px}
 .sp-skel-hero{display:flex;align-items:flex-end;gap:16px;min-height:150px;padding:56px 18px 16px;margin:-4px 0 18px;border-radius:14px;background:rgba(255,255,255,.03)}
 .sp-skel-hero .sk-pfp{width:104px;height:104px;flex:0 0 104px;border-radius:50%}
+.sp-skel-album{background:linear-gradient(180deg,rgba(255,255,255,.04),transparent);padding:10px 4px 16px;min-height:0}
+.sp-skel-album .sk-cover-big{width:200px;height:200px;flex:0 0 200px;border-radius:8px}
+.sp-skel-album .sk-pill{width:96px;height:36px;border-radius:99px;margin-top:6px}
 .sp-loader{display:flex;align-items:center;gap:10px;margin:4px 0 12px;color:var(--muted);font-size:12px}
 .sp-loader-dots{display:inline-flex;gap:5px;align-items:flex-end;height:18px}
 .sp-loader-dots i{width:7px;height:7px;border-radius:50%;background:var(--accent);display:block;transform-origin:50% 100%}
@@ -1421,7 +1527,7 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js?v=11", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=101", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=102", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1691,6 +1797,13 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
         </div>
       </div>
     </section>
+        <section class="setting-section">
+      <div class="setting-title">Games <button type="button" class="info-btn" data-info="gamedockfs" title="About this option" aria-label="About Games"><img src="image/info.svg" alt=""></button></div>
+      <div class="switch-row">
+        <span class="switch-label">Show the music widget in fullscreen games</span>
+        <button type="button" class="switch" id="gameDockFsSwitch" role="switch" aria-checked="false"></button>
+      </div>
+    </section>
     </div>
 
     <div class="settings-page" data-settings-page="privacy">
@@ -1909,6 +2022,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=101"></script>
+<script src="access-gate.js?v=102"></script>
 </body>
 </html>
