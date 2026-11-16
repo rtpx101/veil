@@ -12967,7 +12967,7 @@ let gamesPopularTimer = null;
 let gamesPageActive = false;
 let gamesRenderRoot = null;
 function gameSlug(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 40);
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 40);
 }
 function gameId(value) {
   return value.id || gameSlug(value.name) || value.url || value.name;
@@ -13080,6 +13080,18 @@ async function loadGameCatalog() {
       sideNotes: "Loads about 160 MB the first time. Contains jumpscares.",
       maturity: "T",
       difficulty: "7"
+    }, {
+      name: "Pokémon Emerald",
+      image: "image/games/small/pokemonemerald.png",
+      imageLarge: "image/games/large/pokemonemerald.png",
+      url: "assets/pokemonemerald/pokemonemerald.html",
+      category: "Adventure",
+      description: "Catch and train Pokémon across Hoenn and earn all eight gym badges.",
+      controls: "Arrows move, Z = A, X = B, Enter = Start, V = Select.",
+      howToPlay: "Battle trainers, level up your team, and challenge the gym leaders.",
+      sideNotes: "Runs in the built-in GBA emulator. Save from the in-game Start menu.",
+      maturity: "E",
+      difficulty: "4"
     }];
   }
   return gamesCatalog;
