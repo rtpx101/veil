@@ -7695,7 +7695,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=97";
+  script.src = BASE + "/veilos.js?v=98";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -9515,6 +9515,12 @@ function syncRangeKnob(input, animate) {
   const span = (Number.isFinite(max) ? max : 100) - (Number.isFinite(min) ? min : 0) || 1;
   const pct = ((Number(input.value) || 0) - (Number.isFinite(min) ? min : 0)) / span;
   const target = Math.max(0, Math.min(1, pct));
+  if (track.classList.contains("range-smooth")) {
+    // Player seek/volume: no spring at all. The knob and the fill both read --range-p, which follows
+    // the pointer directly while dragging and eases briefly (CSS) for playback ticks and clicks.
+    track.style.setProperty("--range-p", target.toFixed(4));
+    return;
+  }
   // The knob centre travels the same path as the native thumb (half a knob in from each end), the
   // spring is clamped to 0..1 so its bounce cannot carry it past an end, and the squash grows away
   // from the nearest end so the bigger frames of the jiggle stay inside the track too.
@@ -9570,6 +9576,24 @@ function dressRangeInput(input) {
     const knob = document.createElement("i");
     knob.className = "range-knob";
     track.appendChild(knob);
+    if (!input.closest("#settingsPanel")) {
+      track.classList.add("range-smooth");
+      const fill = document.createElement("i");
+      fill.className = "range-fill";
+      track.insertBefore(fill, input);
+      const stop = () => {
+        input.__veilDrag = false;
+        track.classList.remove("is-drag");
+        window.removeEventListener("pointerup", stop, true);
+        window.removeEventListener("pointercancel", stop, true);
+      };
+      track.addEventListener("pointerdown", () => {
+        input.__veilDrag = true;
+        track.classList.add("is-drag");
+        window.addEventListener("pointerup", stop, true);
+        window.addEventListener("pointercancel", stop, true);
+      });
+    }
     if (!input.__veilRange) {
       input.__veilRange = true;
       input.addEventListener("input", () => syncRangeKnob(input, true));
@@ -9694,11 +9718,12 @@ function installVeilScrolls() {
     if (!settle || motionOff() || !window.anime || !window.anime.animate) return;
     try {
       const vel = bar._vel || 0;
-      let kick = Math.max(-40, Math.min(40, vel * 1.1));
-      if (Math.abs(kick) < 18) kick = vel < 0 ? -26 : 26;
-      const frames = [kick, kick * -0.78, kick * 0.48, kick * -0.22, 0];
-      const spec = { ease: veilSpring(0.78, 1100) };
-      spec[g.vertical ? "translateY" : "translateX"] = frames;
+      // A small, quickly damped settle: a few px of follow-through and one soft rebound.
+      let kick = Math.max(-8, Math.min(8, vel * 0.25));
+      if (Math.abs(kick) < 4.5) kick = vel < 0 ? -4.5 : 4.5;
+      if (knob._veilMotion && knob._veilMotion.cancel) { try { knob._veilMotion.cancel(); } catch (err) {} }
+      const spec = { ease: veilSpring(0.34, 520) };
+      spec[g.vertical ? "translateY" : "translateX"] = [kick, 0];
       knob._veilMotion = window.anime.animate(knob, spec);
     } catch (err) {}
   }
@@ -9813,7 +9838,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=97";
+      script.src = BASE + "/veilos.js?v=98";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9845,7 +9870,7 @@ function buildEntMusic(pane, api) {
   function ico(file, cls) {
     return '<span class="sp-ico' + (cls ? " " + cls : "") + '" style="--ico:url(' + iconCss(file) + ')"></span>';
   }
-  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-label">Queue</div><div class="sp-queue" data-queue></div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button><button type="button" data-prev aria-label="Previous">' + ico("rewind.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + ico("play.svg") + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-video aria-label="Music video">' + ico("video.svg") + '</button><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer><div class="sp-video" data-video-panel hidden><div class="sp-video-card"><button type="button" class="sp-x" data-video-close aria-label="Close">' + ico("exit.svg") + '</button><video data-video-el playsinline controls></video><div class="sp-video-status" data-video-status></div></div></div></div>';
+  pane.innerHTML = '<div class="sp"><aside class="sp-side" data-side></aside><section class="sp-main" data-main></section><aside class="sp-now"><div class="sp-now-art"><img data-now-art alt="" hidden></div><div class="sp-now-meta"><b data-now-title>Nothing playing</b><button type="button" class="sp-artist" data-now-by data-artist></button></div><div class="sp-label">Queue</div><div class="sp-queue" data-queue></div></aside><footer class="sp-bar"><div class="sp-who"><span class="sp-art sp-ph">' + ico("music_default.svg") + '</span><div class="sp-who-text"><b data-title>Nothing playing</b><button type="button" class="sp-artist" data-by data-artist></button></div><div class="sp-who-acts"><button type="button" class="sp-ghost" data-bar-like aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-ghost" data-bar-add aria-label="Add to album">' + ico("plus.svg") + '</button></div></div><div class="sp-transport"><div class="sp-btns"><div class="sp-acts-left"><button type="button" data-prev aria-label="Previous">' + ico("rewind.svg") + '</button></div><button type="button" class="play" data-toggle aria-label="Play">' + ico("play.svg") + '</button><div class="sp-acts-right"><button type="button" data-next aria-label="Next">' + ico("rewind.svg", "sp-flip") + '</button></div></div><div class="sp-seek"><span data-cur>0:00</span><input data-seek type="range" min="0" max="1000" value="0" aria-label="Position"><span data-dur>0:00</span></div></div><div class="sp-extra"><button type="button" class="sp-ghost" data-video aria-label="Music video">' + ico("video.svg") + '</button><button type="button" class="sp-ghost" data-lyrics-toggle aria-label="Lyrics">' + ico("lyrics.svg") + '</button><input class="sp-vol" data-vol type="range" min="0" max="100" value="100" aria-label="Volume"></div></footer><div class="sp-video" data-video-panel hidden><div class="sp-video-card"><button type="button" class="sp-x" data-video-close aria-label="Close">' + ico("exit.svg") + '</button><video data-video-el playsinline controls></video><div class="sp-video-status" data-video-status></div></div></div></div>';
   const root = pane.querySelector(".sp");
   const side = root.querySelector("[data-side]");
   const main = root.querySelector("[data-main]");
@@ -9895,15 +9920,188 @@ function buildEntMusic(pane, api) {
       el._veilScale = scale;
     } catch (err) {}
   }
+  const MARQ_SEL = ".sp-song .meta b, .sp-who-text > b, .sp-top-copy > b, .sp-q b, .sp-now-meta b, .sp-dock-meta b";
+  const MARQ_HOST = ".sp-song, .sp-who, .sp-top, .sp-q, .sp-now-meta, .sp-dock-id";
+  // Long titles scroll inside their own clipped box (with soft faded edges) while hovered and
+  // glide back on leave; they never move outside it, so they can't slide over the cover art.
+  function marqStart(b) {
+    const anime = window.anime;
+    if (!b || b._veilMarq || motionOff() || !anime || !anime.animate) return;
+    const over = b.scrollWidth - b.clientWidth;
+    if (over < 4) return;
+    const text = b.textContent;
+    b.textContent = "";
+    const span = document.createElement("span");
+    span.className = "sp-marq";
+    span.textContent = text;
+    b.appendChild(span);
+    b.classList.add("is-marq");
+    const dist = over + 18;
+    const m = { span: span, text: text, job: anime.animate(span, { translateX: [0, -dist], duration: Math.max(1400, dist * 32), delay: 420, ease: "inOutSine" }) };
+    // The left edge only fades once the text has started moving, so the first letter is crisp at rest.
+    m.edge = setTimeout(() => { if (b._veilMarq === m) b.style.setProperty("--marq-l", "12px"); }, 420);
+    b._veilMarq = m;
+  }
+  // Called before a title's text is replaced (a new song), so a running scroll never leaves its
+  // span, mask or class behind on the next title.
+  function marqReset(b) {
+    const m = b && b._veilMarq;
+    if (!m) return;
+    try { if (m.job && m.job.cancel) m.job.cancel(); } catch (err) {}
+    clearTimeout(m.edge);
+    b._veilMarq = null;
+    b.classList.remove("is-marq");
+    b.style.removeProperty("--marq-l");
+  }
+  window.__veilMarqReset = marqReset;
+  function setTitle(el, text) {
+    if (!el) return;
+    const m = el._veilMarq;
+    if (m && m.text === text) return;
+    if (!m && el.textContent === text) return;
+    marqReset(el);
+    el.textContent = text;
+  }
+  function marqStop(b) {
+    const anime = window.anime;
+    const m = b && b._veilMarq;
+    if (!m) return;
+    try { if (m.job && m.job.cancel) m.job.cancel(); } catch (err) {}
+    clearTimeout(m.edge);
+    const finish = () => {
+      if (b._veilMarq !== m) return;
+      b._veilMarq = null;
+      b.classList.remove("is-marq");
+      b.style.removeProperty("--marq-l");
+      if (m.span.isConnected) b.textContent = m.text;
+    };
+    if (!m.span.isConnected || !anime || !anime.animate) { finish(); return; }
+    try {
+      m.job = anime.animate(m.span, { translateX: 0, duration: 520, ease: "outCubic", onComplete: finish });
+    } catch (err) { finish(); }
+  }
+  document.addEventListener("pointerover", event => {
+    const host = event.target && event.target.closest && event.target.closest(MARQ_HOST);
+    if (!host || host.contains(event.relatedTarget)) return;
+    const b = host.querySelector(MARQ_SEL);
+    if (b) marqStart(b);
+  });
+  document.addEventListener("pointerout", event => {
+    const host = event.target && event.target.closest && event.target.closest(MARQ_HOST);
+    if (!host || host.contains(event.relatedTarget)) return;
+    const b = host.querySelector(MARQ_SEL);
+    if (b) marqStop(b);
+  });
   function prettySrc(src, big) {
     const url = String(src || "");
     if (!/i\.ytimg\.com/.test(url)) return url;
     return url.replace(/\/[^/?#]+\.jpg(\?.*)?$/, big ? "/hq720.jpg" : "/mqdefault.jpg");
   }
+  // Album search: the iTunes catalogue (CORS-open, reliable art and tracklists), with Deezer over
+  // JSONP as the fallback. Album tracks are matched to YouTube only when they play (veilos.js).
+  function bigArt(url, size) {
+    return String(url || "").replace(/\/\d+x\d+bb\.(jpg|png)$/, "/" + size + "x" + size + "bb.jpg");
+  }
+  function deezerJsonp(path) {
+    return new Promise(resolve => {
+      const name = "__veilDzAlbum" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+      const tag = document.createElement("script");
+      const done = data => {
+        try { delete window[name]; } catch (err) { window[name] = undefined; }
+        tag.remove();
+        clearTimeout(timer);
+        resolve(data || null);
+      };
+      const timer = setTimeout(() => done(null), 8000);
+      window[name] = data => done(data);
+      tag.onerror = () => done(null);
+      tag.src = "https://api.deezer.com/" + path + (path.indexOf("?") === -1 ? "?" : "&") + "output=jsonp&callback=" + name;
+      document.head.appendChild(tag);
+    });
+  }
+  function searchAlbums(query) {
+    const q = String(query || "").trim();
+    ui.albumsFor = q;
+    ui.albums = [];
+    ui.albumsKey = q + ":0";
+    if (!q) return;
+    const viaItunes = () => fetch("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, entity: "album", limit: "12" }).toString())
+      .then(res => res.ok ? res.json() : null)
+      .then(data => ((data && data.results) || []).filter(row => row.collectionId && row.collectionName).map(row => ({
+        src: "am:" + row.collectionId,
+        name: row.collectionName,
+        artist: row.artistName || "",
+        year: String(row.releaseDate || "").slice(0, 4),
+        cover: bigArt(row.artworkUrl100, 600),
+        count: row.trackCount || 0
+      })))
+      .catch(() => []);
+    const viaDeezer = () => deezerJsonp("search/album?q=" + encodeURIComponent(q) + "&limit=12").then(data => ((data && data.data) || []).map(row => ({
+      src: "dz:" + row.id,
+      name: row.title,
+      artist: row.artist && row.artist.name || "",
+      year: "",
+      cover: row.cover_xl || row.cover_big || row.cover_medium || "",
+      count: row.nb_tracks || 0
+    })));
+    viaItunes().then(list => list.length ? list : viaDeezer()).then(list => {
+      if (ui.albumsFor !== q) return;
+      // Prefer real albums over one-track singles, and drop exact repeats (clean + explicit).
+      const seen = {};
+      ui.albums = list.filter(item => {
+        const key = (item.name + "|" + item.artist).toLowerCase();
+        if (seen[key]) return false;
+        seen[key] = 1;
+        return true;
+      }).sort((a, b) => (b.count > 1) - (a.count > 1)).slice(0, 10);
+      ui.albumsKey = q + ":" + ui.albums.length;
+      if (ui.page === "home") full(false);
+    });
+  }
+  function albumResults() {
+    if (!(ui.albums || []).length || ui.albumsFor !== ui.query) return "";
+    return '<div class="sp-label">Albums</div><div class="sp-grid sp-ralbums">' + ui.albums.map(item => '<div class="sp-cardwrap"><button type="button" class="sp-card" data-ralbum="' + escapeHTML(item.src) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name) + '</b><small>' + escapeHTML([item.year, item.artist].filter(Boolean).join(" • ")) + '</small></button><button type="button" class="sp-quick" data-ralbum-play="' + escapeHTML(item.src) + '" aria-label="Play album">' + ico("play.svg") + '</button></div>').join("") + '</div>';
+  }
+  function openRemoteAlbum(meta, autoplay) {
+    ui.remote = { src: meta.src, name: meta.name, artist: meta.artist, year: meta.year, cover: meta.cover, tracks: [], status: "Loading songs…" };
+    ui.page = "ralbum";
+    full(true);
+    const want = ui.remote;
+    const id = meta.src.slice(3);
+    const thumb = meta.cover ? bigArt(meta.cover, 300) : "";
+    const viaItunes = () => fetch("https://itunes.apple.com/lookup?" + new URLSearchParams({ id: id, entity: "song", limit: "200" }).toString())
+      .then(res => res.ok ? res.json() : null)
+      .then(data => ((data && data.results) || []).filter(row => row.wrapperType === "track" && row.trackId).sort((a, b) => ((a.discNumber || 1) - (b.discNumber || 1)) || ((a.trackNumber || 0) - (b.trackNumber || 0))).map(row => ({
+        id: "am:" + row.trackId,
+        title: row.trackName || "Untitled",
+        author: row.artistName || meta.artist || "",
+        seconds: Math.round((row.trackTimeMillis || 0) / 1000),
+        thumb: thumb || bigArt(row.artworkUrl100, 300),
+        explicit: row.trackExplicitness === "explicit",
+        local: false
+      })))
+      .catch(() => []);
+    const viaDeezer = () => deezerJsonp("album/" + encodeURIComponent(id)).then(data => (((data && data.tracks) || {}).data || []).map(row => ({
+      id: "dz:" + row.id,
+      title: row.title || "Untitled",
+      author: row.artist && row.artist.name || meta.artist || "",
+      seconds: Number(row.duration) || 0,
+      thumb: meta.cover || "",
+      explicit: !!row.explicit_lyrics,
+      local: false
+    })));
+    (meta.src.indexOf("dz:") === 0 ? viaDeezer() : viaItunes()).then(tracks => {
+      if (ui.remote !== want) return;
+      want.tracks = tracks;
+      want.status = tracks.length ? "" : "Couldn't load this album's songs.";
+      if (ui.page === "ralbum") full(false);
+      if (autoplay && tracks.length) api.play(tracks, 0);
+    });
+  }
   function trackById(id) {
     if (!id) return null;
     const snap = api.snap();
-    const pools = [snap.results || [], snap.artistResults || [], ((albumOf(ui.albumId) || {}).tracks) || [], lib().liked || []];
+    const pools = [snap.results || [], snap.artistResults || [], ((albumOf(ui.albumId) || {}).tracks) || [], (ui.remote && ui.remote.tracks) || [], lib().liked || []];
     if (snap.track) pools.push([snap.track]);
     for (let i = 0; i < pools.length; i++) {
       const hit = (pools[i] || []).find(item => item && item.id === id);
@@ -9912,6 +10110,7 @@ function buildEntMusic(pane, api) {
     return null;
   }
   function expMark(track) {
+    if (track && track.explicit && track.id) ui.explicit[track.id] = true;
     const on = !!(track && (ui.explicit[track.id] === true || /\bexplicit\b/i.test(track.title || "")));
     return '<i class="sp-exp" data-exp="' + escapeHTML(track && track.id || "") + '"' + (on ? "" : " hidden") + "><b>E</b></i>";
   }
@@ -10049,7 +10248,10 @@ function buildEntMusic(pane, api) {
       const near = row => !track.seconds || !row.duration || Math.abs(row.duration - track.seconds) < 8;
       return rows.find(row => row.syncedLyrics && near(row)) || rows.find(row => row.syncedLyrics) || rows.find(row => row.plainLyrics) || null;
     };
-    getOne("https://lrclib.net/api/get?" + query.toString()).then(data => {
+    // /api/get answers 404 (a red console line) whenever there's no exact match, so ask the search
+    // endpoint, which always answers 200 with a list, first by title + artist, then free text.
+    query.delete("duration");
+    getOne("https://lrclib.net/api/search?" + query.toString()).then(pick).then(data => {
       if (data && (data.syncedLyrics || data.plainLyrics)) return data;
       const q = new URLSearchParams({ q: (clean.title + " " + clean.artist).trim() });
       return getOne("https://lrclib.net/api/search?" + q.toString()).then(pick);
@@ -10111,8 +10313,8 @@ function buildEntMusic(pane, api) {
         // One spring per line change: it overshoots once and settles on its own, so it reads as a
         // single smooth bounce rather than four eased keyframes stitched together.
         on._veilLine = window.anime.animate(on, {
-          translateY: [16, 0],
-          ease: veilSpring(0.42, 760),
+          translateY: [10, 0],
+          ease: veilSpring(0.22, 1150),
           onComplete: () => {
             on._veilLine = null;
             on.style.willChange = "";
@@ -10207,7 +10409,7 @@ function buildEntMusic(pane, api) {
   }
   function paintSide() {
     const data = lib();
-    let html = '<button type="button" class="sp-nav sp-nav-home' + (ui.page === "home" ? " on" : "") + '" data-go="home">' + ico("home.svg") + '<span>Home</span></button><button type="button" class="sp-nav sp-nav-liked' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">' + ico("heart.svg") + '<span>Liked songs</span></button><div class="sp-tools"><button type="button" data-new="album">Album</button><button type="button" data-new="folder">Folder</button></div><div class="sp-label">Library</div>';
+    let html = '<button type="button" class="sp-nav sp-nav-home' + (ui.page === "home" ? " on" : "") + '" data-go="home">' + ico("home.svg") + '<span>Home</span></button><button type="button" class="sp-nav sp-nav-liked' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">' + ico("heart.svg") + '<span>Liked songs</span></button><div class="sp-tools"><button type="button" class="sp-make" data-make aria-label="Create" title="Create" aria-haspopup="menu">' + ico("plus.svg") + '</button><div class="sp-make-menu" data-make-menu role="menu" hidden><button type="button" role="menuitem" data-new="album">' + ico("music_default.svg") + '<span>Album</span></button><button type="button" role="menuitem" data-new="folder">' + ico("folder.svg") + '<span>Folder</span></button></div></div><div class="sp-label">Library</div>';
     (data.folders || []).forEach(item => {
       const open = ui.open[item.id] !== false;
       const closing = ui.animFold === item.id && ui.foldDir === "close";
@@ -10221,6 +10423,37 @@ function buildEntMusic(pane, api) {
     html += inFolder("").map(albumRow).join("");
     if (!(data.playlists || []).length && !(data.folders || []).length) html += '<div class="sp-empty">No albums yet.</div>';
     side.innerHTML = html;
+  }
+  // The single + in the library opens a small chooser (Album / Folder) that springs out of it.
+  function toggleMakeMenu(menu, open) {
+    const anime = window.anime;
+    const btn = side.querySelector("[data-make]");
+    if (menu._veilJob && menu._veilJob.cancel) { try { menu._veilJob.cancel(); } catch (err) {} }
+    clearTimeout(menu._veilHide);
+    if (btn) {
+      btn.classList.toggle("on", !!open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    if (open) {
+      menu.hidden = false;
+      if (motionOff() || !anime || !anime.animate) return;
+      try {
+        menu._veilJob = anime.animate(menu, { opacity: [0, 1], translateY: [-8, 0], scale: [0.86, 1], ease: veilTabSpring("enter") });
+        const items = Array.from(menu.children);
+        if (anime.stagger) anime.animate(items, { opacity: [0, 1], translateX: [-8, 0], delay: anime.stagger(45, { start: 40 }), ease: veilSpring(0.36, 520) });
+      } catch (err) {}
+      if (btn && anime.animate) { try { anime.animate(btn.querySelector(".sp-ico") || btn, { rotate: [0, 45], ease: veilTabSpring("select") }); } catch (err) {} }
+      return;
+    }
+    if (btn && !motionOff() && anime && anime.animate) { try { anime.animate(btn.querySelector(".sp-ico") || btn, { rotate: 0, ease: veilTabSpring("exit") }); } catch (err) {} }
+    if (menu.hidden) return;
+    if (motionOff() || !anime || !anime.animate) { menu.hidden = true; return; }
+    try { menu._veilJob = anime.animate(menu, { opacity: 0, translateY: -6, scale: 0.92, ease: veilTabSpring("exit") }); } catch (err) {}
+    menu._veilHide = setTimeout(() => {
+      menu.hidden = true;
+      menu.style.opacity = "";
+      menu.style.transform = "";
+    }, 220);
   }
   function albumsInCount(id) {
     return inFolder(id).length + (inFolder(id).length === 1 ? " album" : " albums");
@@ -10248,6 +10481,18 @@ function buildEntMusic(pane, api) {
         html = '<div class="sp-head"><h2 class="sp-h">' + escapeHTML(item.name || "Folder") + '</h2><button type="button" class="sp-icon" data-edit-folder="' + escapeHTML(item.id) + '">Edit</button></div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(item.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
       }
     }
+    if (ui.page === "ralbum") {
+      const meta = ui.remote;
+      if (!meta) ui.page = "home";
+      else {
+        const tracks = meta.tracks || [];
+        const saved = api.albumBySrc ? api.albumBySrc(meta.src) : "";
+        const facts = [meta.artist, meta.year, tracks.length ? tracks.length + (tracks.length === 1 ? " song" : " songs") : ""].filter(Boolean).map(escapeHTML).join('<span class="sp-dot">•</span>');
+        html = '<div class="sp-hero">' + art(meta.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(meta.name || "Album") + '</h2><div class="sp-hero-facts">' + facts + '</div><div class="sp-acts"><button type="button" class="sp-play" data-play-ralbum' + (tracks.length ? "" : " disabled") + '>Play</button><button type="button" class="sp-icon sp-save' + (saved ? " on" : "") + '" data-save-ralbum' + (tracks.length ? "" : " disabled") + '>' + (saved ? "Saved" : "Save to library") + '</button></div></div></div>';
+        const acts = track => '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>';
+        html += tracks.length ? tracks.map((track, index) => songRow(track, index, acts(track))).join("") : '<div class="sp-empty">' + escapeHTML(meta.status || "Loading songs…") + '</div>';
+      }
+    }
     if (ui.page === "artist") {
       const tracks = snap.artistResults || [];
       const note = snap.artistStatus || (tracks.length ? "" : "Loading…");
@@ -10263,14 +10508,15 @@ function buildEntMusic(pane, api) {
         };
         html += '<div class="sp-label">Top result</div><div class="sp-topwrap">' + topHit(snap.results[0]) + '<span class="sp-top-acts">' + acts(0) + "</span></div>";
         const rest = snap.results.slice(1);
+        html += albumResults();
         if (rest.length) html += '<div class="sp-label">Songs</div>' + rest.map((track, index) => songRow(track, index + 1, acts(index + 1))).join("");
-      }
+      } else html += albumResults();
       (lib().folders || []).forEach(folder => {
         const kids = inFolder(folder.id);
         html += '<div class="sp-label">' + escapeHTML(folder.name || "Folder") + '</div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(folder.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
       });
       const loose = inFolder("");
-      html += '<div class="sp-label">Albums</div><div class="sp-grid" data-kind="shelf" data-id="">' + (loose.length ? loose.map(albumCard).join("") : '<div class="sp-empty">Create an album, then drag it into a folder.</div>') + '</div>';
+      html += '<div class="sp-label">' + ((ui.albums || []).length && ui.albumsFor === ui.query ? "Your albums" : "Albums") + '</div><div class="sp-grid" data-kind="shelf" data-id="">' + (loose.length ? loose.map(albumCard).join("") : '<div class="sp-empty">Create an album, then drag it into a folder.</div>') + '</div>';
     }
     const top = main.scrollTop;
     main.innerHTML = html;
@@ -10289,7 +10535,7 @@ function buildEntMusic(pane, api) {
     const current = who.querySelector(".sp-art");
     const shown = current && current.tagName === "IMG" ? current.getAttribute("src") || "" : "";
     if (current && src !== shown) current.outerHTML = art(src);
-    root.querySelector("[data-title]").textContent = track ? track.title : "Nothing playing";
+    setTitle(root.querySelector("[data-title]"), track ? track.title : "Nothing playing");
     const author = track && track.author ? track.author : "";
     const by = root.querySelector("[data-by]");
     const nowBy = root.querySelector("[data-now-by]");
@@ -10298,7 +10544,7 @@ function buildEntMusic(pane, api) {
       if (author) by.setAttribute("data-artist", author);
       else by.removeAttribute("data-artist");
     }
-    root.querySelector("[data-now-title]").textContent = track ? track.title : "Nothing playing";
+    setTitle(root.querySelector("[data-now-title]"), track ? track.title : "Nothing playing");
     if (nowBy) {
       nowBy.textContent = author;
       if (author) nowBy.setAttribute("data-artist", author);
@@ -10370,7 +10616,7 @@ function buildEntMusic(pane, api) {
   function signature() {
     const data = lib();
     const snap = api.snap();
-    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name + (item.cover || "").length).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || ""].join("~");
+    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name + (item.cover || "").length).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || "", ui.albumsKey || "", ui.remote ? ui.remote.src + ":" + (ui.remote.status || "") + ":" + (ui.remote.tracks || []).map(track => track.id).join(".") : ""].join("~");
   }
   let sig = "";
   function grabFlip(scope) {
@@ -10646,23 +10892,62 @@ function buildEntMusic(pane, api) {
   }
   function openLyrics(force) {
     const open = force == null ? lyricFrame.hidden : !!force;
+    const anime = window.anime;
+    const stopFrame = () => {
+      (lyricFrame._veilOpen || []).forEach(job => { try { if (job && job.cancel) job.cancel(); } catch (err) {} });
+      lyricFrame._veilOpen = [];
+      clearTimeout(lyricFrame._veilHide);
+    };
+    // The frame grows out of the lyrics button: origin at the button, rising and scaling up on the
+    // tab-bar spring while it fades in, then the first lines drift up into place behind it.
+    const aimOrigin = () => {
+      const btn = root.querySelector("[data-lyrics-toggle]");
+      const fr = lyricFrame.getBoundingClientRect();
+      const br = btn && btn.getBoundingClientRect();
+      if (br && br.width && fr.width) {
+        const ox = Math.max(0, Math.min(fr.width, br.left + br.width / 2 - fr.left));
+        const oy = Math.max(0, Math.min(fr.height * 1.15, br.top + br.height / 2 - fr.top));
+        lyricFrame.style.transformOrigin = ox.toFixed(0) + "px " + oy.toFixed(0) + "px";
+      } else lyricFrame.style.transformOrigin = "50% 100%";
+    };
     if (!open) {
-      const anime = window.anime;
       if (!motionOff() && anime && anime.animate && !lyricFrame.hidden) {
-        try { anime.animate(lyricFrame, { opacity: [1, 0], scale: [1, 0.98], ease: veilSpring(0.18, 320) }); } catch (err) {}
-        setTimeout(() => {
+        stopFrame();
+        aimOrigin();
+        try {
+          lyricFrame._veilOpen = [
+            anime.animate(lyricFrame, { opacity: 0, duration: 220, ease: "inQuad" }),
+            anime.animate(lyricFrame, { translateY: 26, scale: 0.92, ease: veilTabSpring("exit") })
+          ];
+        } catch (err) {}
+        lyricFrame._veilHide = setTimeout(() => {
+          stopFrame();
           lyricFrame.hidden = true;
           lyricFrame.style.opacity = "";
           lyricFrame.style.transform = "";
-        }, 280);
+        }, 300);
       } else lyricFrame.hidden = true;
       const lyricBtn = root.querySelector("[data-lyrics-toggle]");
       if (lyricBtn) lyricBtn.classList.remove("on");
       return;
     }
+    const wasHidden = lyricFrame.hidden;
+    stopFrame();
     lyricFrame.hidden = false;
     lyricFrame.style.opacity = "";
-    spring(lyricFrame, 0.985, 1, 0.16, 680);
+    if (!motionOff() && anime && anime.animate) {
+      aimOrigin();
+      try {
+        const lines = Array.from(lyricFrame.querySelectorAll(".sp-lyrics > *")).slice(0, 14);
+        lyricFrame._veilOpen = [
+          anime.animate(lyricFrame, { opacity: [wasHidden ? 0 : Number(getComputedStyle(lyricFrame).opacity) || 0, 1], duration: 260, ease: "outQuad" }),
+          anime.animate(lyricFrame, { translateY: [wasHidden ? 48 : 26, 0], scale: [wasHidden ? 0.88 : 0.94, 1], ease: veilSpring(0.3, 640) })
+        ];
+        if (lines.length && anime.stagger) {
+          lyricFrame._veilOpen.push(anime.animate(lines, { opacity: [0, 1], translateY: [18, 0], delay: anime.stagger(28, { start: 90 }), ease: veilSpring(0.24, 760), onComplete: () => lines.forEach(n => { n.style.opacity = ""; if (!n._veilLine) n.style.transform = ""; }) }));
+        }
+      } catch (err) {}
+    }
     const lyricBtn = root.querySelector("[data-lyrics-toggle]");
     if (lyricBtn) lyricBtn.classList.add("on");
     const track = api.snap().track;
@@ -10754,7 +11039,19 @@ function buildEntMusic(pane, api) {
       full(true);
       return;
     }
+    const maker = event.target.closest("[data-make]");
+    if (maker) {
+      const menu = side.querySelector("[data-make-menu]");
+      if (menu) toggleMakeMenu(menu, menu.hidden);
+      return;
+    }
+    if (!event.target.closest("[data-make-menu]")) {
+      const menu = side.querySelector("[data-make-menu]");
+      if (menu && !menu.hidden) toggleMakeMenu(menu, false);
+    }
     if (made) {
+      const menu = side.querySelector("[data-make-menu]");
+      if (menu && !menu.hidden) toggleMakeMenu(menu, false);
       const kind = made.getAttribute("data-new");
       ui.cover = "";
       askName(kind === "folder" ? "New folder" : "New album", "", true, name => {
@@ -10801,10 +11098,45 @@ function buildEntMusic(pane, api) {
       });
       return;
     }
+    const ralbumPlay = event.target.closest("[data-ralbum-play]");
+    if (ralbumPlay) {
+      const hit = (ui.albums || []).find(item => item.src === ralbumPlay.getAttribute("data-ralbum-play"));
+      if (hit) openRemoteAlbum(hit, true);
+      return;
+    }
+    const ralbum = event.target.closest("[data-ralbum]");
+    if (ralbum) {
+      const hit = (ui.albums || []).find(item => item.src === ralbum.getAttribute("data-ralbum"));
+      if (hit) openRemoteAlbum(hit, false);
+      return;
+    }
+    if (event.target.closest("[data-play-ralbum]")) {
+      const tracks = (ui.remote && ui.remote.tracks) || [];
+      if (tracks.length) api.play(tracks, 0);
+      return;
+    }
+    if (event.target.closest("[data-save-ralbum]")) {
+      const meta = ui.remote;
+      if (!meta || !(meta.tracks || []).length) return;
+      const have = api.albumBySrc && api.albumBySrc(meta.src);
+      if (have) {
+        ui.page = "album";
+        ui.albumId = have;
+        full(true);
+        return;
+      }
+      api.saveRemoteAlbum({ src: meta.src, name: meta.name, artist: meta.artist, cover: meta.cover, tracks: meta.tracks });
+      full(false);
+      const again = main.querySelector("[data-save-ralbum]");
+      if (again && window.anime && window.anime.animate && !motionOff()) {
+        try { window.anime.animate(again, { scale: [0.9, 1], ease: veilTabSpring("select") }); } catch (err) {}
+      }
+      return;
+    }
     const playIndex = event.target.closest("[data-play-index]");
     if (playIndex) {
       const index = Number(playIndex.getAttribute("data-play-index"));
-      const tracks = ui.page === "album" ? ((albumOf(ui.albumId) || {}).tracks || []) : ui.page === "liked" ? (lib().liked || []) : ui.page === "artist" ? (api.snap().artistResults || []) : (api.snap().results || []);
+      const tracks = ui.page === "ralbum" ? ((ui.remote && ui.remote.tracks) || []) : ui.page === "album" ? ((albumOf(ui.albumId) || {}).tracks || []) : ui.page === "liked" ? (lib().liked || []) : ui.page === "artist" ? (api.snap().artistResults || []) : (api.snap().results || []);
       api.play(tracks, index);
       return;
     }
@@ -10858,14 +11190,21 @@ function buildEntMusic(pane, api) {
     ui.query = form.querySelector("[data-q]").value.trim();
     ui.page = "home";
     api.search(ui.query);
+    searchAlbums(ui.query);
   });
   root.addEventListener("pointerover", event => {
     const btn = event.target.closest("button, .sp-card, .sp-q, .sp-nav, .sp-top");
+    // Text buttons (song titles, artist links) don't grow on hover: scaling a wide title button
+    // pushed its text over the cover art next to it. Their titles scroll inside their own box.
+    if (btn && btn.matches(".meta, .sp-artist")) return;
     if (!btn || btn.disabled || btn.contains(event.relatedTarget)) return;
     glide(btn, 1.012);
   });
   root.addEventListener("pointerout", event => {
     const btn = event.target.closest("button, .sp-card, .sp-q, .sp-nav, .sp-top");
+    // Text buttons (song titles, artist links) don't grow on hover: scaling a wide title button
+    // pushed its text over the cover art next to it. Their titles scroll inside their own box.
+    if (btn && btn.matches(".meta, .sp-artist")) return;
     if (!btn || btn.contains(event.relatedTarget)) return;
     glide(btn, 1);
   });
@@ -10977,7 +11316,7 @@ function buildEntMusic(pane, api) {
     const dur = audio.duration && isFinite(audio.duration) ? audio.duration : known;
     root.querySelector("[data-cur]").textContent = api.clock(audio.currentTime);
     root.querySelector("[data-dur]").textContent = api.clock(dur);
-    if (dur && document.activeElement !== seek) {
+    if (dur && !seek.__veilDrag) {
       seek.value = String(Math.round(((audio.currentTime || 0) / dur) * 1000));
       syncRangeKnob(seek, false);
     }
@@ -11059,7 +11398,7 @@ function buildEntMusic(pane, api) {
       try {
         dock._veilDockJob = anime.animate(state, {
           p: to,
-          ease: to ? veilTabSpring("enter") : veilTabSpring("exit"),
+          ease: to ? veilTabSpring("slide") : veilTabSpring("exit"),
           onUpdate: () => dock.style.setProperty("--dock-p", state.p.toFixed(4))
         });
       } catch (err) {
@@ -11101,7 +11440,7 @@ function buildEntMusic(pane, api) {
       if (bg) bg.style.backgroundImage = track && track.thumb ? "url(\"" + String(prettySrc(track.thumb, true)).replace(/"/g, "") + "\")" : "";
     }
     const title = dock.querySelector("[data-dock-title]");
-    if (title) title.textContent = track ? (track.title || "Untitled") : "Nothing playing";
+    setTitle(title, track ? (track.title || "Untitled") : "Nothing playing");
     const by = dock.querySelector("[data-dock-by]");
     if (by) by.textContent = track && track.author ? track.author : "";
     const artEl = dock.querySelector("[data-dock-art]");
@@ -11128,7 +11467,7 @@ function buildEntMusic(pane, api) {
     const durEl = dock.querySelector("[data-dock-dur]");
     if (durEl) durEl.textContent = api.clock(known);
     const vol = dock.querySelector("[data-dock-vol]");
-    if (vol && document.activeElement !== vol) {
+    if (vol && !vol.__veilDrag) {
       const next = String(Math.round((snap.volume == null ? 1 : snap.volume) * 100));
       if (vol.value !== next) {
         vol.value = next;
@@ -11145,7 +11484,7 @@ function buildEntMusic(pane, api) {
     const known = audio.duration && isFinite(audio.duration) ? audio.duration : 0;
     if (cur) cur.textContent = api.clock(audio.currentTime || 0);
     if (durEl && known) durEl.textContent = api.clock(known);
-    if (seek && known && document.activeElement !== seek) {
+    if (seek && known && !seek.__veilDrag) {
       seek.value = String(Math.round(((audio.currentTime || 0) / known) * 1000));
       syncRangeKnob(seek, false);
     }
@@ -11740,7 +12079,8 @@ function gamePreviewVideo(value) {
   if (value.preview) {
     return resolveGameAsset(value.preview);
   }
-  return resolveGameAsset("image/games/preview/" + gameSlug(value.name) + ".mp4");
+  // There is no image/games/preview folder in the repo, so guessing a path only produced 404s.
+  return "";
 }
 function gamePlayUrl(value) {
   return resolveGameAsset(value.url || value.path || "");

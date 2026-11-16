@@ -3560,21 +3560,31 @@
   // and invidious.schenkel.eti.br (403) were dropped so search stops waiting on dead hosts.
   var MUSIC_INV = ["https://echostreamz.com", "https://yt.chocolatemoo53.com"];
   var MUSIC_SEARCH = ["https://api.piped.private.coffee", "https://pipedapi.ducks.party"];
+  // Album art from the album catalogue (iTunes / Deezer). Album tracks keep it instead of the
+  // video thumbnail so a saved album looks like the album.
+  function musicArtOk(value) {
+    var url = String(value || "");
+    return url.length < 400 && /^https:\/\/(is\d+-ssl\.mzstatic\.com|e-cdns-images\.dzcdn\.net|cdn-images\.dzcdn\.net|cdns-images\.dzcdn\.net)\//.test(url);
+  }
   function musicSlimTrack(track) {
     if (!track || !track.id) return null;
-    return {
+    var slim = {
       id: String(track.id).slice(0, 80),
       title: String(track.title || "Untitled").slice(0, 140),
       author: String(track.author || "").slice(0, 80),
       seconds: Math.max(0, Math.floor(Number(track.seconds) || 0)),
       local: !!track.local
     };
+    if (musicArtOk(track.thumb)) slim.thumb = String(track.thumb);
+    if (track.explicit) slim.explicit = true;
+    return slim;
   }
   function musicWithThumb(track) {
     if (track.local) {
       if (!track.thumb) track.thumb = IMG + "audio.svg";
       return track;
     }
+    if (musicArtOk(track.thumb)) return track;
     if (track.id && /^[A-Za-z0-9_-]{6,20}$/.test(String(track.id))) track.thumb = "https://i.ytimg.com/vi/" + track.id + "/mqdefault.jpg";
     return track;
   }
@@ -3583,6 +3593,7 @@
     if (!cover) return "";
     if (cover.indexOf("data:image/") === 0 && cover.length < 140000) return cover;
     if (/^https:\/\/i\.ytimg\.com\//.test(cover) && cover.length < 300) return cover;
+    if (musicArtOk(cover)) return cover;
     return "";
   }
   function musicNormalizeLib(raw) {
@@ -3615,6 +3626,8 @@
         name: String(pl.name || "Album").slice(0, 40),
         cover: musicCoverOk(pl.cover),
         folderId: folderIds[pl.folderId] ? String(pl.folderId) : "",
+        src: /^(am|dz):\d{1,14}$/.test(String(pl.src || "")) ? String(pl.src) : "",
+        artist: String(pl.artist || "").slice(0, 80),
         tracks: tracks
       });
     });
@@ -3647,8 +3660,12 @@
           name: pl.name,
           cover: pl.cover || "",
           folderId: pl.folderId || "",
+          src: pl.src || "",
+          artist: pl.artist || "",
           tracks: pl.tracks.map(function (track) {
-            return { id: track.id, title: track.title, author: track.author, seconds: track.seconds, local: !!track.local };
+            var out = { id: track.id, title: track.title, author: track.author, seconds: track.seconds, local: !!track.local };
+            if (musicArtOk(track.thumb)) out.thumb = track.thumb;
+            return out;
           })
         };
       }),
@@ -3767,45 +3784,15 @@
       local: false
     });
   }
-  function musicPipedFallback(job) {
-    // One-shot last resort after every echostreamz stream failed. Never loops:
-    // each host is asked once per song, and only when the song couldn't play.
-    if (!job || job.piped) return Promise.resolve(false);
-    job.piped = true;
-    var hosts = MUSIC_SEARCH.slice();
-    var n = 0;
-    function step() {
-      if (n >= hosts.length) return Promise.resolve(false);
-      var host = hosts[n];
-      n += 1;
-      return musicFetchOne(host + "/streams/" + encodeURIComponent(job.id), 8000).then(function (data) {
-        var extra = [];
-        function push(url) {
-          if (!url || /googlevideo\.com/i.test(url)) return;
-          if (job.urls.indexOf(url) !== -1 || extra.indexOf(url) !== -1) return;
-          extra.push(url);
-        }
-        (data && data.audioStreams || []).forEach(function (fmt) {
-          if (/audio\/(mp4|webm|mpeg)/i.test(String(fmt.mimeType || ""))) push(fmt.url);
-        });
-        (data && data.videoStreams || []).forEach(function (fmt) {
-          if (!fmt.videoOnly && (fmt.itag === 18 || fmt.itag === 22)) push(fmt.url);
-        });
-        if (!extra.length) return step();
-        job.urls = job.urls.concat(extra);
-        return true;
-      }).catch(function () { return step(); });
-    }
-    return step();
-  }
   function musicStreamUrls(id, itags) {
     var idQ = encodeURIComponent(id);
     var host = "https://echostreamz.com";
     var urls = [];
+    // Only local=true links: without it echostreamz redirects straight to googlevideo with a URL
+    // locked to echostreamz's own IP (ip=...), which answers 403 to every listener.
     itags.forEach(function (itag) {
       urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true");
     });
-    urls.push(host + "/latest_version?id=" + idQ + "&itag=18");
     // echostreamz's companion throws random 500s under load; one delayed retry of the
     // first format rescues most of those before we fall back to Piped.
     urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itags[0] + "&local=true&retry=1");
@@ -4076,19 +4063,6 @@
     if (!job || job.id !== id || job.done || job.ok) return;
     if (!musicCurrent() || musicCurrent().id !== id) return;
     if (job.i >= job.urls.length) {
-      if (!job.piped) {
-        job.busy = true;
-        musicStatus("Trying another source…");
-        musicPipedFallback(job).then(function (more) {
-          if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
-          if (more && job.i < job.urls.length) {
-            musicKick(audio, id);
-            return;
-          }
-          musicKick(audio, id);
-        });
-        return;
-      }
       if (!job.alt) {
         job.busy = true;
         musicStatus("Finding another copy of this song…");
@@ -4141,6 +4115,7 @@
       // echostreamz takes 1-3s to answer (two redirects), so the old 1.2s cutoff
       // abandoned streams that were about to start and burned through every fallback.
       var limit = audio.readyState >= 1 ? 9000 : 12000;
+      if (job.good && job.good !== url && audio.readyState < 1) limit = 4500;
       if (waited > limit) {
         musicBump(job, attempt, audio);
         return;
@@ -4180,6 +4155,55 @@
       musicBump(job, attempt, audio);
     });
   }
+  // Album tracks come from the album catalogue (ids like "am:1369685063"), not YouTube. Right
+  // before one plays it is matched to the best YouTube upload with the same song search the
+  // search box uses (title + artist, length within a few seconds), then played like any song.
+  var musicResolved = {};
+  function musicNeedsResolve(track) {
+    return !!(track && !track.local && /^(am|dz):/.test(String(track.id || "")));
+  }
+  function musicNorm(text) {
+    return String(text || "").toLowerCase().replace(/\s*-\s*topic$/, "").replace(/\(.*?\)|\[.*?\]/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+  }
+  function musicResolve(track) {
+    var key = String(track.id);
+    if (musicResolved[key]) return Promise.resolve(musicResolved[key]);
+    var want = Number(track.seconds) || 0;
+    var title = musicNorm(track.title);
+    var artist = musicNorm(track.author);
+    var qEnc = encodeURIComponent(((track.author || "") + " " + (track.title || "")).trim().slice(0, 140));
+    var urls = [];
+    MUSIC_SEARCH.forEach(function (host) { urls.push(host + "/search?q=" + qEnc + "&filter=music_songs"); });
+    MUSIC_INV.forEach(function (host) { urls.push(host + "/api/v1/search?q=" + qEnc + "&type=video"); });
+    return musicFetchJson(urls, function (data) {
+      var list = Array.isArray(data) ? data : ((data && data.items) || []);
+      for (var k = 0; k < list.length; k++) if (musicTrackFrom(list[k])) return true;
+      return false;
+    }).then(function (data) {
+      var items = Array.isArray(data) ? data : ((data && data.items) || []);
+      var best = null;
+      var bestScore = -99;
+      items.slice(0, 15).forEach(function (item, rank) {
+        var t = musicTrackFrom(item);
+        if (!t) return;
+        var tt = musicNorm(t.title);
+        var ta = musicNorm(t.author);
+        var score = -rank * 0.2;
+        if (title && (tt === title || tt.indexOf(title) !== -1)) score += 4;
+        else if (title && title.indexOf(tt) !== -1 && tt.length > 2) score += 2;
+        if (artist && (ta.indexOf(artist) !== -1 || artist.indexOf(ta) !== -1 || tt.indexOf(artist) !== -1)) score += 3;
+        if (want && t.seconds) {
+          var diff = Math.abs(t.seconds - want);
+          score += diff <= 3 ? 4 : diff <= 8 ? 2 : diff > 25 ? -4 : 0;
+        }
+        if (/\b(live|cover|remix|slowed|sped up|nightcore|reaction|karaoke|instrumental|8d)\b/.test(tt) && !/\b(live|remix|instrumental)\b/.test(title)) score -= 4;
+        if (score > bestScore) { bestScore = score; best = t; }
+      });
+      if (!best || bestScore < 3) return "";
+      musicResolved[key] = best.id;
+      return best.id;
+    }).catch(function () { return ""; });
+  }
   function musicAlternate(job) {
     // Last resort before "couldn't play": the same song is usually up more than once (topic
     // upload, lyric video). Official videos of explicit songs are often age-gated and refuse every
@@ -4211,7 +4235,7 @@
       return step();
     }).catch(function () { return false; });
   }
-  function musicProbe(id) {
+  function musicProbe(id, list) {
     // Load every audio format at once in throwaway <audio> elements (metadata only) and hand the
     // real player the first one that actually decodes. echostreamz's companion answers with a
     // doubled Access-Control-Allow-Origin header, so fetch() can't probe it, but media elements
@@ -4219,11 +4243,10 @@
     // timeout per song.
     if (typeof Audio !== "function") return Promise.resolve("");
     var idQ = encodeURIComponent(id);
-    var order = [
+    var order = list && list.length ? list.slice() : [
       "https://echostreamz.com/latest_version?id=" + idQ + "&itag=140&local=true",
-      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=140",
       "https://echostreamz.com/latest_version?id=" + idQ + "&itag=251&local=true",
-      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=18"
+      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=18&local=true"
     ];
     var probes = [];
     var got = {};
@@ -4231,7 +4254,7 @@
       var settled = false;
       var left = order.length;
       var grace = 0;
-      var cap = setTimeout(function () { finish(best()); }, 10000);
+      var cap = setTimeout(function () { finish(best()); }, 15000);
       function best() {
         for (var i = 0; i < order.length; i++) if (got[i]) return order[i];
         return "";
@@ -4258,7 +4281,7 @@
           if (ok) got[i] = true;
           left -= 1;
           if (settled) return;
-          if (got[0] || got[1] || left === 0) { finish(best()); return; }
+          if (got[0] || left === 0) { finish(best()); return; }
           if (best() && !grace) grace = setTimeout(function () { finish(best()); }, 1500);
         };
         el.addEventListener("loadedmetadata", function () { mark(isFinite(el.duration) || el.duration === Infinity || el.readyState >= 1); });
@@ -4290,19 +4313,59 @@
       audio.play().catch(function () { musicStatus("Couldn't play that file."); });
       return;
     }
+    if (musicNeedsResolve(track)) {
+      musicStatus("Finding this song…");
+      musicState.failovers = null;
+      try { audio.pause(); } catch (err) {}
+      var token = musicState.resolveToken = {};
+      musicResolve(track).then(function (yt) {
+        if (!musicState || musicState.resolveToken !== token || musicState.queue[index] !== track) return;
+        if (!yt) {
+          var many = (musicState.queue || []).length > 1;
+          musicStatus(many && !musicState.userPick ? "That song isn't available right now. Skipping…" : "Couldn't find that song. Try another.");
+          musicPaint();
+          if (many && !musicState.userPick) setTimeout(function () { if (musicState && musicState.queue[musicState.index] === track) musicPlay(index + 1); }, 1400);
+          return;
+        }
+        // Remember the match on the saved album too, so next time it plays instantly.
+        var from = track.id;
+        track.src = from;
+        track.id = yt;
+        // The same song may also sit in a saved album or in Liked songs as its own copy.
+        (musicState.lib.playlists || []).forEach(function (pl) {
+          (pl.tracks || []).forEach(function (t) { if (t.id === from) t.id = yt; });
+        });
+        (musicState.lib.liked || []).forEach(function (t) { if (t.id === from) t.id = yt; });
+        musicSaveLib();
+        musicPlay(index);
+      });
+      return;
+    }
+    musicState.resolveToken = null;
     musicStatus("Loading…");
     var job = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: true, done: false, ok: false };
     musicState.failovers = job;
     try { audio.pause(); } catch (err) {}
-    musicProbe(track.id).then(function (url) {
-      if (!musicState || musicState.failovers !== job) return;
-      // Every format already failed the probe, so walking the same raw links again only adds
-      // 12s timeouts each; keep the muxed format as the single direct retry, then fall back.
-      if (url) job.urls.unshift(url);
-      else job.urls = ["https://echostreamz.com/latest_version?id=" + encodeURIComponent(track.id) + "&itag=18"];
-      job.busy = false;
-      musicKick(audio, track.id);
-    });
+    // Start the real player right away, still inside the click that asked for the song: waiting
+    // up to 10s on probes first let the click's user activation lapse (Chrome then refuses or
+    // stalls play() on some machines) and doubled every request to echostreamz. The other formats
+    // are probed quietly in the background; if one decodes while the first is still stuck, the
+    // player jumps to it early instead of waiting out the full timeout.
+    job.busy = false;
+    musicKick(audio, track.id);
+    var backups = job.urls.slice(1, 3);
+    setTimeout(function () {
+      if (!musicState || musicState.failovers !== job || job.ok || job.done || audio.readyState >= 1) return;
+      musicProbe(track.id, backups).then(function (url) {
+        if (!url || !musicState || musicState.failovers !== job || job.ok || job.done) return;
+        job.good = url;
+        var at = job.urls.indexOf(url);
+        if (at > job.i) {
+          job.urls.splice(at, 1);
+          job.urls.splice(job.i + 1, 0, url);
+        }
+      });
+    }, 1500);
   }
   function musicWire(audio) {
     if (!audio || audio.dataset.wired === "1") return;
@@ -4583,6 +4646,34 @@
       if (patch.folderId != null) pl.folderId = String(patch.folderId || "");
       musicSaveLib();
       musicPaint();
+    },
+    // Save an album from the album catalogue into the library as a regular album. Its tracks keep
+    // their catalogue ids until they are first played (see musicResolve).
+    saveRemoteAlbum: function (album) {
+      musicBoot();
+      if (!album || !album.src) return "";
+      var have = null;
+      musicState.lib.playlists.forEach(function (pl) { if (pl.src === album.src) have = pl; });
+      if (have) return have.id;
+      var pl = {
+        id: "pl_" + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36),
+        name: String(album.name || "Album").slice(0, 40),
+        cover: musicCoverOk(album.cover),
+        folderId: "",
+        src: String(album.src),
+        artist: String(album.artist || "").slice(0, 80),
+        tracks: (album.tracks || []).slice(0, 200).map(function (t) { return musicSlimTrack(t); }).filter(Boolean)
+      };
+      musicState.lib.playlists.unshift(pl);
+      musicSaveLib();
+      musicPaint();
+      return pl.id;
+    },
+    albumBySrc: function (src) {
+      musicBoot();
+      var hit = null;
+      musicState.lib.playlists.forEach(function (pl) { if (src && pl.src === src) hit = pl; });
+      return hit ? hit.id : "";
     },
     deleteAlbum: function (id) {
       if (!musicState) return;
