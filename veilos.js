@@ -3822,6 +3822,15 @@
       return (rb.ok || 0) - (ra.ok || 0);
     });
   }
+  // Toasts (window.veilNotify from veil-app.js): one toast per song load, updated in place as
+  // sources fail and then succeed or give up.
+  function musicToast(job, opts) {
+    try {
+      if (!job || typeof window.veilNotify !== "function") return;
+      opts.id = "music:" + job.id + ":" + (job.born || 0);
+      window.veilNotify(opts);
+    } catch (err) {}
+  }
   function musicLog(msg) {
     try { console.warn("[Veil music] " + msg); } catch (err) {}
   }
@@ -3860,6 +3869,7 @@
     var line = (musicHostOf(failed).replace("https://", "") || "source") + " itag " + musicItagOf(failed) + ": " + (why || "failed");
     (job.log = job.log || []).push(line);
     musicLog("\"" + (job.title || job.id) + "\" " + line + " (try " + (attempt + 1) + "/" + job.urls.length + ")");
+    musicToast(job, { kind: "error", title: "Couldn't load \"" + (job.title || "this song") + "\"", text: line + ". Trying another source (" + (attempt + 2) + "/" + job.urls.length + ")…", timeout: 12000 });
     job.busy = false;
     job.echoTry = 0;
     job.echoWait = false;
@@ -4129,6 +4139,7 @@
       musicState.skips = (musicState.skips || 0) + 1;
       if (queueLen > 1 && musicState.skips < 4 && !musicState.userPick) {
         musicLog("Skipping \"" + (job.title || job.id) + "\" (" + job.id + "): every source failed. " + (job.log || []).join(" | "));
+        musicToast(job, { kind: "error", title: "Skipping \"" + (job.title || "this song") + "\"", text: "Every source failed. Last error: " + ((job.log || []).slice(-1)[0] || "unknown"), timeout: 7000 });
         musicStatus("That song isn't available right now. Skipping…");
         musicPaint();
         var from = musicState.index;
@@ -4140,6 +4151,7 @@
       }
       musicState.skips = 0;
       musicLog("Couldn't play \"" + (job.title || job.id) + "\" (" + job.id + "): every source failed. " + (job.log || []).join(" | "));
+      musicToast(job, { kind: "error", title: "Couldn't play \"" + (job.title || "this song") + "\"", text: "Every source failed. Last error: " + ((job.log || []).slice(-1)[0] || "unknown"), timeout: 8000 });
       musicStatus("Couldn't play that song. Try another.");
       musicPaint();
       return;
@@ -4162,6 +4174,9 @@
         musicMarkHost(url, true);
         try { console.info("[Veil music] Playing \"" + (job.title || job.id) + "\" via " + musicHostOf(url).replace("https://", "") + " itag " + musicItagOf(url) + " after " + ((Date.now() - (job.born || job.started)) / 1000).toFixed(1) + "s"); } catch (err) {}
         musicState.skips = 0;
+        var tries = (job.log || []).length;
+        var cur = musicCurrent && musicCurrent();
+        musicToast(job, { kind: "success", title: "Now playing", text: (job.title || "Song") + (cur && cur.author ? " · " + cur.author : "") + (tries ? " (after " + tries + " failed source" + (tries === 1 ? "" : "s") + ")" : ""), timeout: 3200 });
         musicStatus("");
         musicPaint();
         return;

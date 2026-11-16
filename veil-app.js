@@ -2223,6 +2223,128 @@ let tabMotionKind = "";
 let veilShownPage = "";
 // A damped spring that starts from rest (zero initial velocity), so motion eases in instead of
 // leaping off the mark, then overshoots ~10% once and settles: x = 1 - e^-at (cos wt + a/w sin wt).
+// Site-wide toasts: window.veilNotify({ kind: "success" | "error" | "info", title, text, timeout, id }).
+// They spring in from the bottom-right with a little tilt, stack upward, pause while hovered, and
+// leave with a small wind-up before sliding out; the rest of the stack springs into the gap.
+// Passing the same `id` updates that toast in place (with a nudge) instead of stacking another.
+// Returns { update(opts), close() }. Not wired into chat yet on purpose.
+const veilNotifyMap = new Map();
+function veilToastHost() {
+  let host = document.getElementById("veilNotifyHost");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "veilNotifyHost";
+    host.className = "veil-nt-host";
+    host.setAttribute("aria-live", "polite");
+    document.body.appendChild(host);
+  }
+  return host;
+}
+function veilToastFlip(host, change) {
+  const items = [...host.children];
+  const before = new Map(items.map(el => [el, el.getBoundingClientRect().top]));
+  change();
+  const anime = window.anime;
+  if (!anime || !anime.animate || motionOff()) return;
+  [...host.children].forEach(el => {
+    if (!before.has(el) || el._veilLeaving) return;
+    const dy = before.get(el) - el.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    try { anime.animate(el, { translateY: [dy, 0], ease: veilSpring(0.42, 620) }); } catch (err) {}
+  });
+}
+function veilNotify(opts) {
+  if (typeof opts === "string") opts = { text: opts };
+  opts = opts || {};
+  if (!document.body) return { update() {}, close() {} };
+  const kind = /^(success|error|info|warn)$/.test(opts.kind || "") ? opts.kind : "info";
+  const timeout = opts.timeout === 0 ? 0 : Math.max(1200, Number(opts.timeout) || (kind === "error" ? 6500 : 3800));
+  const anime = window.anime;
+  const existing = opts.id && veilNotifyMap.get(opts.id);
+  if (existing && existing.el.isConnected && !existing.el._veilLeaving) {
+    existing.update(opts);
+    return existing;
+  }
+  const host = veilToastHost();
+  const el = document.createElement("div");
+  el.className = "veil-nt is-" + kind;
+  el.setAttribute("role", kind === "error" ? "alert" : "status");
+  el.innerHTML = '<span class="veil-nt-ico" aria-hidden="true"></span><div class="veil-nt-body"><b></b><span></span></div><button type="button" class="veil-nt-x" aria-label="Dismiss">&times;</button><i class="veil-nt-bar"></i>';
+  const api = { el: el };
+  let timer = 0;
+  let left = timeout;
+  let startedAt = 0;
+  const bar = el.querySelector(".veil-nt-bar");
+  const arm = () => {
+    clearTimeout(timer);
+    if (!left) return;
+    startedAt = Date.now();
+    timer = setTimeout(() => api.close(), left);
+    bar.style.transition = "none";
+    bar.style.transform = "scaleX(" + (left / (api.timeout || 1)) + ")";
+    void bar.offsetWidth;
+    bar.style.transition = "transform " + left + "ms linear";
+    bar.style.transform = "scaleX(0)";
+  };
+  const fill = o => {
+    const k = /^(success|error|info|warn)$/.test(o.kind || "") ? o.kind : kind;
+    el.className = "veil-nt is-" + k;
+    el.querySelector("b").textContent = o.title || (k === "success" ? "Success" : k === "error" ? "Something went wrong" : "Notice");
+    el.querySelector(".veil-nt-body span").textContent = o.text || "";
+    el.querySelector(".veil-nt-body span").hidden = !o.text;
+    api.timeout = o.timeout === 0 ? 0 : Math.max(1200, Number(o.timeout) || (k === "error" ? 6500 : 3800));
+  };
+  api.update = o => {
+    fill(Object.assign({ kind: kind }, o || {}));
+    left = api.timeout;
+    bar.hidden = !left;
+    arm();
+    if (anime && anime.animate && !motionOff()) {
+      try { anime.animate(el, { scale: [0.96, 1], rotate: [-1.5, 0], ease: veilSpring(0.55, 620) }); } catch (err) {}
+      try { anime.animate(el.querySelector(".veil-nt-ico"), { scale: [0.6, 1], rotate: [-25, 0], ease: veilSpring(0.55, 700) }); } catch (err) {}
+    }
+  };
+  api.close = () => {
+    if (el._veilLeaving) return;
+    el._veilLeaving = true;
+    clearTimeout(timer);
+    if (opts.id && veilNotifyMap.get(opts.id) === api) veilNotifyMap.delete(opts.id);
+    const gone = () => veilToastFlip(host, () => el.remove());
+    if (!anime || !anime.animate || motionOff()) { gone(); return; }
+    try {
+      // Back-in ease: a small wind-up toward the screen, then out to the right.
+      anime.animate(el, { translateX: [0, 440], opacity: [1, 0], rotate: [0, 4], duration: 460, ease: t => t * t * (2.6 * t - 1.6), onComplete: gone });
+    } catch (err) { gone(); }
+  };
+  fill(Object.assign({ kind: kind }, opts));
+  bar.hidden = !api.timeout;
+  left = api.timeout;
+  el.querySelector(".veil-nt-x").onclick = () => api.close();
+  el.addEventListener("pointerenter", () => {
+    if (!left || !startedAt) return;
+    clearTimeout(timer);
+    left = Math.max(800, left - (Date.now() - startedAt));
+    const now = getComputedStyle(bar).transform;
+    bar.style.transition = "none";
+    bar.style.transform = now === "none" ? "scaleX(1)" : now;
+  });
+  el.addEventListener("pointerleave", () => { if (!el._veilLeaving) arm(); });
+  veilToastFlip(host, () => host.appendChild(el));
+  while (host.children.length > 5) {
+    const old = [...host.children].find(n => !n._veilLeaving);
+    if (!old || old === el) break;
+    old._veilLeaving = true;
+    old.remove();
+  }
+  if (opts.id) veilNotifyMap.set(opts.id, api);
+  if (anime && anime.animate && !motionOff()) {
+    try { anime.animate(el, { translateX: [380, 0], opacity: [0, 1], rotate: [5, 0], scale: [0.86, 1], ease: veilSpring(0.42, 820) }); } catch (err) {}
+    try { anime.animate(el.querySelector(".veil-nt-ico"), { scale: [0.4, 1], rotate: [-40, 0], delay: 120, ease: veilSpring(0.55, 760) }); } catch (err) {}
+  }
+  arm();
+  return api;
+}
+window.veilNotify = veilNotify;
 function veilSoftJiggle(t) {
   if (t <= 0) return 0;
   if (t >= 1) return 1;
@@ -7703,7 +7825,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=99";
+  script.src = BASE + "/veilos.js?v=100";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -9416,7 +9538,7 @@ function showEntPane(name) {
   const panes = Array.from(body.querySelectorAll(".ent-pane"));
   const next = body.querySelector('.ent-pane[data-pane="' + name + '"]');
   const prev = body.querySelector(".ent-pane.on");
-  const order = ["games", "music", "more"];
+  const order = ["games", "music", "drawing", "more"];
   const dir = order.indexOf(name) >= order.indexOf(prev && prev.getAttribute("data-pane")) ? 1 : -1;
   panes.forEach(pane => {
     const on = pane === next;
@@ -9482,6 +9604,7 @@ function showEntPane(name) {
     }, VEIL_TAB_MOTION.enter.duration * 3);
   }
   if (name === "music" && next) mountEntMusic(next);
+  if (name === "drawing" && next) mountEntDrawing(next);
   else if (name !== "music") {
     try { if (window.__veilCloseVideo) window.__veilCloseVideo(true); } catch (err) {}
   }
@@ -9538,6 +9661,18 @@ function veilPPRef(kind) {
   }
   return box.querySelector('[data-k="' + kind + '"]');
 }
+// Play/pause morph. Both shapes are the same 8 points, so the morph is a straight per-point blend
+// driven by one anime.js spring (0 -> 1, overshooting a touch for the jiggle). Every frame writes
+// the real "d" attribute and the end state is always written exactly, so the icon can never be
+// left on the wrong shape (round 5 used svg.morphTo, which left some browsers stuck on pause).
+const VEIL_PP_NUM = {
+  play: VEIL_PP.play.match(/-?[\d.]+/g).map(Number),
+  pause: VEIL_PP.pause.match(/-?[\d.]+/g).map(Number)
+};
+function veilPPPath(nums) {
+  let i = 0;
+  return VEIL_PP.play.replace(/-?[\d.]+/g, () => (Math.round(nums[i++] * 1000) / 1000).toString());
+}
 function veilPPSet(btn, playing) {
   if (!btn) return;
   const want = playing ? "1" : "0";
@@ -9547,20 +9682,31 @@ function veilPPSet(btn, playing) {
     btn.dataset.pp = want;
     return;
   }
-  if (btn.dataset.pp === want) return;
-  btn.dataset.pp = want;
   const path = svg.querySelector("path");
   const target = playing ? VEIL_PP.pause : VEIL_PP.play;
+  if (btn.dataset.pp === want && (path._veilMorph || path.getAttribute("d") === target)) return;
+  btn.dataset.pp = want;
   const anime = window.anime;
   if (path._veilMorph && path._veilMorph.cancel) { try { path._veilMorph.cancel(); } catch (err) {} }
+  path._veilMorph = null;
   if (motionOff() || !anime || !anime.animate) {
     path.setAttribute("d", target);
     return;
   }
+  const from = (path.getAttribute("d") || "").match(/-?[\d.]+/g);
+  const start = from && from.length === VEIL_PP_NUM.play.length ? from.map(Number) : (playing ? VEIL_PP_NUM.play : VEIL_PP_NUM.pause);
+  const end = playing ? VEIL_PP_NUM.pause : VEIL_PP_NUM.play;
+  const proxy = { t: 0 };
   try {
-    const to = anime.svg && anime.svg.morphTo ? anime.svg.morphTo(veilPPRef(playing ? "pause" : "play"), 0) : target;
-    path._veilMorph = anime.animate(path, { d: to, ease: veilSpring(0.34, 560) });
+    const job = anime.animate(proxy, {
+      t: 1,
+      ease: veilSpring(0.34, 560),
+      onUpdate: () => { path.setAttribute("d", veilPPPath(start.map((v, i) => v + (end[i] - v) * proxy.t))); },
+      onComplete: () => { if (path._veilMorph === job) path._veilMorph = null; path.setAttribute("d", target); }
+    });
+    path._veilMorph = job;
     anime.animate(svg, { scale: [0.8, 1], rotate: [playing ? -90 : 90, 0], ease: veilSpring(0.46, 640) });
+    setTimeout(() => { if (btn.dataset.pp === want && path._veilMorph === job) { path._veilMorph = null; path.setAttribute("d", target); } }, 1200);
   } catch (err) {
     path.setAttribute("d", target);
   }
@@ -9783,9 +9929,17 @@ function installVeilScrolls() {
       let kick = Math.max(-8, Math.min(8, vel * 0.25));
       if (Math.abs(kick) < 4.5) kick = vel < 0 ? -4.5 : 4.5;
       if (knob._veilMotion && knob._veilMotion.cancel) { try { knob._veilMotion.cancel(); } catch (err) {} }
-      const spec = { ease: veilSpring(0.34, 520) };
-      spec[g.vertical ? "translateY" : "translateX"] = [kick, 0];
-      knob._veilMotion = window.anime.animate(knob, spec);
+      // Ease out to the follow-through instead of jumping there (that jump was the "snap"), then
+      // spring back with one soft rebound.
+      const prop = g.vertical ? "translateY" : "translateX";
+      const out = { duration: 170, ease: "inOutSine" };
+      out[prop] = [0, kick];
+      out.onComplete = () => {
+        const back = { ease: veilSpring(0.4, 640) };
+        back[prop] = 0;
+        knob._veilMotion = window.anime.animate(knob, back);
+      };
+      knob._veilMotion = window.anime.animate(knob, out);
     } catch (err) {}
   }
   function follow(el) {
@@ -9899,7 +10053,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=99";
+      script.src = BASE + "/veilos.js?v=100";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -9908,6 +10062,57 @@ function ensureVeilMusic() {
     done();
   });
   return ensureVeilMusic.job;
+}
+// Drawing tab: kreska.art's app, loaded through the Veil proxy (Scramjet) exactly like a browser
+// tab, mounted the first time the tab is opened and kept alive afterwards so a drawing in
+// progress survives switching tabs.
+const VEIL_DRAW_URL = "https://kreska.art/app/";
+function mountEntDrawing(pane) {
+  const root = pane.querySelector("[data-draw]");
+  if (!root || root.dataset.ready === "1") return;
+  root.dataset.ready = "1";
+  root.innerHTML = '<div class="ent-draw-frame" data-draw-frame></div><div class="ent-draw-wait" data-draw-wait><span class="sp-loader-dots"><i></i><i></i><i></i></span><b>Opening Kreska…</b><small>Loading through the Veil proxy</small></div>';
+  const wait = root.querySelector("[data-draw-wait]");
+  const anime = window.anime;
+  let loop = null;
+  if (!motionOff() && anime && anime.animate) {
+    try {
+      loop = anime.animate(wait.querySelectorAll(".sp-loader-dots i"), {
+        translateY: [{ to: -9, duration: 300, ease: "outQuad" }, { to: 0, duration: 620, ease: veilSoftJiggle }],
+        scaleY: [{ to: 1.12, duration: 300, ease: "outQuad" }, { to: 1, duration: 620, ease: veilSoftJiggle }],
+        delay: anime.stagger ? anime.stagger(120) : 0,
+        loop: true,
+        loopDelay: 140
+      });
+      anime.animate(wait, { opacity: [0, 1], scale: [0.92, 1], ease: veilSpring(0.45, 620) });
+    } catch (err) {}
+  }
+  const reveal = () => {
+    if (!wait.isConnected || wait._gone) return;
+    wait._gone = true;
+    const done = () => { try { if (loop && loop.cancel) loop.cancel(); } catch (err) {} wait.remove(); };
+    if (motionOff() || !anime || !anime.animate) { done(); return; }
+    try {
+      anime.animate(wait, { opacity: [1, 0], scale: [1, 1.06], duration: 320, ease: "outQuad", onComplete: done });
+      const frameEl = root.querySelector("iframe");
+      if (frameEl) anime.animate(frameEl, { opacity: [0, 1], scale: [0.97, 1], ease: veilSpring(0.4, 720) });
+    } catch (err) { done(); }
+  };
+  openProxyFrame(root.querySelector("[data-draw-frame]"), VEIL_DRAW_URL).then(frame => {
+    const el = root.querySelector("iframe");
+    if (!frame || !el) {
+      const msg = wait.querySelector("b");
+      if (msg) msg.textContent = "Couldn't open Kreska.";
+      root.dataset.ready = "";
+      return;
+    }
+    el.addEventListener("load", () => setTimeout(reveal, 250));
+    setTimeout(reveal, 12000);
+  }).catch(err => {
+    const msg = wait.querySelector("b");
+    if (msg) msg.textContent = "Couldn't open Kreska: " + (err && err.message || err);
+    root.dataset.ready = "";
+  });
 }
 function mountEntMusic(pane) {
   if (!pane || pane.dataset.music === "1") return;
@@ -9969,12 +10174,19 @@ function buildEntMusic(pane, api) {
   function glide(el, scale, soft) {
     const anime = window.anime;
     if (!el || motionOff() || !anime || !anime.animate) return;
+    // One interruptible spring: stop the running one where it is (no revert, which snapped the
+    // card back to 1 first and made press-and-hold then release glitch) and start the next from
+    // the scale actually on screen.
+    const live = (() => {
+      const m = /scale\(\s*([\d.]+)/.exec(el.style.transform || "");
+      return m ? Number(m[1]) : null;
+    })();
     if (el._veilGlide) {
-      try { if (el._veilGlide.revert) el._veilGlide.revert(); } catch (err) {}
       try { if (el._veilGlide.cancel) el._veilGlide.cancel(); } catch (err) {}
       el._veilGlide = null;
     }
-    const from = el._veilScale || 1;
+    try { if (anime.utils && anime.utils.remove) anime.utils.remove(el); else if (anime.remove) anime.remove(el); } catch (err) {}
+    const from = live != null && isFinite(live) ? live : (el._veilScale || 1);
     try {
       const pressing = scale < 1 && scale < from;
       // soft: song cards. A slower, rounder press and a release that overshoots once, instead of
@@ -10136,6 +10348,56 @@ function buildEntMusic(pane, api) {
       if (ui.page === "home") full(false);
     });
   }
+  // Artists are searchable too: YouTube channels (via Invidious) whose name matches the query.
+  // An exact name match takes the Top result slot (round picture, opens the artist page); other
+  // close matches show in an "Artists" row.
+  const artistNorm = v => {
+    let key = String(v || "").toLowerCase().replace(/\s*-\s*topic$/, "").replace(/[^a-z0-9]+/g, "");
+    for (let i = 0; i < 2; i++) key = key.replace(/(vevo|music|official|tv)$/, "").replace(/^official/, "");
+    return key;
+  };
+  function searchArtists(query) {
+    const q = String(query || "").trim();
+    ui.artistsFor = q;
+    ui.artists = [];
+    ui.artistTop = null;
+    ui.artistsKey = q + ":0";
+    if (!q) return;
+    ytApi("search?" + new URLSearchParams({ q: q, type: "channel" }).toString()).then(rows => {
+      if (ui.artistsFor !== q) return;
+      const want = artistNorm(q);
+      const words = q.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+      const seen = {};
+      const list = (rows || []).filter(row => row && row.type === "channel" && row.authorId && !/ - topic$/i.test(row.author || "")).map(row => ({
+        name: String(row.author || "").trim(),
+        id: row.authorId,
+        avatar: ytBest(row.authorThumbnails, 176),
+        subs: row.subCount || 0,
+        verified: !!row.authorVerified
+      })).filter(item => {
+        const key = artistNorm(item.name);
+        if (!key || seen[key]) return false;
+        seen[key] = 1;
+        if (/#/.test(item.name)) return false;
+        const close = key === want || key.indexOf(want) >= 0 || want.indexOf(key) >= 0 || words.every(w => item.name.toLowerCase().indexOf(w) >= 0);
+        return close && (item.verified || item.subs >= 1000000);
+      });
+      ui.artistTop = list.find(item => artistNorm(item.name) === want && item.subs >= 10000) || list.find(item => artistNorm(item.name) === want) || null;
+      ui.artists = list.filter(item => item !== ui.artistTop).slice(0, 6);
+      ui.artistsKey = q + ":" + list.length + ":" + (ui.artistTop ? ui.artistTop.id : "");
+      if (ui.page === "home") full(false);
+    }).catch(err => {
+      try { console.warn("[Veil music] Artist search failed: " + (err && err.message || err)); } catch (e2) {}
+    });
+  }
+  function artistTopHit(item) {
+    const pic = item.avatar ? '<img class="sp-top-pfp" src="' + escapeHTML(item.avatar) + '" alt="">' : '<span class="sp-top-pfp sp-ph">' + ico("music_default.svg") + "</span>";
+    return '<div class="sp-top sp-top-artist" role="button" tabindex="0" data-open-artist="' + escapeHTML(item.name) + '">' + pic + '<span class="sp-top-copy"><b>' + escapeHTML(item.name) + '</b><small class="sp-sub"><span>Artist</span>' + (item.subs ? '<span class="sp-dot">•</span><span>' + compactCount(item.subs) + " subscribers</span>" : "") + "</small></span></div>";
+  }
+  function artistResults() {
+    if (!(ui.artists || []).length || ui.artistsFor !== ui.query) return "";
+    return '<div class="sp-label">Artists</div><div class="sp-grid sp-artists">' + ui.artists.map(item => '<button type="button" class="sp-card sp-artist-card" data-open-artist="' + escapeHTML(item.name) + '">' + (item.avatar ? '<img class="sp-art sp-round" src="' + escapeHTML(item.avatar) + '" alt="">' : '<span class="sp-art sp-ph sp-round">' + ico("music_default.svg") + "</span>") + "<b>" + escapeHTML(item.name) + "</b><small>" + (item.subs ? compactCount(item.subs) + " subscribers" : "Artist") + "</small></button>").join("") + "</div>";
+  }
   function albumResults() {
     if (!(ui.albums || []).length || ui.albumsFor !== ui.query) return "";
     return '<div class="sp-label">Albums</div><div class="sp-grid sp-ralbums">' + ui.albums.map(item => '<div class="sp-cardwrap"><button type="button" class="sp-card" data-ralbum="' + escapeHTML(item.src) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name) + '</b><small>' + escapeHTML([item.year, item.artist].filter(Boolean).join(" • ")) + '</small></button><button type="button" class="sp-quick" data-ralbum-play="' + escapeHTML(item.src) + '" data-pp-ralbum="' + escapeHTML(item.src) + '" aria-label="Play album">' + veilPPIcon(ralbumPlaying(item.src)) + '</button></div>').join("") + '</div>';
@@ -10212,8 +10474,12 @@ function buildEntMusic(pane, api) {
       veilPPSet(btn, on);
       btn.setAttribute("aria-label", on ? "Pause" : "Play");
     });
-    root.querySelectorAll("[data-pp-album]").forEach(btn => veilPPSet(btn, albumPlaying(btn.getAttribute("data-pp-album"))));
-    root.querySelectorAll("[data-pp-ralbum]").forEach(btn => veilPPSet(btn, ralbumPlaying(btn.getAttribute("data-pp-ralbum"))));
+    const label = (btn, on) => {
+      const text = btn.querySelector(".sp-pp-label");
+      if (text && text.textContent !== (on ? "Pause" : "Play")) text.textContent = on ? "Pause" : "Play";
+    };
+    root.querySelectorAll("[data-pp-album]").forEach(btn => { const on = albumPlaying(btn.getAttribute("data-pp-album")); veilPPSet(btn, on); label(btn, on); });
+    root.querySelectorAll("[data-pp-ralbum]").forEach(btn => { const on = ralbumPlaying(btn.getAttribute("data-pp-ralbum")); veilPPSet(btn, on); label(btn, on); });
     root.classList.toggle("is-playing", !!snap.playing);
   }
   // Find the album a YouTube song belongs to (Deezer first, iTunes as the fallback) and open it.
@@ -10648,6 +10914,29 @@ function buildEntMusic(pane, api) {
   function albumsInCount(id) {
     return inFolder(id).length + (inFolder(id).length === 1 ? " album" : " albums");
   }
+  // Loading skeletons: shimmer placeholders in the shape of what is coming, plus a springy
+  // three-dot loader, so search results, album pages and artist pages never show half-rendered.
+  const skelLoader = text => '<div class="sp-loader" data-loader><span class="sp-loader-dots"><i></i><i></i><i></i></span><span class="sp-loader-text">' + escapeHTML(text || "Loading…") + "</span></div>";
+  const skelRows = n => Array.from({ length: n }, (_, i) => '<div class="sp-skel-row"><i class="sk sk-n"></i><i class="sk sk-art"></i><span class="sk-col"><i class="sk sk-line" style="width:' + (38 + (i * 17) % 34) + '%"></i><i class="sk sk-line sk-thin" style="width:' + (18 + (i * 11) % 16) + '%"></i></span><i class="sk sk-time"></i></div>').join("");
+  const skelCards = n => '<div class="sp-grid sp-skel-cards">' + Array.from({ length: n }, () => '<div class="sp-skel-card"><i class="sk sk-cover"></i><i class="sk sk-line" style="width:72%"></i><i class="sk sk-line sk-thin" style="width:46%"></i></div>').join("") + "</div>";
+  const skelTop = () => '<div class="sp-skel-top"><i class="sk sk-bigart"></i><span class="sk-col"><i class="sk sk-line sk-big" style="width:46%"></i><i class="sk sk-line sk-thin" style="width:24%"></i></span><i class="sk sk-play"></i></div>';
+  const skelArtistHero = () => '<div class="sp-skel-hero"><i class="sk sk-pfp"></i><span class="sk-col"><i class="sk sk-line sk-thin" style="width:60px"></i><i class="sk sk-line sk-big" style="width:220px"></i><i class="sk sk-line sk-thin" style="width:140px"></i></span></div>';
+  function startLoaders(scope) {
+    const anime = window.anime;
+    scope.querySelectorAll("[data-loader]").forEach(box => {
+      if (box._veilLoop || motionOff() || !anime || !anime.animate) return;
+      const dots = box.querySelectorAll(".sp-loader-dots i");
+      try {
+        box._veilLoop = anime.animate(dots, {
+          translateY: [{ to: -9, duration: 300, ease: "outQuad" }, { to: 0, duration: 620, ease: veilSoftJiggle }],
+          scaleY: [{ to: 1.12, duration: 300, ease: "outQuad" }, { to: 1, duration: 620, ease: veilSoftJiggle }],
+          delay: anime.stagger ? anime.stagger(120) : 0,
+          loop: true,
+          loopDelay: 140
+        });
+      } catch (err) {}
+    });
+  }
   function paintMain(animate) {
     const snap = api.snap();
     nowId = snap.track ? snap.track.id : "";
@@ -10660,7 +10949,7 @@ function buildEntMusic(pane, api) {
       const item = albumOf(ui.albumId);
       if (!item) ui.page = "home";
       else {
-        html = '<div class="sp-hero">' + art(item.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(item.name || "Album") + '</h2><div>' + songsLabel((item.tracks || []).length) + '</div><div class="sp-acts"><button type="button" class="sp-play" data-play-album>Play</button><button type="button" class="sp-icon sp-pencil" data-edit-album aria-label="Edit album">' + ico("pencil.svg") + '</button></div></div></div>';
+        html = '<div class="sp-hero">' + art(item.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(item.name || "Album") + '</h2><div>' + songsLabel((item.tracks || []).length) + '</div><div class="sp-acts"><button type="button" class="sp-play" data-play-album data-pp-album="' + escapeHTML(item.id) + '">' + veilPPIcon(albumPlaying(item.id)) + '<span class="sp-pp-label">' + (albumPlaying(item.id) ? "Pause" : "Play") + '</span></button><button type="button" class="sp-icon sp-pencil" data-edit-album aria-label="Edit album">' + ico("pencil.svg") + '</button></div></div></div>';
         html += (item.tracks || []).length ? item.tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x" data-remove-track="' + index + '" aria-label="Remove">' + ico("exit.svg") + '</button>')).join("") : '<div class="sp-empty">Search on Home and add songs here.</div>';
       }
     } else if (ui.page === "folder") {
@@ -10678,9 +10967,10 @@ function buildEntMusic(pane, api) {
         const tracks = meta.tracks || [];
         const saved = api.albumBySrc ? api.albumBySrc(meta.src) : "";
         const facts = [meta.artist, meta.year, tracks.length ? tracks.length + (tracks.length === 1 ? " song" : " songs") : ""].filter(Boolean).map(escapeHTML).join('<span class="sp-dot">•</span>');
-        html = '<div class="sp-hero">' + art(meta.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(meta.name || "Album") + '</h2><div class="sp-hero-facts">' + facts + '</div><div class="sp-acts"><button type="button" class="sp-play" data-play-ralbum' + (tracks.length ? "" : " disabled") + '>Play</button><button type="button" class="sp-play sp-save' + (saved ? " on" : "") + '" data-save-ralbum' + (tracks.length ? "" : " disabled") + '>' + (saved ? "Saved" : "Save to library") + '</button></div></div></div>';
+        html = '<div class="sp-hero">' + art(meta.cover) + '<div><div class="sp-label">Album</div><h2>' + escapeHTML(meta.name || "Album") + '</h2><div class="sp-hero-facts">' + facts + '</div><div class="sp-acts"><button type="button" class="sp-play" data-play-ralbum data-pp-ralbum="' + escapeHTML(meta.src || "") + '"' + (tracks.length ? "" : " disabled") + '>' + veilPPIcon(ralbumPlaying(meta.src)) + '<span class="sp-pp-label">' + (ralbumPlaying(meta.src) ? "Pause" : "Play") + '</span></button><button type="button" class="sp-play sp-save' + (saved ? " on" : "") + '" data-save-ralbum' + (tracks.length ? "" : " disabled") + '>' + (saved ? "Saved" : "Save to library") + '</button></div></div></div>';
         const acts = track => '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>';
-        html += tracks.length ? tracks.map((track, index) => songRow(track, index, acts(track))).join("") : '<div class="sp-empty">' + escapeHTML(meta.status || "Loading songs…") + '</div>';
+        const loadingAlbum = !tracks.length && /^(Loading|Finding)/.test(meta.status || "Loading");
+        html += tracks.length ? tracks.map((track, index) => songRow(track, index, acts(track))).join("") : loadingAlbum ? '<div class="sp-skel" data-skel>' + skelLoader(meta.status || "Loading songs…") + skelRows(8) + "</div>" : '<div class="sp-empty">' + escapeHTML(meta.status || "Couldn't load this album's songs.") + '</div>';
       }
     }
     if (ui.page === "artist") {
@@ -10689,25 +10979,33 @@ function buildEntMusic(pane, api) {
       const note = snap.artistStatus || (tracks.length ? "" : "Loading…");
       const pfp = yt && yt.avatar ? '<img class="sp-artist-pfp" src="' + escapeHTML(yt.avatar) + '" alt="">' : '<span class="sp-artist-pfp sp-ph">' + ico("music_default.svg") + '</span>';
       const facts = yt ? [yt.subs ? compactCount(yt.subs) + " subscribers" : "", yt.views ? compactCount(yt.views) + " views" : ""].filter(Boolean).join('<span class="sp-dot">•</span>') : "";
-      html = '<div class="sp-artist-hero' + (yt && yt.banner ? " has-banner" : "") + '">' + (yt && yt.banner ? '<div class="sp-artist-banner" style="background-image:url(&quot;' + escapeHTML(yt.banner) + '&quot;)"></div>' : '<div class="sp-artist-banner"></div>') + '<div class="sp-artist-id">' + pfp + '<div class="sp-artist-text"><div class="sp-label">Artist</div><h2>' + escapeHTML((yt && yt.title) || ui.artist || "Artist") + '</h2>' + (facts ? '<div class="sp-hero-facts">' + facts + '</div>' : "") + '</div></div></div>';
+      const ytLoading = !yt || (!yt.failed && !(yt.popular || []).length && !yt.done);
+      html = !yt || (!yt.found && !yt.failed) ? '<div class="sp-skel" data-skel>' + skelLoader("Loading " + (ui.artist || "artist") + "…") + skelArtistHero() + '</div>' : '<div class="sp-artist-hero' + (yt && yt.banner ? " has-banner" : "") + '">' + (yt && yt.banner ? '<div class="sp-artist-banner" style="background-image:url(&quot;' + escapeHTML(yt.banner) + '&quot;)"></div>' : '<div class="sp-artist-banner"></div>') + '<div class="sp-artist-id">' + pfp + '<div class="sp-artist-text"><div class="sp-label">Artist</div><h2>' + escapeHTML((yt && yt.title) || ui.artist || "Artist") + '</h2>' + (facts ? '<div class="sp-hero-facts">' + facts + '</div>' : "") + (yt && yt.desc ? '<div class="sp-artist-desc' + (ui.artistDescOpen ? " is-open" : "") + '">' + escapeHTML(yt.desc).replace(/\n/g, "<br>") + '</div><button type="button" class="sp-artist-more" data-artist-more>' + (ui.artistDescOpen ? "Less" : "More") + "</button>" : "") + '</div></div></div>';
       html += '<div class="sp-label">Popular</div>';
-      html += tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("") : '<div class="sp-empty">' + escapeHTML(note || "No songs found.") + '</div>';
+      html += !tracks.length && (ytLoading || /^(Loading|Searching)/.test(note || "")) ? '<div class="sp-skel" data-skel>' + skelRows(7) + "</div>" : tracks.length ? tracks.map((track, index) => songRow(track, index, '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + '</button>')).join("") : '<div class="sp-empty">' + escapeHTML(note || "No songs found.") + '</div>';
       if (yt && (yt.albums || []).length) html += '<div class="sp-label">Albums</div><div class="sp-grid sp-ralbums">' + yt.albums.map(item => '<div class="sp-cardwrap"><button type="button" class="sp-card" data-ralbum="' + escapeHTML(item.src) + '">' + art(item.cover) + '<b>' + escapeHTML(item.name) + '</b><small>' + escapeHTML(songsLabel(item.count || 0)) + '</small></button><button type="button" class="sp-quick" data-ralbum-play="' + escapeHTML(item.src) + '" data-pp-ralbum="' + escapeHTML(item.src) + '" aria-label="Play album">' + veilPPIcon(ralbumPlaying(item.src)) + '</button></div>').join("") + '</div>';
-      if (yt && yt.desc) html += '<div class="sp-label">About</div><div class="sp-artist-about">' + escapeHTML(yt.desc).replace(/\n/g, "<br>") + '</div>';
       if (yt && yt.status) html += '<div class="sp-status">' + escapeHTML(yt.status) + '</div>';
     }
     if (ui.page === "home") {
-      html = '<form class="sp-search" data-search><input data-q type="search" placeholder="Search for a song" value="' + escapeHTML(ui.query) + '" aria-label="Search"><button type="submit">Search</button></form><div class="sp-status">' + escapeHTML(snap.status || "") + '</div>';
-      if ((snap.results || []).length) {
+      html = '<form class="sp-search" data-search><input data-q type="search" placeholder="Search for a song or artist" value="' + escapeHTML(ui.query) + '" aria-label="Search"><button type="submit">Search</button></form><div class="sp-status">' + escapeHTML(snap.status || "") + '</div>';
+      const searching = !!ui.query && /^Searching/.test(snap.status || "");
+      if (searching) {
+        html = html.replace('<div class="sp-status">' + escapeHTML(snap.status || "") + "</div>", "");
+        html += '<div class="sp-skel" data-skel>' + skelLoader("Searching for \u201c" + ui.query + "\u201d…") + '<div class="sp-label">Top result</div>' + skelTop() + '<div class="sp-label">Albums</div>' + skelCards(4) + '<div class="sp-label">Songs</div>' + skelRows(6) + "</div>";
+      } else if ((snap.results || []).length) {
         const acts = index => {
           const track = snap.results[index];
           return '<button type="button" class="sp-x' + (api.isLiked(track.id) ? " on" : "") + '" data-like="' + escapeHTML(track.id) + '" aria-label="Like">' + ico("heart.svg") + '</button><button type="button" class="sp-x" data-add="' + escapeHTML(track.id) + '" aria-label="Add to album">' + ico("plus.svg") + "</button>";
         };
-        html += '<div class="sp-label">Top result</div><div class="sp-topwrap">' + topHit(snap.results[0]) + '<span class="sp-top-acts">' + acts(0) + "</span></div>";
-        const rest = snap.results.slice(1);
+        const artistTop = ui.artistTop && ui.artistsFor === ui.query ? ui.artistTop : null;
+        if (artistTop) html += '<div class="sp-label">Top result</div><div class="sp-topwrap">' + artistTopHit(artistTop) + "</div>";
+        else html += '<div class="sp-label">Top result</div><div class="sp-topwrap">' + topHit(snap.results[0]) + '<span class="sp-top-acts">' + acts(0) + "</span></div>";
+        const first = artistTop ? 0 : 1;
+        const rest = snap.results.slice(first);
+        html += artistResults();
         html += albumResults();
-        if (rest.length) html += '<div class="sp-label">Songs</div>' + rest.map((track, index) => songRow(track, index + 1, acts(index + 1))).join("");
-      } else html += albumResults();
+        if (rest.length) html += '<div class="sp-label">Songs</div>' + rest.map((track, index) => songRow(track, index + first, acts(index + first))).join("");
+      } else if (!searching) html += artistResults() + albumResults();
       (lib().folders || []).forEach(folder => {
         const kids = inFolder(folder.id);
         html += '<div class="sp-label">' + escapeHTML(folder.name || "Folder") + '</div><div class="sp-grid" data-kind="shelf" data-id="' + escapeHTML(folder.id) + '">' + (kids.length ? kids.map(albumCard).join("") : '<div class="sp-empty">Drop albums here.</div>') + '</div>';
@@ -10716,9 +11014,15 @@ function buildEntMusic(pane, api) {
       html += '<div class="sp-label">' + ((ui.albums || []).length && ui.albumsFor === ui.query ? "Your albums" : "Albums") + '</div><div class="sp-grid" data-kind="shelf" data-id="">' + (loose.length ? loose.map(albumCard).join("") : '<div class="sp-empty">Create an album, then drag it into a folder.</div>') + '</div>';
     }
     const top = main.scrollTop;
+    const wasSkel = !!main.querySelector("[data-skel]");
     main.innerHTML = html;
     if (!animate) main.scrollTop = top;
     scanExplicit(main);
+    if (main.querySelector("[data-skel]")) startLoaders(main);
+    else if (wasSkel && !animate) {
+      // Skeleton -> content: the real rows spring in one after another instead of popping.
+      veilStaggerIn(main.querySelectorAll(".sp-artist-hero, .sp-topwrap, .sp-cardwrap, .sp-artist-card, .sp-song"), "rise", { base: 0, step: 28, max: 16, bounce: 0.4, duration: 560 });
+    }
     const anime = window.anime;
     if (animate && anime && anime.animate && !motionOff()) {
       try { anime.animate(main.firstElementChild || main, { opacity: [0, 1], translateY: [14, 0], ease: veilSpring(0.46, 560) }); } catch (err) {}
@@ -10812,7 +11116,7 @@ function buildEntMusic(pane, api) {
   function signature() {
     const data = lib();
     const snap = api.snap();
-    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name + (item.cover || "").length).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || "", ui.artistYT ? ui.artistYT.name + ":" + ui.artistYT.stamp : "", ui.albumsKey || "", ui.remote ? ui.remote.src + ":" + (ui.remote.status || "") + ":" + (ui.remote.tracks || []).map(track => track.id).join(".") : ""].join("~");
+    return [ui.page, ui.albumId, ui.folderId, ui.artist, (data.folders || []).map(item => item.id + item.name + (item.cover || "").length).join("|"), (data.playlists || []).map(item => item.id + item.name + (item.cover || "").length + (item.folderId || "") + (item.tracks || []).map(track => track.id).join(".")).join("|"), (data.liked || []).map(track => track.id).join("."), (snap.results || []).map(track => track.id).join("."), (snap.artistResults || []).map(track => track.id).join("."), snap.status || "", snap.artistStatus || "", ui.artistYT ? ui.artistYT.name + ":" + ui.artistYT.stamp : "", ui.albumsKey || "", ui.artistsKey || "", ui.remote ? ui.remote.src + ":" + (ui.remote.status || "") + ":" + (ui.remote.tracks || []).map(track => track.id).join(".") : ""].join("~");
   }
   let sig = "";
   function grabFlip(scope) {
@@ -10827,6 +11131,7 @@ function buildEntMusic(pane, api) {
     scope.querySelectorAll("[data-flip]").forEach(el => {
       const old = prev.get(el.getAttribute("data-flip"));
       if (!old) return;
+      if (el.closest(".sp-kids.is-folding")) return;
       const now = el.getBoundingClientRect();
       const dx = old.left - now.left;
       const dy = old.top - now.top;
@@ -10841,9 +11146,13 @@ function buildEntMusic(pane, api) {
     paintSide();
     paintMain(animate);
     paintBar();
+    // The folder's own open/close starts first (kids pinned at 0 height when opening), so the FLIP
+    // pass measures the rows below the folder where they really are this frame. They then simply
+    // ride the folder's height spring down, instead of being measured at the fully-open spot,
+    // flung to the top and racing the folder on a separate spring (the teleport/overlap bug).
+    animateFold();
     runFlip(side, sidePrev);
     runFlip(main, mainPrev);
-    animateFold();
   }
   function animateFold() {
     const id = ui.animFold;
@@ -10903,24 +11212,27 @@ function buildEntMusic(pane, api) {
         finishClose();
       };
       try {
-        const job = anime.animate(kids, { height: [height, 0], opacity: [1, 0], ease: veilSpring(0.12, 480) });
+        kids.classList.add("is-folding");
+        const job = anime.animate(kids, { height: [height, 0], opacity: [1, 0], ease: veilSpring(0.16, 560) });
         if (job && typeof job.then === "function") job.then(end);
       } catch (err) { end(); }
-      setTimeout(end, 560);
+      setTimeout(end, 900);
       return;
     }
     kids.style.height = "0px";
+    kids.classList.add("is-folding");
     try {
-      const job = anime.animate(kids, { height: [0, height], opacity: [0, 1], ease: veilSpring(0.14, 520) });
+      const job = anime.animate(kids, { height: [0, height], opacity: [0, 1], ease: veilSpring(0.24, 620) });
       const end = () => {
         if (ui.foldToken !== token || ui.open[id] === false) return;
+        kids.classList.remove("is-folding");
         kids.style.height = "";
         kids.style.overflow = "";
         kids.style.opacity = "";
         kids.style.transform = "";
       };
       if (job && typeof job.then === "function") job.then(end);
-      setTimeout(end, 580);
+      setTimeout(end, 1100);
     } catch (err) {
       kids.style.height = "";
       kids.style.overflow = "";
@@ -10997,6 +11309,7 @@ function buildEntMusic(pane, api) {
     if (!name) return;
     ui.page = "artist";
     ui.artist = name;
+    ui.artistDescOpen = false;
     full(true);
     if (api.searchArtist) api.searchArtist(name);
     loadArtistYT(name);
@@ -11052,6 +11365,9 @@ function buildEntMusic(pane, api) {
       want.stamp += 1;
       if (ui.artistYT === want && ui.page === "artist") {
         full(false);
+        const desc = document.querySelector(".sp-artist-desc");
+        const more = document.querySelector("[data-artist-more]");
+        if (desc && more && !desc.classList.contains("is-open")) more.hidden = desc.scrollHeight <= desc.clientHeight + 2;
         if (want.avatar && !want.popped && !motionOff() && window.anime && window.anime.animate) {
           const pic = document.querySelector(".sp-artist-pfp");
           if (pic) {
@@ -11069,6 +11385,7 @@ function buildEntMusic(pane, api) {
       if (!chan) throw new Error("no channel");
       if (ui.artistYT !== want) return;
       want.title = chan.author;
+      want.found = true;
       want.avatar = ytBest(chan.authorThumbnails, 176);
       want.subs = chan.subCount || 0;
       bump();
@@ -11086,6 +11403,7 @@ function buildEntMusic(pane, api) {
         want.subs = info.subCount || want.subs;
         want.views = info.totalViews || 0;
       }
+      want.done = true;
       const rows = ((vids && (vids.videos || vids)) || []).filter(item => item && item.videoId && (item.lengthSeconds || 0) >= 60 && (item.lengthSeconds || 0) <= 720);
       rows.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
       want.popular = rows.slice(0, 10).map(item => ({
@@ -11107,7 +11425,10 @@ function buildEntMusic(pane, api) {
       bump();
     } catch (err) {
       console.warn("[Veil music] Artist page: couldn't load YouTube channel for \"" + name + "\": " + (err && err.message || err));
-      if (ui.artistYT === want) bump();
+      if (ui.artistYT === want) {
+        want.failed = true;
+        bump();
+      }
     }
   }
   let videoToken = 0;
@@ -11275,6 +11596,29 @@ function buildEntMusic(pane, api) {
       veilPPSet(topPlay, !(snap.track && snap.track.id === id && snap.playing));
       return;
     }
+    const descMore = event.target.closest("[data-artist-more]");
+    if (descMore) {
+      const desc = descMore.parentNode.querySelector(".sp-artist-desc");
+      if (!desc) return;
+      const before = desc.getBoundingClientRect().height;
+      ui.artistDescOpen = !desc.classList.contains("is-open");
+      desc.classList.toggle("is-open", ui.artistDescOpen);
+      descMore.textContent = ui.artistDescOpen ? "Less" : "More";
+      const after = desc.getBoundingClientRect().height;
+      const anime = window.anime;
+      if (!motionOff() && anime && anime.animate && Math.abs(after - before) > 1) {
+        desc.style.overflow = "hidden";
+        try {
+          anime.animate(desc, { height: [before, after], ease: veilSpring(0.3, 640), onComplete: () => { desc.style.height = ""; desc.style.overflow = ""; } });
+        } catch (err) { desc.style.height = ""; }
+      }
+      return;
+    }
+    const artistOpen = event.target.closest("[data-open-artist]");
+    if (artistOpen) {
+      openArtist(artistOpen.getAttribute("data-open-artist"));
+      return;
+    }
     if (event.target.closest("[data-top-open]")) {
       const results = api.snap().results || [];
       if (results[0]) openTrackAlbum(results[0]);
@@ -11390,6 +11734,7 @@ function buildEntMusic(pane, api) {
     }
     if (event.target.closest("[data-play-ralbum]")) {
       const tracks = (ui.remote && ui.remote.tracks) || [];
+      if (ui.remote && ui.playingFrom === "ralbum:" + ui.remote.src && api.snap().track) { api.toggle(); return; }
       if (tracks.length) {
         ui.playingFrom = "ralbum:" + ui.remote.src;
         api.play(tracks, 0);
@@ -11427,6 +11772,7 @@ function buildEntMusic(pane, api) {
     }
     if (event.target.closest("[data-play-album]")) {
       const tracks = (albumOf(ui.albumId) || {}).tracks || [];
+      if (ui.playingFrom === "album:" + ui.albumId && api.snap().track) { api.toggle(); return; }
       if (tracks.length) {
         ui.playingFrom = "album:" + ui.albumId;
         api.play(tracks, 0);
@@ -11486,6 +11832,8 @@ function buildEntMusic(pane, api) {
     ui.page = "home";
     api.search(ui.query);
     searchAlbums(ui.query);
+    searchArtists(ui.query);
+    full(false);
   });
   // Song cards grow as one piece (title, art and their like / add buttons together), like the
   // album cards, so the buttons inside a card don't also grow on their own.
@@ -11614,6 +11962,21 @@ function buildEntMusic(pane, api) {
   seek.addEventListener("input", () => api.seek(Number(seek.value) / 1000));
   dressRangeInput(seek);
   dressRangeInput(root.querySelector("[data-vol]"));
+  // Belt and braces for the play/pause icons: repaint straight from the audio element's own
+  // play/pause/ended events (capture phase, media events don't bubble), not only from the
+  // player's change feed.
+  const onMediaState = event => {
+    if (!pane.isConnected) {
+      ["play", "playing", "pause", "ended", "emptied"].forEach(kind => document.removeEventListener(kind, onMediaState, true));
+      return;
+    }
+    if (!event.target || !event.target.matches || !event.target.matches("audio[data-audio]")) return;
+    requestAnimationFrame(() => {
+      try { paintBar(); } catch (err) {}
+      try { if (window.__veilSyncDock) window.__veilSyncDock(); } catch (err) {}
+    });
+  };
+  ["play", "playing", "pause", "ended", "emptied"].forEach(kind => document.addEventListener(kind, onMediaState, true));
   const off = api.on(() => {
     if (!pane.isConnected) {
       off();
@@ -11913,7 +12276,7 @@ function showEntertainment() {
   if (title) title.textContent = "Entertainment";
   if (sw) sw.hidden = false;
   if (body && !body.querySelector("#gamesRoot")) {
-    body.innerHTML = '<div class="ent-pane on" data-pane="games"><div class="games-page" id="gamesRoot"></div></div><div class="ent-pane" data-pane="music"><div class="ent-empty"><strong>Music</strong><span>Nothing here yet.</span></div></div><div class="ent-pane" data-pane="more"><div class="ent-empty"><strong>More</strong><span>Nothing here yet.</span></div></div>';
+    body.innerHTML = '<div class="ent-pane on" data-pane="games"><div class="games-page" id="gamesRoot"></div></div><div class="ent-pane" data-pane="music"><div class="ent-empty"><strong>Music</strong><span>Nothing here yet.</span></div></div><div class="ent-pane" data-pane="drawing"><div class="ent-draw" data-draw></div></div><div class="ent-pane" data-pane="more"><div class="ent-empty"><strong>More</strong><span>Nothing here yet.</span></div></div>';
     try { renderGamesPage(body.querySelector("#gamesRoot")); } catch (err) {}
   }
   showEntPane("games");

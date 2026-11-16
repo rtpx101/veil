@@ -728,7 +728,7 @@
       return loadScript("scramjet/scramjet.all.js?v=11");
     }).then(function () {
       setBootSub("Starting Veil…");
-      return loadScript("veil-app.js?v=100");
+      return loadScript("veil-app.js?v=101");
     }).then(function () {
       window.__VEIL_ACCESS_OK = true;
       setBodyLocked(false);
@@ -1216,12 +1216,45 @@
       }
     } catch (err) {}
   }
-  function initGoogleButton(andPrompt) {
-    if (!letter2) {
+  // Google sign-in. The old flow called google.accounts.id.prompt() (One Tap) from our own button.
+  // One Tap only shows when the browser already has a Google session, third-party sign-in is
+  // allowed and the user hasn't dismissed it recently (Google then suppresses it for hours to
+  // weeks), so for many people it never opened and we fell through to "did not open". Now the
+  // official GIS button is rendered: clicking it always opens Google's account chooser in a
+  // popup (the user can sign in there), no One Tap cooldown involved. Our plain button stays as
+  // a fallback while the script loads or if Google's button can't render.
+  var gsiState = "idle";
+  function loadGsi(done) {
+    if (window.google && google.accounts && google.accounts.id) {
+      gsiState = "ready";
+      done(true);
       return;
     }
+    var waiters = loadGsi.waiters || (loadGsi.waiters = []);
+    waiters.push(done);
+    if (gsiState === "loading") return;
+    gsiState = "loading";
+    var script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    var finish = function (ok) {
+      gsiState = ok ? "ready" : "failed";
+      var list = loadGsi.waiters.splice(0);
+      for (var i = 0; i < list.length; i++) {
+        try { list[i](ok); } catch (err) {}
+      }
+    };
+    script.onload = function () { finish(!!(window.google && google.accounts && google.accounts.id)); };
+    script.onerror = function () { finish(false); };
+    document.head.appendChild(script);
+  }
+  function initGoogleButton(andPrompt) {
+    if (!letter2) {
+      return false;
+    }
     if (!window.google || !google.accounts || !google.accounts.id) {
-      return;
+      return false;
     }
     try {
       if (!code) {
@@ -1230,25 +1263,65 @@
           callback: onGoogleCredential,
           auto_select: false,
           cancel_on_tap_outside: true,
+          ux_mode: "popup",
           use_fedcm_for_prompt: true,
-          use_fedcm_for_button: true,
           itp_support: true
         });
         code = true;
       }
-      if (!andPrompt) {
+      renderOfficialGoogle();
+      if (andPrompt) {
+        google.accounts.id.prompt(function (notification) {
+          var hidden = notification && notification.isNotDisplayed && notification.isNotDisplayed();
+          if (hidden) {
+            var why = notification.getNotDisplayedReason && notification.getNotDisplayedReason();
+            try { console.warn("[Veil auth] Google One Tap not shown: " + (why || "unknown")); } catch (err) {}
+          }
+        });
+      }
+      return true;
+    } catch (err) {
+      try { console.warn("[Veil auth] Google sign-in init failed: " + (err && err.message || err)); } catch (e2) {}
+      return false;
+    }
+  }
+  function renderOfficialGoogle() {
+    var host = document.getElementById("googleSignInBtn");
+    if (!host || !window.google || !google.accounts || !google.accounts.id) return;
+    var slot = host.querySelector(".gsi-official");
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.className = "gsi-official";
+      host.insertBefore(slot, host.firstChild);
+    }
+    if (slot.getAttribute("data-rendered") === "1") return;
+    var width = Math.round(host.clientWidth || (host.parentNode && host.parentNode.clientWidth) || 320);
+    try {
+      google.accounts.id.renderButton(slot, {
+        type: "standard",
+        theme: "filled_black",
+        size: "large",
+        text: "continue_with",
+        shape: "pill",
+        logo_alignment: "left",
+        width: Math.max(220, Math.min(400, width))
+      });
+      slot.setAttribute("data-rendered", "1");
+    } catch (err) {
+      try { console.warn("[Veil auth] Google button render failed: " + (err && err.message || err)); } catch (e2) {}
+      return;
+    }
+    // Swap our fallback button out once Google's iframe is really there.
+    var tries = 0;
+    var check = function () {
+      tries += 1;
+      if (slot.querySelector("iframe, div[role=button]")) {
+        host.classList.add("has-official");
         return;
       }
-      google.accounts.id.prompt(function (notification) {
-        var skipped = notification && (notification.isSkippedMoment && notification.isSkippedMoment() || notification.isDismissedMoment && notification.isDismissedMoment());
-        var hidden = notification && notification.isNotDisplayed && notification.isNotDisplayed();
-        if (hidden || skipped) {
-          setMsg("Google sign-in did not open. Use email instead.", true, true);
-        }
-      });
-    } catch (err) {
-      setMsg("Google sign-in did not open. Use email instead.", true, true);
-    }
+      if (tries < 40) setTimeout(check, 150);
+    };
+    check();
   }
   function ensureGoogleButton() {
     var googleSignInBtn = document.getElementById("googleSignInBtn");
@@ -1256,27 +1329,20 @@
     if (!googleSignInBtn || !googleSignInWrap) {
       return;
     }
-    if (!googleSignInBtn.querySelector("button")) {
+    if (!googleSignInBtn.querySelector("button.gate-btn")) {
       var button = document.createElement("button");
       button.type = "button";
-      button.className = "gate-btn secondary";
+      button.className = "gate-btn secondary gsi-fallback";
       button.textContent = "Continue with Google";
       button.onclick = function () {
         setMsg("Opening Google sign-in…", false);
-        if (window.google && google.accounts) {
-          initGoogleButton(true);
-          return;
-        }
-        var script = document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.onload = function () {
-          initGoogleButton(true);
-        };
-        script.onerror = function () {
-          setMsg("Google sign-in did not load. Use email instead.", true, true);
-        };
-        document.head.appendChild(script);
+        loadGsi(function (ok) {
+          if (!ok || !initGoogleButton(true)) {
+            setMsg("Google sign-in could not load (blocked by the network or an extension). Use email instead.", true, true);
+            return;
+          }
+          setMsg("Use the Google button to pick your account.", false);
+        });
       };
       googleSignInBtn.appendChild(button);
     }
@@ -1286,6 +1352,9 @@
   function loadGoogleScript(value) {
     letter2 = value;
     ensureGoogleButton();
+    loadGsi(function (ok) {
+      if (ok) initGoogleButton(false);
+    });
   }
   function fetchAuthConfig() {
     return fetch(workerUrl + "/api/auth/config").then(function (value) {

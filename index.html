@@ -577,7 +577,9 @@ select.text-input,.modal-box select{
 #accessGate .pending-box p{color:#8d8d8d;font-size:13px;line-height:1.55;margin:0 0 10px}
 #accessGate .pending-hint{font-size:12px;color:#666;margin-bottom:16px!important}
 #accessGate .google-wrap{width:100%}
-#accessGate .google-btn-host{display:flex;justify-content:center;min-height:40px}
+#accessGate .google-btn-host{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40px}
+#accessGate .google-btn-host .gsi-official{display:flex;justify-content:center;width:100%;min-height:0}
+#accessGate .google-btn-host.has-official .gsi-fallback{display:none}
 #accessGate .gate-or{text-align:center;color:#666;font-size:12px;margin:4px 0 14px;position:relative}
 #accessGate .gate-or::before,#accessGate .gate-or::after{content:"";position:absolute;top:50%;width:38%;height:1px;background:#2a2a2a}
 #accessGate .gate-or::before{left:0}
@@ -892,6 +894,13 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .ent-pane .games-page{height:100%}
 .ent-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);text-align:center;padding:24px}
 .ent-empty strong{color:var(--text);font-size:18px;font-weight:720;letter-spacing:-.02em}
+.ent-pane[data-pane="drawing"]{overflow:hidden}
+.ent-draw{position:relative;width:100%;height:100%;border-radius:12px;overflow:hidden;background:#fff}
+.ent-draw-frame{position:absolute;inset:0}
+.ent-draw-frame iframe{width:100%;height:100%;border:0;display:block;transform-origin:50% 50%}
+.ent-draw-wait{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--panel,#141414);color:var(--text,#eee)}
+.ent-draw-wait b{font-size:15px}
+.ent-draw-wait small{color:var(--muted);font-size:12px}
 .ent-pane[data-pane="music"]{overflow:hidden}
 .sp{height:100%;min-height:0;display:grid;grid-template-columns:248px minmax(0,1fr) minmax(260px,320px);grid-template-rows:minmax(0,1fr) 92px;background:var(--bg);color:var(--text)}
 .sp-side{grid-column:1;grid-row:1;min-height:0;overflow:auto;background:var(--panel);border-right:1px solid var(--border);padding:14px 10px 18px}
@@ -923,6 +932,7 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .sp-hero-facts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--muted);font-size:13px}
 /* Save to library uses exactly the Play button's look (.sp-play). */
 .sp-acts .sp-play{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.sp-acts .sp-play svg.veil-pp{width:16px;height:16px;flex:0 0 16px;margin-left:-4px}
 .sp-row button > span,.sp-dock-meta{min-width:0;flex:1;overflow:hidden}
 .sp-card{min-width:0;overflow:hidden}
 .sp-card b,.sp-card small{max-width:100%}
@@ -984,6 +994,7 @@ span.sp-art{display:flex;align-items:center;justify-content:center;color:var(--m
 .sp-song{display:flex;align-items:center;gap:10px;height:64px;padding:0 8px;border-radius:8px;cursor:pointer}
 .sp-song[draggable="true"]{cursor:grab}
 .sp-song:hover,.sp-row:hover,.sp-card:hover{background:var(--bg3)}
+.sp-song,.sp-row,.sp-card,.sp-q,.sp-top,.sp-cardwrap{transition:background-color .34s cubic-bezier(.33,.9,.4,1),color .25s ease}
 .sp-song .n{width:22px;flex:0 0 22px;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .sp-song.is-on{background:var(--bg2)}
 .sp-song.is-on b,.sp-song.is-on .n{color:var(--accent)}
@@ -1008,6 +1019,12 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-dot{flex:0 0 auto;opacity:.7}
 .sp-exp{width:14px;height:14px;flex:0 0 14px;border-radius:50%;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);background:transparent;box-sizing:border-box}
 .sp-exp b{display:inline;font-style:normal;font-size:8px;font-weight:800;line-height:1;letter-spacing:-.03em;overflow:visible;white-space:normal}
+/* Round 6: the badge is drawn by a mask (filled circle with the E cut out), so the letter is
+   centred by geometry, not by whatever font the browser picked. The <b>E</b> stays for readers. */
+html body .sp-exp,html body .sp-q .sp-exp,html body .sp-top-copy .sp-exp,html body .sp-who .sp-exp{position:relative;width:14px;height:14px;flex:0 0 14px;border:0 !important;border-radius:0;background:var(--muted) !important;-webkit-mask:url("image/explicit-fill.svg") center / 14px 14px no-repeat;mask:url("image/explicit-fill.svg") center / 14px 14px no-repeat;align-self:center;vertical-align:middle;overflow:hidden}
+html body .sp-exp > b,html body .sp-q .sp-exp > b,html body .sp-top-copy .sp-exp > b,html body .sp-who .sp-exp > b{position:absolute !important;width:1px !important;height:1px !important;overflow:hidden !important;clip:rect(0 0 0 0) !important;opacity:0 !important}
+.sp-q .sp-sub{display:flex;align-items:center;gap:5px;line-height:14px}
+.sp-q .sp-sub > span{line-height:14px}
 .sp-exp[hidden]{display:none !important}
 /* Filled badge with the E knocked out in the page colour; the > b rule beats row/queue title
    styles (.sp-q > span b made the E 13px in the queue). */
@@ -1024,9 +1041,19 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-q .sp-sub{margin-top:2px}
 .sp-ico.sp-flip{transform:scaleX(-1)}
 .sp-x.on,.sp-ghost.on{color:var(--accent)}
+.sp-top-pfp{width:92px;height:92px;flex:0 0 92px;border-radius:50%;object-fit:cover;box-shadow:0 8px 22px rgba(0,0,0,.4);display:grid;place-items:center;background:#222}
+.sp-top-artist .sp-top-copy b{font-size:30px}
+.sp-artists{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.sp-artist-card{align-items:center;text-align:center}
+.sp-artist-card .sp-round{width:100%;aspect-ratio:1;height:auto;border-radius:50%;object-fit:cover}
+.sp-artist-card b,.sp-artist-card small{width:100%;text-align:center}
+.sp-artist-desc{position:relative;margin-top:8px;max-width:620px;font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.88);text-shadow:0 1px 6px rgba(0,0,0,.85);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sp-artist-desc.is-open{display:block;-webkit-line-clamp:unset;max-height:none}
+.sp-artist-more{margin-top:4px;padding:0;border:0;background:none;color:#fff;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .sp-artist-hero{position:relative;margin:-4px 0 18px;border-radius:14px;overflow:hidden;min-height:150px;display:flex;align-items:flex-end;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 30%,#141414),#141414)}
 .sp-artist-banner{position:absolute;inset:0;background-size:cover;background-position:center}
-.sp-artist-hero.has-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 20%,rgba(0,0,0,.72))}
+.sp-artist-hero.has-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.86) 100%);transition:background-color .3s}
+.sp-artist-hero.has-banner:has(.sp-artist-desc.is-open)::after{background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.88))}
 .sp-artist-id{position:relative;z-index:1;display:flex;align-items:center;gap:16px;padding:56px 18px 16px;min-width:0}
 .sp-artist-pfp{width:104px;height:104px;flex:0 0 104px;border-radius:50%;object-fit:cover;box-shadow:0 10px 28px rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.12);display:grid;place-items:center;background:#222}
 .sp-artist-text{min-width:0}
@@ -1211,6 +1238,52 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     scroll-behavior: auto !important;
   }
 }
+
+.veil-nt-host{position:fixed;right:18px;bottom:18px;z-index:2147483000;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;max-width:min(380px,calc(100vw - 36px))}
+.veil-nt{position:relative;pointer-events:auto;display:flex;align-items:flex-start;gap:11px;width:340px;max-width:100%;padding:12px 12px 14px 12px;border-radius:14px;background:color-mix(in srgb,var(--panel,#161616) 92%,transparent);border:1px solid var(--border,#2a2a2a);box-shadow:0 18px 44px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.25);color:var(--text,#eee);overflow:hidden;transform-origin:100% 100%;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:13px}
+.veil-nt-ico{width:24px;height:24px;flex:0 0 24px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;line-height:1;color:#0f0f0f;background:#9aa0a6}
+.veil-nt-ico::before{content:"i"}
+.veil-nt.is-success .veil-nt-ico{background:#3ddc84}
+.veil-nt.is-success .veil-nt-ico::before{content:"\2713"}
+.veil-nt.is-error .veil-nt-ico{background:#ff5d5d}
+.veil-nt.is-error .veil-nt-ico::before{content:"!"}
+.veil-nt.is-warn .veil-nt-ico{background:#ffc04d}
+.veil-nt.is-warn .veil-nt-ico::before{content:"!"}
+.veil-nt-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-top:2px}
+.veil-nt-body b{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.veil-nt-body span{color:var(--muted,#9a9a9a);font-size:12px;line-height:1.4;overflow-wrap:anywhere;max-height:5.6em;overflow:hidden}
+.veil-nt-x{flex:0 0 auto;width:24px;height:24px;margin:-2px -2px 0 0;border:0;border-radius:8px;background:transparent;color:var(--muted,#9a9a9a);font-size:18px;line-height:1;cursor:pointer;transition:background-color .2s,color .2s}
+.veil-nt-x:hover{background:var(--bg3,#262626);color:var(--text,#eee)}
+.veil-nt-bar{position:absolute;left:0;right:0;bottom:0;height:3px;transform-origin:0 50%;background:#9aa0a6;opacity:.75}
+.veil-nt.is-success .veil-nt-bar{background:#3ddc84}
+.veil-nt.is-error .veil-nt-bar{background:#ff5d5d}
+.veil-nt.is-warn .veil-nt-bar{background:#ffc04d}
+.veil-nt-bar[hidden]{display:none}
+
+.sp-skel{display:block}
+.sp-skel .sk{display:block;border-radius:7px;background:linear-gradient(100deg,rgba(255,255,255,.045) 30%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.045) 70%);background-size:220% 100%;animation:veilShimmer 1.25s ease-in-out infinite}
+@keyframes veilShimmer{0%{background-position:120% 0}100%{background-position:-120% 0}}
+.sp-skel .sk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.sp-skel .sk-line{height:11px}
+.sp-skel .sk-thin{height:8px;opacity:.8}
+.sp-skel .sk-big{height:24px}
+.sp-skel-row{display:flex;align-items:center;gap:10px;height:64px;padding:0 8px}
+.sp-skel-row .sk-n{width:14px;height:10px;flex:0 0 14px}
+.sp-skel-row .sk-art{width:42px;height:42px;flex:0 0 42px;border-radius:6px}
+.sp-skel-row .sk-time{width:30px;height:9px;flex:0 0 30px}
+.sp-skel-top{display:flex;align-items:center;gap:16px;padding:10px;border-radius:10px;background:rgba(255,255,255,.025);margin-bottom:6px}
+.sp-skel-top .sk-bigart{width:92px;height:92px;flex:0 0 92px;border-radius:8px}
+.sp-skel-top .sk-play{width:36px;height:36px;flex:0 0 36px;border-radius:50%}
+.sp-skel-cards{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.sp-skel-card{display:flex;flex-direction:column;gap:8px;padding:8px}
+.sp-skel-card .sk-cover{width:100%;aspect-ratio:1;border-radius:8px}
+.sp-skel-hero{display:flex;align-items:flex-end;gap:16px;min-height:150px;padding:56px 18px 16px;margin:-4px 0 18px;border-radius:14px;background:rgba(255,255,255,.03)}
+.sp-skel-hero .sk-pfp{width:104px;height:104px;flex:0 0 104px;border-radius:50%}
+.sp-loader{display:flex;align-items:center;gap:10px;margin:4px 0 12px;color:var(--muted);font-size:12px}
+.sp-loader-dots{display:inline-flex;gap:5px;align-items:flex-end;height:18px}
+.sp-loader-dots i{width:7px;height:7px;border-radius:50%;background:var(--accent);display:block;transform-origin:50% 100%}
+.sp-loader-dots i:nth-child(2){opacity:.8}
+.sp-loader-dots i:nth-child(3){opacity:.6}
 </style>
 </head>
 <body class="gate-lock booting">
@@ -1348,7 +1421,7 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js?v=11", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=100", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=101", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1460,6 +1533,7 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
       <span class="stage-pill" id="stagePill" aria-hidden="true"></span>
       <button type="button" data-ent="games" class="on">Games</button>
       <button type="button" data-ent="music">Music</button>
+      <button type="button" data-ent="drawing">Drawing</button>
       <button type="button" data-ent="more">More</button>
     </div>
   </header>
@@ -1835,6 +1909,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=100"></script>
+<script src="access-gate.js?v=101"></script>
 </body>
 </html>
