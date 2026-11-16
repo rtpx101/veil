@@ -48,7 +48,7 @@ const SCRAMJET_FILES = {
   wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
 const BAREMUX_SCRIPT = BASE + "/baremux/index.js?v=6";
-const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=6";
+const BAREMUX_WORKER = BASE + "/baremux/worker.js?v=7";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs?v=3";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
@@ -180,7 +180,53 @@ function bareWorkerInstance() {
   bareWorker.onerror = (err) => {
     console.warn("[veil] connection worker", (err && err.message) || err);
   };
+  bareWorker.onmessage = (event) => {
+    const data = event && event.data;
+    if (!data || data.type !== "veil-mux-rebuilt") return;
+    if (!data.switched || !data.wisp || typeof settings === "undefined" || !settings) return;
+    const strip = value => String(value || "").replace(/\/+$/, "");
+    const hit = allWispServers().find(value => value && strip(value.url) === strip(data.wisp));
+    if (hit && hit.id !== settings.wispId) {
+      settings.wispId = hit.id;
+      try { save(); } catch (err) {}
+      try { paintEngineStatus(); } catch (err) {}
+      try { fillWispSelect(); } catch (err) {}
+    }
+  };
   return bareWorker;
+}
+// The connection worker outlives page refreshes inside tabs, so its Wisp socket can die under it
+// (device sleep, network change, server spin-down). Tell it when the page wakes so it reconnects
+// before the next request instead of failing with MuxTaskEnded.
+(function watchMuxWake() {
+  let hiddenAt = document.hidden ? Date.now() : 0;
+  const wake = (reason, hiddenMs) => {
+    if (!bareWorker) return;
+    try { bareWorker.postMessage({ type: "veil-mux-wake", reason: reason, hiddenMs: hiddenMs || 0 }); } catch (err) {}
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      return;
+    }
+    const gap = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
+    wake("visible", gap);
+  });
+  window.addEventListener("online", () => wake("online", 0));
+  document.addEventListener("resume", () => wake("resume", 60000));
+  window.addEventListener("pageshow", event => { if (event.persisted) wake("pageshow", 60000); });
+})();
+function wispFallbacks(primary) {
+  const strip = value => String(value || "").replace(/\/+$/, "");
+  const out = [];
+  try {
+    allWispServers().forEach(value => {
+      const url = value && normalizeWispUrl(value.url);
+      if (url && strip(url) !== strip(primary) && out.indexOf(url) === -1) out.push(url);
+    });
+  } catch (err) {}
+  return out.slice(0, 4);
 }
 function mintBarePort() {
   const channel = new MessageChannel();
@@ -497,7 +543,7 @@ async function applyMuxTransport() {
       if (port && typeof port.start === "function") {
         try { port.start(); } catch (err) {}
       }
-      await muxConnection.setTransport(entry, [{ wisp: wisp, websocket: wisp }]);
+      await muxConnection.setTransport(entry, [{ wisp: wisp, websocket: wisp, veilFallbacks: wispFallbacks(wisp) }]);
       return entry;
     } catch (err) {
       lastErr = err;
@@ -1925,7 +1971,8 @@ function bindFrameEvents(value2, extra) {
         const doc = raw.contentDocument;
         const text = doc && doc.body ? doc.body.innerText : "";
         const recovering = doc && doc.querySelector("meta[name=\"veil-recover\"]");
-        if (looksLikeHyperDump(text)) {
+        if (looksLikeMuxDump(text) && healMuxDump(value2, doc)) {
+        } else if (looksLikeHyperDump(text)) {
           wipeHyperDump(doc);
           try { markScramjetError(value2.url); } catch (err) {}
           onTransportFault(value2.url);
@@ -2044,6 +2091,27 @@ async function flipTransport() {
 function looksLikeHyperDump(text) {
   const value = String(text || "");
   return /Hyper client|hyper_util::client/i.test(value) && /PROTOCOL_ERROR|http2 error/i.test(value);
+}
+function looksLikeMuxDump(text) {
+  const value = String(text || "");
+  return value.length < 20000 && /MuxTaskEnded|Multiplexor task ended/i.test(value);
+}
+// Last resort if a dead-Wisp error page still got through: rebuild the transport and reload the tab
+// once. The timestamp guard keeps a server that really is down from looping.
+function healMuxDump(tab, doc) {
+  if (!tab || !tab.url || !tab.engineFrame) return false;
+  const now = Date.now();
+  if (now - (tab.__veilMuxHealAt || 0) < 20000) return false;
+  tab.__veilMuxHealAt = now;
+  wipeHyperDump(doc);
+  try { showPageLoader(tab); } catch (err) {}
+  const frame = tab.engineFrame;
+  reconnectTransport().then(() => {
+    if (tab.engineFrame !== frame) return;
+    if (typeof frame.go === "function") return frame.go(tab.url);
+    if (typeof frame.navigate === "function") return frame.navigate(tab.url);
+  }).catch(err => console.warn("[veil] mux heal", err));
+  return true;
 }
 function rotateWisp() {
   const list = allWispServers();
