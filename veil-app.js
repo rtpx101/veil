@@ -13092,6 +13092,18 @@ async function loadGameCatalog() {
       sideNotes: "Runs in the built-in GBA emulator. Save from the in-game Start menu.",
       maturity: "E",
       difficulty: "4"
+    }, {
+      name: "Tomb of the Mask",
+      image: "image/games/small/tombofthemask.png",
+      imageLarge: "image/games/large/tombofthemask.png",
+      url: "assets/tombofthemask/tombofthemask.html",
+      category: "Arcade",
+      description: "Dash wall to wall up an endless tomb and outrun the rising flood.",
+      controls: "Arrow keys to dash in a direction.",
+      howToPlay: "Grab dots and coins, dodge traps, and keep climbing.",
+      sideNotes: "Loads about 15 MB the first time.",
+      maturity: "E",
+      difficulty: "5"
     }];
   }
   return gamesCatalog;

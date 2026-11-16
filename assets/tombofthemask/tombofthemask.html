@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="assets/" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>Tomb of the Mask</title>
+<link rel="icon" href="data:,">
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #231f20;
+}
+#gameContainer {
+  position: fixed;
+  inset: 0;
+}
+#gameContainer canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}
+#veil-tomb-cover {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+#veil-tomb-cover.on {
+  opacity: 1;
+  transition: none;
+}
+#veil-tomb-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, 70vw);
+  height: 14px;
+  border: 2px solid #fdd835;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+}
+#veil-tomb-progress {
+  width: 0%;
+  height: 100%;
+  background: #fdd835;
+  transition: width 0.25s ease;
+}
+#veil-tomb-error {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(480px, 86vw);
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #eee;
+  font: 14px/1.45 system-ui, sans-serif;
+  text-align: center;
+  display: none;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+<div id="gameContainer"></div>
+<div id="veil-tomb-cover"></div>
+<div id="veil-tomb-loading"><div id="veil-tomb-progress"></div></div>
+<div id="veil-tomb-error"></div>
+<script>
+(function () {
+  function external(url) {
+    try {
+      var target = new URL(url instanceof Request ? url.url : String(url), location.href);
+      return /^(https?|wss?):$/.test(target.protocol) && target.origin !== location.origin;
+    } catch (error) {
+      return false;
+    }
+  }
+  function local(url) {
+    try {
+      var target = new URL(url instanceof Request ? url.url : String(url), location.href);
+      if (target.host === "dl.dropboxusercontent.com" && /portConfig\.json$/.test(target.pathname)) return new URL("Build/portConfig.json", document.baseURI).href;
+    } catch (error) {}
+    return null;
+  }
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    var mapped = local(input);
+    if (mapped) return nativeFetch(mapped, init);
+    if (external(input)) return Promise.resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
+    return nativeFetch(input, init);
+  };
+  var nativeOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    var args = Array.prototype.slice.call(arguments);
+    var mapped = local(url);
+    if (mapped) args[1] = mapped;
+    else if (external(url)) args[1] = "data:application/json,{}";
+    return nativeOpen.apply(this, args);
+  };
+  var NativeSocket = window.WebSocket;
+  window.WebSocket = function (url, protocols) {
+    if (external(String(url).replace(/^ws/, "http"))) throw new Error("blocked");
+    return protocols === undefined ? new NativeSocket(url) : new NativeSocket(url, protocols);
+  };
+  window.WebSocket.prototype = NativeSocket.prototype;
+  if (navigator.sendBeacon) navigator.sendBeacon = function (url, data) { return external(url) ? true : Navigator.prototype.sendBeacon.call(navigator, url, data); };
+  var nativeAppend = Node.prototype.appendChild, nativeInsert = Node.prototype.insertBefore;
+  function blockedScript(node) {
+    return node && node.tagName === "SCRIPT" && node.src && external(node.src);
+  }
+  Node.prototype.appendChild = function (node) { return blockedScript(node) ? node : nativeAppend.call(this, node); };
+  Node.prototype.insertBefore = function (node, ref) { return blockedScript(node) ? node : nativeInsert.call(this, node, ref); };
+  window.open = function () { return null; };
+  var addListener = window.addEventListener;
+  window.addEventListener = function (type) {
+    if (type === "blur" || type === "focus") return;
+    return addListener.apply(this, arguments);
+  };
+  window.alert = function (message) { if (window.veilTombError) window.veilTombError(message); };
+})();
+var veilMissing = null;
+(function () {
+  ["log", "warn", "error"].forEach(function (level) {
+    var original = console[level].bind(console);
+    console[level] = function (first) {
+      if (typeof first === "string" && /^SendMessage: object .* (not found!|does not have receiver)/.test(first)) {
+        veilMissing = first;
+        return;
+      }
+      return original.apply(console, arguments);
+    };
+  });
+})();
+var veilAutoContinue = [
+  "Main Camera/Canvas/SaveGame(Clone)/BtnSaveVideo",
+  "Main Camera/Canvas/StageDefeat(Clone)/LeftNode/BtnVideo",
+  "Main Camera/Canvas/StageDefeatSub(Clone)/LeftNode/BtnVideo"
+];
+var veilToasts = ["Garter_Notification(Clone)", "Garter_Notification"];
+var veilReady = false;
+var veilCover = null;
+var veilCoverTimer = null;
+function veilSend(target, method) {
+  veilMissing = null;
+  try { window.gameInstance.SendMessage(target, method); } catch (error) { return false; }
+  return veilMissing === null;
+}
+function veilContinued() {
+  veilCover.classList.add("on");
+  clearTimeout(veilCoverTimer);
+  veilCoverTimer = setTimeout(function () { veilCover.classList.remove("on"); }, 700);
+  [60, 200, 400, 700, 1000, 1500].forEach(function (delay) {
+    setTimeout(function () { veilToasts.forEach(function (name) { veilSend(name, "HideText"); }); }, delay);
+  });
+}
+setInterval(function () {
+  if (!veilReady || !window.gameInstance || document.hidden) return;
+  for (var i = 0; i < veilAutoContinue.length; i++) {
+    if (veilSend(veilAutoContinue[i], "Press")) { veilContinued(); break; }
+  }
+}, 40);
+var loadingBar = document.querySelector("#veil-tomb-loading");
+veilCover = document.querySelector("#veil-tomb-cover");
+var progressBar = document.querySelector("#veil-tomb-progress");
+var errorBox = document.querySelector("#veil-tomb-error");
+window.veilTombError = function (message) {
+  loadingBar.style.display = "none";
+  errorBox.textContent = "Tomb of the Mask couldn't start: " + String(message && message.message || message || "unknown error");
+  errorBox.style.display = "block";
+};
+function onProgress(instance, progress) {
+  if (progress === "complete") progress = 1;
+  progressBar.style.width = Math.round(100 * progress) + "%";
+  if (progress >= 1) setTimeout(function () { loadingBar.style.display = "none"; }, 300);
+}
+var script = document.createElement("script");
+script.src = "Build/UnityLoader.js";
+script.onerror = function () { window.veilTombError("the loader script is missing"); };
+script.onload = function () {
+  window.gameInstance = UnityLoader.instantiate("gameContainer", "Build/totm.json", {
+    onProgress: onProgress,
+    Module: {
+      onRuntimeInitialized: function () {
+        onProgress(window.gameInstance, "complete");
+        setTimeout(function () { veilReady = true; }, 1500);
+      }
+    }
+  });
+};
+document.body.appendChild(script);
+document.addEventListener("pointerdown", function () {
+  var canvas = document.querySelector("#gameContainer canvas");
+  if (canvas) { canvas.setAttribute("tabindex", "-1"); canvas.focus(); }
+});
+</script>
+</body>
+</html>
