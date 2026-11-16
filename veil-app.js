@@ -10167,7 +10167,7 @@ function mountEntMusic(pane) {
   });
 }
 function buildEntMusic(pane, api) {
-  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: {}, query: "", cover: "", animFold: "", foldDir: "", foldAt: {}, lines: [], line: -1, lyricFor: "", videoWasPlaying: false, explicit: {} };
+  const ui = { page: "home", albumId: "", folderId: "", artist: "", open: (() => { try { const saved = JSON.parse(localStorage.getItem("veil_music_folds") || "{}"); return saved && typeof saved === "object" ? saved : {}; } catch (err) { return {}; } })(), folding: {}, query: "", cover: "", animFold: "", foldDir: "", foldAt: {}, lines: [], line: -1, lyricFor: "", videoWasPlaying: false, explicit: {} };
   function iconCss(file) {
     return encodeURI(IMG + file).replace(/\(/g, "%28").replace(/\)/g, "%29");
   }
@@ -10620,7 +10620,14 @@ function buildEntMusic(pane, api) {
     const icon = btn.querySelector(".sp-ico") || btn;
     try {
       if (btn._veilPop && btn._veilPop.cancel) btn._veilPop.cancel();
-      btn._veilPop = anime.animate(icon, ring ? { scale: [0.55, 1], rotate: [-14, 0], ease: veilSpring(0.55, 760) } : { scale: [0.7, 1], rotate: [-90, 0], ease: veilSpring(0.5, 700) });
+      // It eases down from where the heart is (no jump to a small size), then rises back on a
+      // softer, longer, well-damped spring: still a clear jiggle, just not a snap.
+      const dip = ring ? { scale: 0.8, rotate: -10 } : { scale: 0.86, rotate: -8 };
+      const back = veilSpring(0.34, 980);
+      btn._veilPop = anime.animate(icon, {
+        scale: [{ to: dip.scale, duration: 190, ease: "outQuad" }, { to: 1, ease: back }],
+        rotate: [{ to: dip.rotate, duration: 190, ease: "outQuad" }, { to: 0, ease: back }]
+      });
     } catch (err) {}
     if (ring) {
       btn.classList.remove("is-ring");
@@ -10966,11 +10973,22 @@ function buildEntMusic(pane, api) {
   function paintSide() {
     const data = lib();
     let html = '<button type="button" class="sp-nav sp-nav-home' + (ui.page === "home" ? " on" : "") + '" data-go="home">' + ico("home.svg") + '<span>Home</span></button><button type="button" class="sp-nav sp-nav-liked' + (ui.page === "liked" ? " on" : "") + '" data-go="liked">' + ico("heart.svg") + '<span>Liked songs</span></button><div class="sp-tools"><button type="button" class="sp-make" data-make aria-label="Create" title="Create" aria-haspopup="menu">' + ico("plus.svg") + '</button><div class="sp-make-menu" data-make-menu role="menu" hidden><button type="button" role="menuitem" data-new="album">' + ico("music_default.svg") + '<span>Album</span></button><button type="button" role="menuitem" data-new="folder">' + ico("folder.svg") + '<span>Folder</span></button></div></div><div class="sp-label">Library</div>';
+    // A folder that is mid-fold keeps its live kids and chevron nodes through the repaint, so a
+    // repaint that lands while it springs open or shut can't snap it to the other state.
+    const live = {};
+    side.querySelectorAll("[data-kids]").forEach(el => {
+      const id = el.getAttribute("data-kids");
+      if (ui.folding[id]) live[id] = { kids: el };
+    });
+    side.querySelectorAll("[data-fold]").forEach(el => {
+      const id = el.getAttribute("data-fold");
+      if (ui.folding[id]) (live[id] = live[id] || {}).chev = el.querySelector(".sp-chev");
+    });
     (data.folders || []).forEach(item => {
       const open = ui.open[item.id] !== false;
-      const closing = ui.animFold === item.id && ui.foldDir === "close";
-      const opening = ui.animFold === item.id && ui.foldDir !== "close";
-      const shown = (open && !opening) || closing;
+      const closing = !open && (!!ui.folding[item.id] || (ui.animFold === item.id && ui.foldDir === "close"));
+      const opening = open && ui.animFold === item.id;
+      const shown = (open && !opening) || (closing && ui.animFold === item.id);
       const shut = !(open || closing);
       html += '<div class="sp-folder' + (shut ? " is-shut" : "") + '"><div class="sp-row' + (ui.page === "folder" && ui.folderId === item.id ? " on" : "") + '" draggable="true" data-kind="folder" data-flip="f' + escapeHTML(item.id) + '" data-id="' + escapeHTML(item.id) + '"><button type="button" class="sp-x sp-fold' + (shown ? " open" : "") + '" data-fold="' + escapeHTML(item.id) + '" aria-label="' + (open ? "Collapse" : "Expand") + '"><span class="sp-ico sp-chev" style="--ico:url(' + iconCss("expand.svg") + ");transform:rotate(" + (shown ? 90 : 0) + 'deg)"></span></button><button type="button" data-open-folder="' + escapeHTML(item.id) + '">' + art(item.cover) + '<span><b>' + escapeHTML(item.name || "Folder") + '</b><small>' + albumsInCount(item.id) + '</small></span></button></div>';
       if (open || closing) html += '<div class="sp-kids" data-kids="' + escapeHTML(item.id) + '">' + inFolder(item.id).map(albumRow).join("") + '</div>';
@@ -10979,6 +10997,17 @@ function buildEntMusic(pane, api) {
     html += inFolder("").map(albumRow).join("");
     if (!(data.playlists || []).length && !(data.folders || []).length) html += '<div class="sp-empty">No albums yet.</div>';
     side.innerHTML = html;
+    Object.keys(live).forEach(id => {
+      const keep = live[id];
+      if (keep.kids) side.querySelectorAll("[data-kids]").forEach(el => { if (el.getAttribute("data-kids") === id && el !== keep.kids) el.replaceWith(keep.kids); });
+      if (keep.chev) side.querySelectorAll("[data-fold]").forEach(el => {
+        const chev = el.getAttribute("data-fold") === id && el.querySelector(".sp-chev");
+        if (chev && chev !== keep.chev) chev.replaceWith(keep.chev);
+      });
+    });
+  }
+  function saveFolds() {
+    try { localStorage.setItem("veil_music_folds", JSON.stringify(ui.open)); } catch (err) {}
   }
   // The single + in the library opens a small chooser (Album / Folder) that springs out of it.
   function toggleMakeMenu(menu, open) {
@@ -11303,83 +11332,63 @@ function buildEntMusic(pane, api) {
     if (!id) return;
     ui.animFold = "";
     ui.foldDir = "";
-    const token = (ui.foldToken || 0) + 1;
-    ui.foldToken = token;
+    const token = (ui.folding[id] || 0) + 1;
     let kids = null;
     let btn = null;
-    side.querySelectorAll("[data-kids]").forEach(el => {
-      if (el.getAttribute("data-kids") === id) kids = el;
-    });
-    side.querySelectorAll("[data-fold]").forEach(el => {
-      if (el.getAttribute("data-fold") === id) btn = el;
-    });
+    side.querySelectorAll("[data-kids]").forEach(el => { if (el.getAttribute("data-kids") === id) kids = el; });
+    side.querySelectorAll("[data-fold]").forEach(el => { if (el.getAttribute("data-fold") === id) btn = el; });
     const chev = btn && btn.querySelector(".sp-chev");
     const anime = window.anime;
-    const finishClose = () => {
-      ui.open[id] = false;
-      side.querySelectorAll("[data-kids]").forEach(el => {
-        if (el.getAttribute("data-kids") === id) el.remove();
-      });
-      if (kids) {
-        kids.style.display = "none";
-        if (kids.parentNode) kids.remove();
+    const current = () => ui.folding[id] === token;
+    const settle = () => {
+      if (!current()) return;
+      delete ui.folding[id];
+      const box = side.querySelector('[data-kids="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+      const fold = side.querySelector('[data-fold="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+      const folder = fold && fold.closest(".sp-folder");
+      const chevNow = fold && fold.querySelector(".sp-chev");
+      if (ui.open[id] === false) {
+        if (box) box.remove();
+        if (folder) folder.classList.add("is-shut");
+        if (chevNow) chevNow.style.transform = "rotate(0deg)";
+      } else {
+        if (box) {
+          box.classList.remove("is-folding");
+          ["height", "overflow", "opacity", "transform", "border", "boxShadow"].forEach(key => { box.style[key] = ""; });
+        }
+        if (folder) folder.classList.remove("is-shut");
+        if (chevNow) chevNow.style.transform = "rotate(90deg)";
       }
-      if (chev) chev.style.transform = "rotate(0deg)";
-      const folder = btn && btn.closest(".sp-folder");
-      if (folder) folder.classList.add("is-shut");
     };
-    if (motionOff() || !anime || !anime.animate) {
-      if (dir === "close") finishClose();
+    if (kids && kids._veilFold) { try { kids._veilFold.cancel(); } catch (err) {} }
+    if (chev && chev._veilFold) { try { chev._veilFold.cancel(); } catch (err) {} }
+    ui.folding[id] = token;
+    if (motionOff() || !anime || !anime.animate || !kids) {
+      settle();
       return;
     }
+    // Each fold starts from wherever the folder is right now, so reversing mid-way glides back.
+    const rot = chev ? (parseFloat((/rotate\(([-\d.]+)deg\)/.exec(chev.style.transform || "") || [])[1]) || (dir === "close" ? 90 : 0)) : 0;
     if (chev) {
-      try { anime.animate(chev, { rotate: dir === "close" ? [90, 0] : [0, 90], ease: veilSpring(0.22, 520) }); } catch (err) {}
+      try { chev._veilFold = anime.animate(chev, { rotate: [rot, dir === "close" ? 0 : 90], ease: veilSpring(0.22, 520) }); } catch (err) {}
     }
-    if (!kids) {
-      if (dir === "close") ui.open[id] = false;
-      return;
-    }
+    const from = kids.classList.contains("is-folding") ? kids.getBoundingClientRect().height : (dir === "close" ? kids.scrollHeight : 0);
+    const fromOpacity = kids.classList.contains("is-folding") ? parseFloat(getComputedStyle(kids).opacity) || 0 : (dir === "close" ? 1 : 0);
     kids.style.overflow = "hidden";
     kids.style.border = "0";
     kids.style.boxShadow = "none";
-    const height = kids.scrollHeight || 0;
-    if (dir === "close") {
-      if (height < 8) {
-        finishClose();
-        return;
-      }
-      let done = false;
-      const end = () => {
-        if (done || ui.foldToken !== token) return;
-        done = true;
-        finishClose();
-      };
-      try {
-        kids.classList.add("is-folding");
-        const job = anime.animate(kids, { height: [height, 0], opacity: [1, 0], ease: veilSpring(0.16, 560) });
-        if (job && typeof job.then === "function") job.then(end);
-      } catch (err) { end(); }
-      setTimeout(end, 900);
+    kids.classList.add("is-folding");
+    kids.style.height = from + "px";
+    const to = dir === "close" ? 0 : kids.scrollHeight;
+    if (dir === "close" && from < 8) {
+      settle();
       return;
     }
-    kids.style.height = "0px";
-    kids.classList.add("is-folding");
     try {
-      const job = anime.animate(kids, { height: [0, height], opacity: [0, 1], ease: veilSpring(0.24, 620) });
-      const end = () => {
-        if (ui.foldToken !== token || ui.open[id] === false) return;
-        kids.classList.remove("is-folding");
-        kids.style.height = "";
-        kids.style.overflow = "";
-        kids.style.opacity = "";
-        kids.style.transform = "";
-      };
-      if (job && typeof job.then === "function") job.then(end);
-      setTimeout(end, 1100);
-    } catch (err) {
-      kids.style.height = "";
-      kids.style.overflow = "";
-    }
+      kids._veilFold = anime.animate(kids, { height: [from, to], opacity: [fromOpacity, dir === "close" ? 0 : 1], ease: dir === "close" ? veilSpring(0.16, 560) : veilSpring(0.24, 620) });
+      if (kids._veilFold && typeof kids._veilFold.then === "function") kids._veilFold.then(settle);
+    } catch (err) {}
+    setTimeout(settle, dir === "close" ? 900 : 1100);
   }
   function askName(title, value, withCover, onOk, onDelete) {
     const old = document.querySelector(".sp-modal");
@@ -11778,12 +11787,15 @@ function buildEntMusic(pane, api) {
     if (fold) {
       const id = fold.getAttribute("data-fold");
       const now = Date.now();
-      if (ui.foldAt[id] && now - ui.foldAt[id] < 560) return;
+      if (ui.foldAt[id] && now - ui.foldAt[id] < 220) return;
       ui.foldAt[id] = now;
+      // The open state flips right away, so a repaint or a second click mid-animation always
+      // sees where the folder is heading, never where it was.
       const opening = ui.open[id] === false;
+      ui.open[id] = opening;
+      saveFolds();
       ui.animFold = id;
       ui.foldDir = opening ? "open" : "close";
-      if (opening) ui.open[id] = true;
       full(false);
       return;
     }
@@ -11800,7 +11812,9 @@ function buildEntMusic(pane, api) {
     if (openFolder && !event.target.closest("[data-edit-folder]")) {
       ui.page = "folder";
       ui.folderId = openFolder.getAttribute("data-open-folder");
+      if (ui.open[ui.folderId] === false && !ui.folding[ui.folderId]) { ui.animFold = ui.folderId; ui.foldDir = "open"; }
       ui.open[ui.folderId] = true;
+      saveFolds();
       full(true);
       return;
     }
@@ -12928,7 +12942,7 @@ on("signOutBtn", () => {
     location.reload();
   }
 });
-const GAMES_CATS = ["Sports", "Adventure", "Sandbox", "Casual", "Idle", "Racing", "Arcade", "FNF", "Emulators"];
+const GAMES_CATS = ["Sports", "Adventure", "Horror", "Sandbox", "Casual", "Idle", "Racing", "Arcade", "FNF", "Emulators"];
 let gamesCatalog = [];
 let gamesUserData = {
   favorites: [],
@@ -13028,6 +13042,18 @@ async function loadGameCatalog() {
       sideNotes: "Placeholder until full game-data is deployed.",
       maturity: "E",
       difficulty: "3"
+    }, {
+      name: "Granny",
+      image: "image/games/small/granny.png",
+      imageLarge: "image/games/large/granny.png",
+      url: "assets/granny/granny.html",
+      category: "Horror",
+      description: "Escape Granny's house in five days without making a sound.",
+      controls: "WASD to move, mouse to look, click to interact.",
+      howToPlay: "Find the items that unlock the exit and hide when Granny comes.",
+      sideNotes: "Loads about 70 MB the first time. Contains jumpscares.",
+      maturity: "T",
+      difficulty: "6"
     }];
   }
   return gamesCatalog;
@@ -13385,7 +13411,7 @@ async function renderGamesPage(value3) {
   });
   try { if (skelDots && skelDots.pause) skelDots.pause(); } catch (err) {}
   if (!value3.isConnected) return;
-  const handler = ["cookieclicker", "minecraft", "escaperoad", "retrobowl", "basketrandom"];
+  const handler = ["cookieclicker", "granny", "minecraft", "escaperoad", "retrobowl", "basketrandom"];
   const nodes = {};
   gamesCatalog.forEach(value => {
     nodes[gameSlug(value.name)] = value;

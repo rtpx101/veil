@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="assets/" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>Granny</title>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+#veil-granny {
+  position: fixed;
+  inset: 0;
+}
+#veil-granny-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000;
+  outline: none;
+}
+#veil-granny-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(400px, 70vw);
+  height: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid #fff;
+  border-radius: 10px;
+  overflow: hidden;
+}
+#veil-granny-progress {
+  width: 0%;
+  height: 100%;
+  background: #4caf50;
+  border-radius: 8px;
+  transition: width 0.3s ease;
+}
+#veil-granny-error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(480px, 86vw);
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #eee;
+  font: 14px/1.45 system-ui, sans-serif;
+  text-align: center;
+  display: none;
+}
+#veil-granny-banner {
+  position: absolute;
+  left: 50%;
+  top: 5%;
+  transform: translateX(-50%);
+  font: 13px/1.4 system-ui, sans-serif;
+  display: none;
+}
+#veil-granny-banner div {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  color: #111;
+  background: #ffd54f;
+}
+</style>
+</head>
+<body>
+<div id="veil-granny">
+  <canvas id="veil-granny-canvas" tabindex="-1"></canvas>
+  <div id="veil-granny-loading"><div id="veil-granny-progress"></div></div>
+  <div id="veil-granny-banner"></div>
+  <div id="veil-granny-error"></div>
+</div>
+<script>
+(function () {
+  function external(url) {
+    try {
+      var target = new URL(url instanceof Request ? url.url : String(url), location.href);
+      return /^https?:$/.test(target.protocol) && target.origin !== location.origin;
+    } catch (error) {
+      return false;
+    }
+  }
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    if (external(input)) return Promise.resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
+    return nativeFetch(input, init);
+  };
+  var nativeOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    var args = Array.prototype.slice.call(arguments);
+    if (external(url)) args[1] = "data:application/json,{}";
+    return nativeOpen.apply(this, args);
+  };
+  if (navigator.sendBeacon) navigator.sendBeacon = function (url, data) { return external(url) ? true : Navigator.prototype.sendBeacon.call(navigator, url, data); };
+})();
+var canvas = document.querySelector("#veil-granny-canvas");
+var loadingBar = document.querySelector("#veil-granny-loading");
+var progressBar = document.querySelector("#veil-granny-progress");
+var banner = document.querySelector("#veil-granny-banner");
+var errorBox = document.querySelector("#veil-granny-error");
+var buildUrl = "Build";
+var veilGranny = null;
+
+function showError(message) {
+  loadingBar.style.display = "none";
+  errorBox.textContent = "Granny couldn't start: " + String(message && message.message || message || "unknown error");
+  errorBox.style.display = "block";
+}
+
+window.veilGrannyError = showError;
+
+function showBanner(message, type) {
+  if (type === "error") {
+    showError(message);
+    return;
+  }
+  var line = document.createElement("div");
+  line.textContent = message;
+  banner.appendChild(line);
+  banner.style.display = "block";
+  setTimeout(function () {
+    line.remove();
+    if (!banner.children.length) banner.style.display = "none";
+  }, 5000);
+}
+
+async function mergeParts(prefix, parts, extension, from, to) {
+  var buffers = [];
+  for (var i = 1; i <= parts; i++) {
+    var url = buildUrl + "/" + prefix + "_part" + i + "." + extension;
+    var response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to load " + url + " (" + response.status + ")");
+    buffers.push(await response.arrayBuffer());
+    progressBar.style.width = (from + (to - from) * i / parts) + "%";
+  }
+  var total = buffers.reduce(function (sum, buffer) { return sum + buffer.byteLength; }, 0);
+  var merged = new Uint8Array(total);
+  var offset = 0;
+  buffers.forEach(function (buffer) {
+    merged.set(new Uint8Array(buffer), offset);
+    offset += buffer.byteLength;
+  });
+  return merged;
+}
+
+async function start() {
+  try {
+    var data = await mergeParts("Granny", 2, "data", 0, 40);
+    var wasm = await mergeParts("Granny", 2, "wasm", 40, 80);
+    var config = {
+      dataUrl: URL.createObjectURL(new Blob([data], { type: "application/octet-stream" })),
+      frameworkUrl: buildUrl + "/Granny.framework.js",
+      codeUrl: URL.createObjectURL(new Blob([wasm], { type: "application/wasm" })),
+      streamingAssetsUrl: new URL("StreamingAssets", document.baseURI).href,
+      companyName: "Veil",
+      productName: "Granny",
+      productVersion: "1.0",
+      showBanner: showBanner
+    };
+    var script = document.createElement("script");
+    script.src = buildUrl + "/Granny.loader.js";
+    script.onerror = function () { showError("the loader script is missing"); };
+    script.onload = function () {
+      createUnityInstance(canvas, config, function (progress) {
+        progressBar.style.width = (80 + 20 * progress) + "%";
+      }).then(function (instance) {
+        veilGranny = instance;
+        window.myGameInstance = instance;
+        loadingBar.style.display = "none";
+        canvas.focus();
+      }).catch(showError);
+    };
+    document.body.appendChild(script);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+canvas.addEventListener("pointerdown", function () { canvas.focus(); });
+start();
+</script>
+</body>
+</html>
