@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="assets/" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>FNAF</title>
+<link rel="icon" href="data:,">
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#MMFCanvas {
+  display: block;
+  outline: none;
+  background: #000;
+}
+#veil-fnaf-error {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(480px, 86vw);
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #eee;
+  font: 14px/1.45 system-ui, sans-serif;
+  text-align: center;
+  display: none;
+  z-index: 2;
+}
+</style>
+</head>
+<body>
+<canvas id="MMFCanvas" width="1280" height="720" tabindex="-1"></canvas>
+<div id="veil-fnaf-error"></div>
+<script>
+(function () {
+  function external(url) {
+    try {
+      var target = new URL(url instanceof Request ? url.url : String(url), location.href);
+      return /^https?:$/.test(target.protocol) && target.origin !== location.origin;
+    } catch (error) {
+      return false;
+    }
+  }
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    if (external(input)) return Promise.resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
+    return nativeFetch(input, init);
+  };
+  var nativeOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    var args = Array.prototype.slice.call(arguments);
+    if (external(url)) args[1] = "data:application/json,{}";
+    return nativeOpen.apply(this, args);
+  };
+  if (navigator.sendBeacon) navigator.sendBeacon = function (url, data) { return external(url) ? true : Navigator.prototype.sendBeacon.call(navigator, url, data); };
+  window.open = function () { return null; };
+  window.alert = function (message) { if (window.veilFnafError) window.veilFnafError(message); };
+})();
+var canvas = document.querySelector("#MMFCanvas");
+var errorBox = document.querySelector("#veil-fnaf-error");
+window.veilFnafError = function (message) {
+  errorBox.textContent = "FNAF couldn't start: " + String(message && message.message || message || "unknown error");
+  errorBox.style.display = "block";
+};
+window.addEventListener("error", function (event) {
+  if (!window.veilFnaf) window.veilFnafError(event.message);
+});
+function fit(app) {
+  app.gaFlags |= 0x0010 | 0x0004;
+  app.dwOptions |= 0x0001;
+  app.scaleX = app.scaleY = -1;
+  app.resizeCanvas();
+}
+var script = document.createElement("script");
+script.src = "Runtime.js";
+script.onerror = function () { window.veilFnafError("the runtime script is missing"); };
+script.onload = function () {
+  try {
+    window.veilFnaf = new Runtime("MMFCanvas", "resources/FNAF1HTML5.cch");
+    var tries = 0;
+    var wait = setInterval(function () {
+      var app = window.veilFnaf && window.veilFnaf.application;
+      if (app && app.context && app.gaCxWin) {
+        clearInterval(wait);
+        fit(app);
+        window.addEventListener("resize", function () { app.scaleX = app.scaleY = -1; fit(app); });
+      } else if (++tries > 600) {
+        clearInterval(wait);
+      }
+    }, 50);
+  } catch (error) {
+    window.veilFnafError(error);
+  }
+};
+document.head.appendChild(script);
+canvas.addEventListener("pointerdown", function () { canvas.focus(); });
+</script>
+</body>
+</html>

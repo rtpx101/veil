@@ -13068,6 +13068,18 @@ async function loadGameCatalog() {
       sideNotes: "Loads about 70 MB the first time. Contains jumpscares.",
       maturity: "T",
       difficulty: "6"
+    }, {
+      name: "FNAF",
+      image: "image/games/small/fnaf.png",
+      imageLarge: "image/games/large/fnaf.png",
+      url: "assets/fnaf/fnaf.html",
+      category: "Horror",
+      description: "Survive five nights as the night guard at Freddy Fazbear's Pizza.",
+      controls: "Mouse only: doors, lights, and the camera monitor.",
+      howToPlay: "Watch the cameras, shut the doors in time, and save power until 6 AM.",
+      sideNotes: "Loads about 160 MB the first time. Contains jumpscares.",
+      maturity: "T",
+      difficulty: "7"
     }];
   }
   return gamesCatalog;
@@ -13770,7 +13782,7 @@ function openGamePlayer(game) {
       '</div>' +
       '<div class="game-player-frame gp-stage" id="gameStage">' +
         '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe>' +
-        '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(largeThumb(game) || smallThumb(game)) + '" alt="" onerror="this.src=\'' + escapeHTML(smallThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
+        '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(largeThumb(game) || smallThumb(game)) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeHTML(smallThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
         '<div class="gp-error" data-gp-error hidden><div class="gp-error-card"><b>This game couldn\u2019t load</b><span data-gp-error-text>The game files aren\u2019t available right now.</span><button type="button" class="gp-retry" data-gp="reload">Try again</button></div></div>' +
       '</div>' +
     '</div>' +
