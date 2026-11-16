@@ -1443,6 +1443,7 @@ var unityFramework = (() => {
 
             function _JS_Log_Dump(ptr, type) {
                 var str = UTF8ToString(ptr);
+                if (type === 2 && /^[^\x00-\x7f]+: \d+\s*$/.test(str)) veilSkipAdAsk();
                 if (typeof dump == "function") dump(str);
                 switch (type) {
                     case 0:
@@ -2825,7 +2826,27 @@ var unityFramework = (() => {
                 requestOptions.timeout = timeout
             }
 
-            var veilAdHits = (typeof window !== "undefined" && (window.veilAdHits = window.veilAdHits || { device: 0, interstitial: 0, rewarded: 0 })) || { device: 0, interstitial: 0, rewarded: 0 };
+            var veilAdHits = (typeof window !== "undefined" && (window.veilAdHits = window.veilAdHits || { device: 0, interstitial: 0, rewarded: 0, skipped: 0 })) || { device: 0, interstitial: 0, rewarded: 0, skipped: 0 };
+
+            function veilCover(on) {
+                try {
+                    if (typeof window !== "undefined" && window.veilGrannyCover) window.veilGrannyCover(on)
+                } catch (e) {}
+            }
+
+            function veilPress(path) {
+                setTimeout(function() {
+                    try {
+                        SendMessage(path, "Press")
+                    } catch (e) {}
+                }, 0)
+            }
+
+            function veilSkipAdAsk() {
+                veilAdHits.skipped++;
+                veilCover(true);
+                veilPress("/YandexAdManager/CanvasAds/Back/ResumeButton")
+            }
 
             function veilAdSend(method, value) {
                 setTimeout(function() {
@@ -2848,7 +2869,11 @@ var unityFramework = (() => {
             function _Yandex_ShowRewarded(value) {
                 veilAdHits.rewarded++;
                 veilAdSend("MY_AdOpenedSuccess");
-                veilAdSend("MY_GetAward", value)
+                veilAdSend("MY_GetAward", value);
+                veilPress("/YandexAdManager/CanvasPause2/InGameOptionMenu/ResumeButton");
+                setTimeout(function() {
+                    veilCover(false)
+                }, 250)
             }
 
             function ___cxa_allocate_exception(size) {

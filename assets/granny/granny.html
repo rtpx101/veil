@@ -27,6 +27,18 @@ html, body {
   background: #000;
   outline: none;
 }
+#veil-granny-cover {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+#veil-granny-cover.on {
+  opacity: 1;
+  transition: none;
+}
 #veil-granny-loading {
   position: absolute;
   top: 50%;
@@ -81,6 +93,7 @@ html, body {
 <body>
 <div id="veil-granny">
   <canvas id="veil-granny-canvas" tabindex="-1"></canvas>
+  <div id="veil-granny-cover"></div>
   <div id="veil-granny-loading"><div id="veil-granny-progress"></div></div>
   <div id="veil-granny-banner"></div>
   <div id="veil-granny-error"></div>
@@ -124,6 +137,14 @@ function showError(message) {
 
 window.veilGrannyError = showError;
 
+var cover = document.querySelector("#veil-granny-cover");
+var coverTimer = 0;
+window.veilGrannyCover = function (on) {
+  clearTimeout(coverTimer);
+  cover.classList.toggle("on", !!on);
+  if (on) coverTimer = setTimeout(function () { cover.classList.remove("on"); }, 3000);
+};
+
 function showBanner(message, type) {
   if (type === "error") {
     showError(message);
@@ -164,7 +185,7 @@ async function start() {
     var wasm = await mergeParts("Granny", 2, "wasm", 40, 80);
     var config = {
       dataUrl: URL.createObjectURL(new Blob([data], { type: "application/octet-stream" })),
-      frameworkUrl: buildUrl + "/Granny.framework.js",
+      frameworkUrl: buildUrl + "/Granny.framework.js?v=2",
       codeUrl: URL.createObjectURL(new Blob([wasm], { type: "application/wasm" })),
       streamingAssetsUrl: new URL("StreamingAssets", document.baseURI).href,
       companyName: "Veil",
@@ -173,7 +194,7 @@ async function start() {
       showBanner: showBanner
     };
     var script = document.createElement("script");
-    script.src = buildUrl + "/Granny.loader.js";
+    script.src = buildUrl + "/Granny.loader.js?v=2";
     script.onerror = function () { showError("the loader script is missing"); };
     script.onload = function () {
       createUnityInstance(canvas, config, function (progress) {
