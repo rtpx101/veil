@@ -470,6 +470,20 @@ async function initEngine() {
   })();
   return engineInitPromise;
 }
+// Music's last resort (veilos.js): the same stream link, but served through the Scramjet service
+// worker over the BareMux transport, so it plays even when the host is blocked on this network.
+// Synchronous on purpose: the player swaps src without waiting, keeping the click's activation.
+window.veilProxyMedia = function (url) {
+  if (!engineReady || !engineController) {
+    try { initEngine(); } catch (err) {}
+    return "";
+  }
+  try {
+    const out = engineController.encodeUrl(url);
+    if (out) return new URL(String(out), location.href).href;
+  } catch (err) {}
+  return location.origin + SCRAMJET_PREFIX + encodeURIComponent(url);
+};
 async function applyMuxTransport() {
   const wisp = currentWisp();
   const entry = transportModule();
@@ -7837,7 +7851,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=101";
+  script.src = BASE + "/veilos.js?v=102";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -10091,7 +10105,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=101";
+      script.src = BASE + "/veilos.js?v=102";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -13758,7 +13772,6 @@ function openGamePlayer(game) {
         '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe>' +
         '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(largeThumb(game) || smallThumb(game)) + '" alt="" onerror="this.src=\'' + escapeHTML(smallThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
         '<div class="gp-error" data-gp-error hidden><div class="gp-error-card"><b>This game couldn\u2019t load</b><span data-gp-error-text>The game files aren\u2019t available right now.</span><button type="button" class="gp-retry" data-gp="reload">Try again</button></div></div>' +
-        '<button type="button" class="game-player-btn gp-fs-exit" data-gp="fs" title="Exit fullscreen" aria-label="Exit fullscreen"><img src="' + IMG + 'exit.svg" alt=""></button>' +
       '</div>' +
     '</div>' +
     '<aside class="game-notes" id="gameNotesPanel" aria-label="Notes">' +

@@ -3857,6 +3857,41 @@
   function musicVideoUrls(id) {
     return musicStreamUrls(id, [18, 22]);
   }
+  // Last resort when every direct stream link failed (hosts blocked on the network, CORS or a
+  // filter in the way): the very same links again, fetched through Veil's own proxy (the Scramjet
+  // service worker over the BareMux transport). The worker passes Range requests and the
+  // upstream content type straight through, so the <audio> element can seek and decode as usual.
+  function musicProxyUrls(job) {
+    if (typeof window.veilProxyMedia !== "function") return [];
+    var seen = {};
+    var direct = job.urls.filter(function (u) {
+      if (!u || /[?&]retry=1/.test(u) || (job.proxyOf && job.proxyOf[u]) || seen[u]) return false;
+      seen[u] = 1;
+      return MUSIC_STREAM_HOSTS.indexOf(musicHostOf(u)) !== -1;
+    });
+    var own = direct.filter(function (u) { return u.indexOf("id=" + encodeURIComponent(job.id) + "&") !== -1; });
+    var rest = direct.filter(function (u) { return own.indexOf(u) === -1; });
+    var pick = own.filter(function (u) { return /itag=(140|251)&/.test(u); }).concat(rest.slice(0, 1)).slice(0, 5);
+    var out = [];
+    job.proxyOf = job.proxyOf || {};
+    pick.forEach(function (u) {
+      var via = "";
+      try { via = window.veilProxyMedia(u) || ""; } catch (err) { via = ""; }
+      if (!via) return;
+      job.proxyOf[via] = u;
+      out.push(via);
+    });
+    return out;
+  }
+  function musicSourceName(job, url) {
+    var raw = job && job.proxyOf && job.proxyOf[url];
+    if (raw) return "Veil proxy (" + musicHostOf(raw).replace("https://", "") + ")";
+    return musicHostOf(url).replace("https://", "") || "source";
+  }
+  function musicSourceItag(job, url) {
+    var raw = job && job.proxyOf && job.proxyOf[url];
+    return musicItagOf(raw || url);
+  }
   function musicItagOf(url) {
     var m = String(url || "").match(/[?&]itag=(\d+)/);
     return m ? m[1] : "?";
@@ -3866,7 +3901,7 @@
     if (attempt == null || job.i !== attempt) return;
     var failed = job.urls[attempt] || "";
     musicMarkHost(failed, false);
-    var line = (musicHostOf(failed).replace("https://", "") || "source") + " itag " + musicItagOf(failed) + ": " + (why || "failed");
+    var line = musicSourceName(job, failed) + " itag " + musicSourceItag(job, failed) + ": " + (why || "failed");
     (job.log = job.log || []).push(line);
     musicLog("\"" + (job.title || job.id) + "\" " + line + " (try " + (attempt + 1) + "/" + job.urls.length + ")");
     musicToast(job, { kind: "error", title: "Couldn't load \"" + (job.title || "this song") + "\"", text: line + ". Trying another source (" + (attempt + 2) + "/" + job.urls.length + ")…", timeout: 12000 });
@@ -4133,6 +4168,18 @@
         });
         return;
       }
+      if (!job.proxied) {
+        job.proxied = true;
+        var viaProxy = musicProxyUrls(job);
+        if (viaProxy.length) {
+          musicLog("\"" + (job.title || job.id) + "\": every direct source failed, retrying the same links through the Veil proxy (" + viaProxy.length + " link" + (viaProxy.length === 1 ? "" : "s") + ")");
+          musicToast(job, { kind: "info", title: "Trying through the Veil proxy", text: (job.title || "This song") + ": the direct links failed, so Veil is fetching them itself…", timeout: 12000 });
+          musicStatus("Trying through the Veil proxy…");
+          viaProxy.forEach(function (u) { job.urls.push(u); });
+          musicKick(audio, id);
+          return;
+        }
+      }
       job.done = true;
       job.busy = false;
       var queueLen = (musicState.queue || []).length;
@@ -4172,7 +4219,7 @@
         job.busy = false;
         job.ok = true;
         musicMarkHost(url, true);
-        try { console.info("[Veil music] Playing \"" + (job.title || job.id) + "\" via " + musicHostOf(url).replace("https://", "") + " itag " + musicItagOf(url) + " after " + ((Date.now() - (job.born || job.started)) / 1000).toFixed(1) + "s"); } catch (err) {}
+        try { console.info("[Veil music] Playing \"" + (job.title || job.id) + "\" via " + musicSourceName(job, url) + " itag " + musicSourceItag(job, url) + (job.proxyOf && job.proxyOf[url] ? " [proxy path]" : " [direct path]") + " after " + ((Date.now() - (job.born || job.started)) / 1000).toFixed(1) + "s"); } catch (err) {}
         musicState.skips = 0;
         var tries = (job.log || []).length;
         var cur = musicCurrent && musicCurrent();
@@ -4185,6 +4232,7 @@
       // echostreamz takes 1-3s to answer (two redirects), so the old 1.2s cutoff
       // abandoned streams that were about to start and burned through every fallback.
       var limit = audio.readyState >= 1 ? 9000 : 12000;
+      if (job.proxyOf && job.proxyOf[url]) limit += 8000;
       job.limit = limit;
       if (job.good && job.good !== url && audio.readyState < 1) limit = 4500;
       if (waited > limit) {
