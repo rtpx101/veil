@@ -3784,14 +3784,56 @@
       local: false
     });
   }
+  // Stream hosts (Invidious companions that proxy the audio with local=true). Checked Nov 2026:
+  // echostreamz goes fully down for long stretches (500 on every video), and yt.chocolatemoo53.com
+  // answered every test song. Hosts are ranked by how they did recently (kept for 20 minutes), so
+  // a dead host is tried last instead of costing every song a failed attempt first.
+  var MUSIC_STREAM_HOSTS = ["https://yt.chocolatemoo53.com", "https://echostreamz.com"];
+  var musicHostLog = (function () {
+    try { return JSON.parse(localStorage.getItem("veil_music_hosts") || "{}") || {}; } catch (err) { return {}; }
+  })();
+  function musicHostOf(url) {
+    var m = String(url || "").match(/^https:\/\/[^/]+/);
+    return m ? m[0] : "";
+  }
+  function musicMarkHost(url, good) {
+    var host = musicHostOf(url);
+    if (!host || MUSIC_STREAM_HOSTS.indexOf(host) === -1) return;
+    var rec = musicHostLog[host] || {};
+    if (good) { rec.ok = Date.now(); rec.fails = 0; rec.bad = 0; }
+    else {
+      // One song that no host can play (age-gated, removed) must not sink a healthy host, so a
+      // host only counts as down after failing two different songs in a row.
+      var vid = (String(url).match(/[?&]id=([^&]+)/) || [])[1] || "";
+      if (rec.lastFail !== vid) rec.fails = (rec.fails || 0) + 1;
+      rec.lastFail = vid;
+      if (rec.fails >= 2) rec.bad = Date.now();
+    }
+    musicHostLog[host] = rec;
+    try { localStorage.setItem("veil_music_hosts", JSON.stringify(musicHostLog)); } catch (err) {}
+  }
+  function musicHostsRanked() {
+    var now = Date.now();
+    return MUSIC_STREAM_HOSTS.slice().sort(function (a, b) {
+      var ra = musicHostLog[a] || {}, rb = musicHostLog[b] || {};
+      var badA = ra.bad && now - ra.bad < 20 * 60 * 1000 ? 1 : 0;
+      var badB = rb.bad && now - rb.bad < 20 * 60 * 1000 ? 1 : 0;
+      if (badA !== badB) return badA - badB;
+      return (rb.ok || 0) - (ra.ok || 0);
+    });
+  }
+  function musicLog(msg) {
+    try { console.warn("[Veil music] " + msg); } catch (err) {}
+  }
   function musicStreamUrls(id, itags) {
     var idQ = encodeURIComponent(id);
-    var host = "https://echostreamz.com";
+    var hosts = musicHostsRanked();
+    var host = hosts[0];
     var urls = [];
     // Only local=true links: without it echostreamz redirects straight to googlevideo with a URL
     // locked to echostreamz's own IP (ip=...), which answers 403 to every listener.
     itags.forEach(function (itag) {
-      urls.push(host + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true");
+      hosts.forEach(function (h) { urls.push(h + "/latest_version?id=" + idQ + "&itag=" + itag + "&local=true"); });
     });
     // echostreamz's companion throws random 500s under load; one delayed retry of the
     // first format rescues most of those before we fall back to Piped.
@@ -3806,9 +3848,18 @@
   function musicVideoUrls(id) {
     return musicStreamUrls(id, [18, 22]);
   }
-  function musicBump(job, attempt, audio) {
+  function musicItagOf(url) {
+    var m = String(url || "").match(/[?&]itag=(\d+)/);
+    return m ? m[1] : "?";
+  }
+  function musicBump(job, attempt, audio, why) {
     if (!musicState || !job || musicState.failovers !== job || job.done || job.ok) return;
     if (attempt == null || job.i !== attempt) return;
+    var failed = job.urls[attempt] || "";
+    musicMarkHost(failed, false);
+    var line = (musicHostOf(failed).replace("https://", "") || "source") + " itag " + musicItagOf(failed) + ": " + (why || "failed");
+    (job.log = job.log || []).push(line);
+    musicLog("\"" + (job.title || job.id) + "\" " + line + " (try " + (attempt + 1) + "/" + job.urls.length + ")");
     job.busy = false;
     job.echoTry = 0;
     job.echoWait = false;
@@ -4077,6 +4128,7 @@
       var queueLen = (musicState.queue || []).length;
       musicState.skips = (musicState.skips || 0) + 1;
       if (queueLen > 1 && musicState.skips < 4 && !musicState.userPick) {
+        musicLog("Skipping \"" + (job.title || job.id) + "\" (" + job.id + "): every source failed. " + (job.log || []).join(" | "));
         musicStatus("That song isn't available right now. Skipping…");
         musicPaint();
         var from = musicState.index;
@@ -4087,6 +4139,7 @@
         return;
       }
       musicState.skips = 0;
+      musicLog("Couldn't play \"" + (job.title || job.id) + "\" (" + job.id + "): every source failed. " + (job.log || []).join(" | "));
       musicStatus("Couldn't play that song. Try another.");
       musicPaint();
       return;
@@ -4106,6 +4159,8 @@
         job.timer = 0;
         job.busy = false;
         job.ok = true;
+        musicMarkHost(url, true);
+        try { console.info("[Veil music] Playing \"" + (job.title || job.id) + "\" via " + musicHostOf(url).replace("https://", "") + " itag " + musicItagOf(url) + " after " + ((Date.now() - (job.born || job.started)) / 1000).toFixed(1) + "s"); } catch (err) {}
         musicState.skips = 0;
         musicStatus("");
         musicPaint();
@@ -4115,9 +4170,10 @@
       // echostreamz takes 1-3s to answer (two redirects), so the old 1.2s cutoff
       // abandoned streams that were about to start and burned through every fallback.
       var limit = audio.readyState >= 1 ? 9000 : 12000;
+      job.limit = limit;
       if (job.good && job.good !== url && audio.readyState < 1) limit = 4500;
       if (waited > limit) {
-        musicBump(job, attempt, audio);
+        musicBump(job, attempt, audio, "no audio after " + Math.round(waited / 1000) + "s (readyState " + audio.readyState + ")");
         return;
       }
       job.timer = setTimeout(arm, 450);
@@ -4132,7 +4188,9 @@
       if (!musicState || musicState.failovers !== job || job.done || job.ok) return;
       if (job.i !== attempt) return;
       if (musicRetryEcho(job, attempt, audio, url)) return;
-      musicBump(job, attempt, audio);
+      var err = audio.error;
+      var codes = { 1: "aborted", 2: "network error", 3: "decode error", 4: "source not supported (HTTP error or bad format)" };
+      musicBump(job, attempt, audio, "media error " + (err ? err.code + " " + (codes[err.code] || "") + (err.message ? " - " + err.message : "") : "?"));
     };
     try { audio.pause(); } catch (err) {}
     audio.preload = "auto";
@@ -4152,7 +4210,7 @@
       }
       if (err && err.name === "AbortError" && job.i !== attempt) return;
       if (musicRetryEcho(job, attempt, audio, url)) return;
-      musicBump(job, attempt, audio);
+      musicBump(job, attempt, audio, "play() rejected: " + (err && (err.name + " " + (err.message || "")) || "unknown"));
     });
   }
   // Album tracks come from the album catalogue (ids like "am:1369685063"), not YouTube. Right
@@ -4243,11 +4301,7 @@
     // timeout per song.
     if (typeof Audio !== "function") return Promise.resolve("");
     var idQ = encodeURIComponent(id);
-    var order = list && list.length ? list.slice() : [
-      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=140&local=true",
-      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=251&local=true",
-      "https://echostreamz.com/latest_version?id=" + idQ + "&itag=18&local=true"
-    ];
+    var order = list && list.length ? list.slice() : musicStreamUrls(id, [140, 251]).filter(function (u) { return !/[?&]retry=1/.test(u); });
     var probes = [];
     var got = {};
     return new Promise(function (resolve) {
@@ -4343,7 +4397,7 @@
     }
     musicState.resolveToken = null;
     musicStatus("Loading…");
-    var job = { id: track.id, urls: musicAudioUrls(track.id), i: 0, busy: true, done: false, ok: false };
+    var job = { id: track.id, title: track.title || "", born: Date.now(), urls: musicAudioUrls(track.id), i: 0, busy: true, done: false, ok: false };
     musicState.failovers = job;
     try { audio.pause(); } catch (err) {}
     // Start the real player right away, still inside the click that asked for the song: waiting

@@ -115,9 +115,12 @@ body.veil-os #veilDash,body.veil-os #veilStage{display:none !important}
 .range-smooth{--range-p:0;transition:--range-p .22s linear}
 .range-smooth.is-drag{transition:none}
 .range-smooth input[type=range]{position:relative;z-index:1}
-.range-smooth .range-fill{position:absolute;left:0;top:50%;height:4px;margin-top:-2px;border-radius:99px;background:var(--accent);opacity:.85;width:calc((100% - 18px) * var(--range-p) + 9px);pointer-events:none;z-index:2}
-.range-smooth .range-knob{left:calc((100% - 18px) * var(--range-p) + 9px) !important;z-index:3;transform:translateY(-50%) scale(.72) !important;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease;will-change:left,transform}
-.range-smooth:hover .range-knob,.range-smooth.is-drag .range-knob{transform:translateY(-50%) scale(1) !important}
+.range-smooth .range-fill{position:absolute;left:0;top:50%;height:4px;margin-top:-2px;border-radius:99px;background:var(--accent);opacity:.85;width:calc((100% - 12px) * var(--range-p) + 6px);pointer-events:none;z-index:2}
+.range-smooth .range-fill{left:0;min-width:6px}
+.range-smooth input[type=range]::-webkit-slider-thumb{width:12px;height:12px;margin-top:-4px}
+.range-smooth input[type=range]::-moz-range-thumb{width:12px;height:12px}
+.range-smooth .range-knob{width:12px;height:12px;margin-left:-6px;left:calc((100% - 12px) * var(--range-p) + 6px) !important;z-index:3;transform:translateY(-50%) scale(1) !important;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease;will-change:left,transform}
+.range-smooth:hover .range-knob,.range-smooth.is-drag .range-knob{transform:translateY(-50%) scale(1.25) !important}
 .range-smooth.is-drag .range-knob{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 .range-knob{position:absolute;top:50%;width:18px;height:18px;margin-left:-9px;will-change:left,transform;border-radius:50%;background:var(--accent);pointer-events:none;transform:translateY(-50%)}
 .setting-actions{display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:14px;margin:18px 0 20px}
@@ -918,8 +921,30 @@ body[data-veil-view="entertainment"] .veil-stage,body[data-veil-view="chat"] .ve
 .sp-nav-liked.on{background:transparent;box-shadow:inset 0 0 0 1.5px var(--accent)}
 .sp-nav-home.on{background:var(--bg2)}
 .sp-hero-facts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--muted);font-size:13px}
-.sp-icon.sp-save{height:40px;padding:0 16px;border-radius:99px}
-.sp-icon.sp-save.on{background:var(--accent);color:var(--accentText);border-color:transparent}
+/* Save to library uses exactly the Play button's look (.sp-play). */
+.sp-acts .sp-play{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.sp-row button > span,.sp-dock-meta{min-width:0;flex:1;overflow:hidden}
+.sp-card{min-width:0;overflow:hidden}
+.sp-card b,.sp-card small{max-width:100%}
+.sp-artbox{position:relative;display:block;flex:0 0 auto;line-height:0;border-radius:4px}
+.sp-top .sp-artbox{border-radius:6px}
+.sp-eq{position:absolute;inset:0;display:none;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:28%;border-radius:inherit;background:rgba(0,0,0,.48);pointer-events:none}
+.sp-song.is-on .sp-eq,.sp-top.is-on .sp-eq{display:flex}
+.sp-eq i{width:3px;height:42%;border-radius:2px;background:var(--accent);transform-origin:50% 100%;animation:veilEq 0.9s ease-in-out infinite;will-change:transform}
+.sp-top .sp-eq i{width:6px;gap:4px}
+.sp-eq i:nth-child(2){animation-duration:.72s;animation-delay:-.3s}
+.sp-eq i:nth-child(3){animation-duration:1.05s;animation-delay:-.55s}
+.sp:not(.is-playing) .sp-eq i{animation-play-state:paused}
+@keyframes veilEq{0%,100%{transform:scaleY(.3)}35%{transform:scaleY(1)}60%{transform:scaleY(.55)}80%{transform:scaleY(.85)}}
+.sp-top-play{border:0;padding:0;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.28)}
+.sp-top{border-radius:10px}
+.sp-topwrap,.sp-song{position:relative;transform-origin:center center}
+.sp-song.is-hover,.sp-topwrap.is-hover{z-index:2}
+.sp-song.is-hover,.sp-topwrap.is-hover .sp-top{background:var(--bg3)}
+svg.veil-pp{width:15px;height:15px;display:block;overflow:visible;transform-origin:50% 50%}
+.sp-top-play svg.veil-pp{width:20px;height:20px}
+.sp-quick svg.veil-pp{width:16px;height:16px}
+.sp-btns button .sp-ico,.sp-dock-controls button .sp-ico{width:16px;height:16px;flex-basis:16px}
 .sp-acts button:disabled{opacity:.45;cursor:default}
 .sp-tools{position:relative;display:flex;gap:8px;margin:8px 0 4px}
 .sp-tools .sp-make{width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center}
@@ -984,6 +1009,10 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-exp{width:14px;height:14px;flex:0 0 14px;border-radius:50%;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);background:transparent;box-sizing:border-box}
 .sp-exp b{display:inline;font-style:normal;font-size:8px;font-weight:800;line-height:1;letter-spacing:-.03em;overflow:visible;white-space:normal}
 .sp-exp[hidden]{display:none !important}
+/* Filled badge with the E knocked out in the page colour; the > b rule beats row/queue title
+   styles (.sp-q > span b made the E 13px in the queue). */
+.sp-exp{background:var(--muted);border:0}
+.sp-exp > b,.sp-q .sp-exp > b,.sp-top-copy .sp-exp > b,.sp-who .sp-exp > b{display:inline !important;font-size:8.5px !important;font-weight:850 !important;line-height:1 !important;letter-spacing:0 !important;color:var(--bg,#0f0f0f) !important;max-width:none !important;overflow:visible !important;white-space:normal !important;margin:0 !important}
 .sp-topwrap{display:flex;align-items:center;gap:28px;margin:0 0 16px;padding:10px;border-radius:12px;background:var(--panel)}
 .sp-top{flex:1;min-width:0;display:flex;align-items:center;gap:16px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer;padding:6px}
 .sp-top .sp-art{width:92px;height:92px;flex:0 0 92px;border-radius:6px}
@@ -995,6 +1024,20 @@ span.sp-art .sp-ico{width:18px;height:18px;flex-basis:18px}
 .sp-q .sp-sub{margin-top:2px}
 .sp-ico.sp-flip{transform:scaleX(-1)}
 .sp-x.on,.sp-ghost.on{color:var(--accent)}
+.sp-artist-hero{position:relative;margin:-4px 0 18px;border-radius:14px;overflow:hidden;min-height:150px;display:flex;align-items:flex-end;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 30%,#141414),#141414)}
+.sp-artist-banner{position:absolute;inset:0;background-size:cover;background-position:center}
+.sp-artist-hero.has-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 20%,rgba(0,0,0,.72))}
+.sp-artist-id{position:relative;z-index:1;display:flex;align-items:center;gap:16px;padding:56px 18px 16px;min-width:0}
+.sp-artist-pfp{width:104px;height:104px;flex:0 0 104px;border-radius:50%;object-fit:cover;box-shadow:0 10px 28px rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.12);display:grid;place-items:center;background:#222}
+.sp-artist-text{min-width:0}
+.sp-artist-text h2{margin:2px 0 4px;font-size:30px;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.sp-artist-text .sp-label{margin:0;color:rgba(255,255,255,.8)}
+.sp-artist-text .sp-hero-facts{color:rgba(255,255,255,.78)}
+.sp-artist-about{font-size:13px;line-height:1.55;color:var(--muted);max-width:760px;margin-bottom:18px;max-height:13em;overflow:auto}
+.sp-x[data-like]:not(.on) .sp-ico,.sp-ghost[data-bar-like]:not(.on) .sp-ico{--ico:url("image/heart-line.svg") !important}
+.sp-x[data-like],.sp-ghost[data-bar-like],.sp-x[data-add],.sp-ghost[data-bar-add]{overflow:visible;position:relative}
+.sp-x.is-ring::after,.sp-ghost.is-ring::after{content:"";position:absolute;inset:2px;border-radius:50%;border:2px solid var(--accent);pointer-events:none;animation:veilRing .6s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes veilRing{0%{opacity:.7;transform:scale(.5)}100%{opacity:0;transform:scale(1.45)}}
 .sp-time{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;flex:0 0 auto}
 .sp-status{min-height:18px;margin:-8px 0 12px;color:var(--muted);font-size:13px}
 .sp-who{display:flex;align-items:center;gap:10px;min-width:0;max-width:30%;flex:1}
@@ -1305,7 +1348,7 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js?v=11", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=99", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=100", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -1792,6 +1835,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=99"></script>
+<script src="access-gate.js?v=100"></script>
 </body>
 </html>
