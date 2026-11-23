@@ -13849,7 +13849,38 @@ function veilFsSync() {
     lyrics.classList.toggle("is-in-game", dockIn);
   }
   document.querySelectorAll(".gp-stage").forEach(stage => stage.classList.toggle("is-fs", stage === fsEl));
+  veilGameKeyLock(!!(fsEl && fsEl.classList && fsEl.classList.contains("gp-stage")));
 }
+// While a game is fullscreen, Esc goes to the game instead of leaving fullscreen. Chromium's Keyboard
+// Lock only works in real fullscreen; holding Esc still exits (the browser shows that hint itself).
+// When Veil runs inside the about:blank cloak the lock has to come from the top page.
+var veilKeyLockWant = false;
+var veilKeyLockNav = null;
+function veilGameKeyLock(on) {
+  veilKeyLockWant = on;
+  if (!on) {
+    const nav = veilKeyLockNav;
+    veilKeyLockNav = null;
+    try { if (nav && nav.keyboard && nav.keyboard.unlock) nav.keyboard.unlock(); } catch (err) {}
+    return;
+  }
+  if (veilKeyLockNav) return;
+  const navs = [navigator];
+  try { if (window.top !== window && window.top.navigator) navs.push(window.top.navigator); } catch (err) {}
+  const attempt = i => {
+    const nav = navs[i];
+    if (!nav) return;
+    let p = null;
+    try { p = nav.keyboard && nav.keyboard.lock ? nav.keyboard.lock(["Escape"]) : null; } catch (err) { p = null; }
+    if (!p || !p.then) { attempt(i + 1); return; }
+    p.then(() => {
+      if (!veilKeyLockWant) { try { nav.keyboard.unlock(); } catch (err) {} return; }
+      veilKeyLockNav = nav;
+    }).catch(() => attempt(i + 1));
+  };
+  attempt(0);
+}
+window.veilGameKeyLock = veilGameKeyLock;
 document.addEventListener("fullscreenchange", veilFsSync);
 document.addEventListener("webkitfullscreenchange", veilFsSync);
 window.veilFsSync = veilFsSync;
@@ -13921,17 +13952,17 @@ function openGamePlayer(game) {
       '</div>' +
       '<div class="game-player-frame gp-stage" id="gameStage">' +
         '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe>' +
-        '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(largeThumb(game) || smallThumb(game)) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeHTML(smallThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
+        '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(smallThumb(game)) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeHTML(largeThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
         '<div class="gp-error" data-gp-error hidden><div class="gp-error-card"><b>This game couldn\u2019t load</b><span data-gp-error-text>The game files aren\u2019t available right now.</span><button type="button" class="gp-retry" data-gp="reload">Try again</button></div></div>' +
       '</div>' +
     '</div>' +
     '<aside class="game-notes" id="gameNotesPanel" aria-label="Notes">' +
-      '<div class="game-notes-header"><span class="gn-head-title">Notes</span><span class="gn-count" data-gn-count></span><button type="button" class="game-player-btn gn-new" data-note-add title="New note" aria-label="New note"><img src="' + IMG + 'plus.svg" alt=""></button><button type="button" class="game-player-btn" data-gp="notes-close" title="Close notes" aria-label="Close notes"><img src="' + IMG + 'exit.svg" alt=""></button></div>' +
-      '<div class="gn-list" id="gameNoteList" role="listbox" aria-label="Your notes"></div>' +
+      '<div class="game-notes-header"><span class="gn-head-ico"><img src="' + IMG + 'notepad.svg" alt=""></span><span class="gn-head-title">Notes</span><span class="gn-count" data-gn-count></span><button type="button" class="game-player-btn gn-x" data-gp="notes-close" title="Close notes" aria-label="Close notes"><img src="' + IMG + 'exit.svg" alt=""></button></div>' +
+      '<div class="gn-tabs"><div class="gn-strip" id="gameNoteList" role="tablist" aria-label="Your notes"></div><button type="button" class="game-player-btn gn-new" data-note-add title="New note" aria-label="New note"><img src="' + IMG + 'plus.svg" alt=""></button></div>' +
       '<div class="game-notes-editor">' +
         '<input type="text" class="game-note-title" id="gameNoteTitle" maxlength="60" placeholder="Note title" aria-label="Note title">' +
         '<textarea id="gameNoteBody" placeholder="Write a note…" aria-label="Note"></textarea>' +
-        '<div class="gn-foot"><span class="gn-saved" data-gn-saved>Saved</span><button type="button" class="game-note-action gn-del" data-note-del><img src="' + IMG + 'trash.svg" alt="">Delete</button></div>' +
+        '<div class="gn-foot"><span class="gn-saved" data-gn-saved>Saved</span><span class="gn-chars" data-gn-chars></span><button type="button" class="game-note-action gn-del" data-note-del><img src="' + IMG + 'trash.svg" alt="">Delete</button></div>' +
       '</div>' +
     '</aside>' +
   '</div>';
@@ -14041,6 +14072,13 @@ function openGamePlayer(game) {
   const savedEl = overlay.querySelector("[data-gn-saved]");
   const countEl = overlay.querySelector("[data-gn-count]");
   const delBtn = overlay.querySelector("[data-note-del]");
+  const charsEl = overlay.querySelector("[data-gn-chars]");
+  const notesPanel = overlay.querySelector("#gameNotesPanel");
+  // The sliding pill behind the active tab. It lives inside the strip so it scrolls with the tabs,
+  // and it is kept across repaints so it can spring from the old tab to the new one.
+  const tabInd = document.createElement("i");
+  tabInd.className = "gn-ind";
+  tabInd.setAttribute("aria-hidden", "true");
   let saveTimer = 0;
   function persist() {
     clearTimeout(saveTimer);
@@ -14059,14 +14097,61 @@ function openGamePlayer(game) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(persist, 450);
   }
-  const preview = note => (String(note.body || "").replace(/\s+/g, " ").trim().slice(0, 60)) || "Empty note";
-  function paintList(springId) {
+  const paintChars = () => {
+    const note = notes[current];
+    const n = note ? String(note.body || "").length : 0;
+    charsEl.textContent = note ? n + (n === 1 ? " character" : " characters") : "";
+  };
+  let indShown = false;
+  // Spring the pill to the active tab. "jump" places it without motion (used while the panel is
+  // hidden, so the first frame the user sees is already in the right spot).
+  function placeInd(jump) {
+    const el = list.querySelector(".gn-tab.active");
+    if (!el) {
+      if (indShown && !jump && !motionOff() && anime && anime.animate) {
+        try { anime.animate(tabInd, { opacity: 0, scaleX: 0.6, ease: veilSpring(0.2, 320) }); } catch (err) { tabInd.style.opacity = "0"; }
+      } else tabInd.style.opacity = "0";
+      indShown = false;
+      return;
+    }
+    const x = el.offsetLeft;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const top = el.offsetTop;
+    tabInd.style.top = top + "px";
+    tabInd.style.height = h + "px";
+    const can = !jump && !motionOff() && anime && anime.animate;
+    if (!can) {
+      try { if (anime && anime.utils && anime.utils.set) anime.utils.set(tabInd, { translateX: x, width: w, opacity: 1, scaleX: 1 }); else { tabInd.style.transform = "translateX(" + x + "px)"; tabInd.style.width = w + "px"; tabInd.style.opacity = "1"; } } catch (err) {}
+      indShown = true;
+      return;
+    }
+    try {
+      if (!indShown) {
+        anime.animate(tabInd, { translateX: [x, x], width: [w, w], opacity: [0, 1], scaleX: [0.6, 1], ease: veilSpring(0.45, 620) });
+      } else {
+        anime.animate(tabInd, { translateX: x, width: w, opacity: 1, scaleX: 1, ease: veilSpring(0.38, 640) });
+      }
+    } catch (err) {}
+    indShown = true;
+    // Keep the active tab in view, gliding the strip instead of jumping it.
+    const left = list.scrollLeft;
+    const right = left + list.clientWidth;
+    if (x < left + 4 || x + w > right - 4) {
+      const to = x < left + 4 ? x - 12 : x + w - list.clientWidth + 12;
+      try { list.scrollTo({ left: Math.max(0, to), behavior: "smooth" }); } catch (err) { list.scrollLeft = Math.max(0, to); }
+    }
+  }
+  function paintList(springId, jump) {
     countEl.textContent = notes.length ? String(notes.length) : "";
-    list.innerHTML = notes.length ? notes.map((note, i) => '<button type="button" class="gn-item' + (i === current ? " active" : "") + '" data-note="' + i + '" role="option" aria-selected="' + (i === current) + '"><b>' + escapeHTML(note.title || "Untitled") + '</b><small>' + escapeHTML(preview(note)) + '</small></button>').join("") : '<div class="gn-empty">No notes yet. Tap + to write one.</div>';
+    list.innerHTML = notes.length ? notes.map((note, i) => '<button type="button" class="gn-tab' + (i === current ? " active" : "") + '" data-note="' + i + '" role="tab" aria-selected="' + (i === current) + '" title="' + escapeHTML(note.title || "Untitled") + '">' + escapeHTML(note.title || "Untitled") + '</button>').join("") : '<div class="gn-empty">No notes yet. Tap + to write one.</div>';
+    list.insertBefore(tabInd, list.firstChild);
     if (springId != null) {
       const el = list.querySelector('[data-note="' + springId + '"]');
-      if (el) { gameSpring(el, { opacity: [0, 1], translateY: [-8, 0], scale: [0.94, 1] }, 0.5, 620); try { el.scrollIntoView({ block: "nearest" }); } catch (err) {} }
+      if (el) gameSpring(el, { opacity: [0, 1], translateY: [-6, 0], scale: [0.9, 1] }, 0.5, 620);
     }
+    paintChars();
+    placeInd(!!jump || !player.classList.contains("notes-open"));
   }
   function paintEditor() {
     const note = notes[current];
@@ -14117,42 +14202,100 @@ function openGamePlayer(game) {
     note.at = Date.now();
     const row = list.querySelector('[data-note="' + current + '"]');
     if (row) {
-      row.querySelector("b").textContent = note.title || "Untitled";
-      row.querySelector("small").textContent = preview(note);
+      const label = note.title || "Untitled";
+      if (row.textContent !== label) {
+        row.textContent = label;
+        row.title = label;
+        placeInd(false);
+      }
     }
+    paintChars();
     persistSoon();
   }
   titleIn.addEventListener("input", editNote);
   bodyIn.addEventListener("input", editNote);
   list.addEventListener("click", event => {
     const item = event.target.closest("[data-note]");
-    if (item) selectNote(parseInt(item.getAttribute("data-note"), 10) || 0);
+    if (!item) return;
+    const i = parseInt(item.getAttribute("data-note"), 10) || 0;
+    if (i === current) {
+      if (!motionOff() && anime && anime.animate) { try { anime.animate(item, { rotate: [{ to: -2.5, duration: 140, ease: "outQuad" }, { to: 0, duration: 620, ease: veilSoftJiggle }] }); } catch (err) {} }
+      return;
+    }
+    selectNote(i);
   });
+  // A mouse wheel scrolls the tab strip sideways.
+  list.addEventListener("wheel", event => {
+    if (list.scrollWidth <= list.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    event.preventDefault();
+    try { list.scrollBy({ left: event.deltaY, behavior: "smooth" }); } catch (err) { list.scrollLeft += event.deltaY; }
+  }, { passive: false });
   overlay.querySelector("[data-note-add]").addEventListener("click", addNote);
   delBtn.addEventListener("click", deleteNote);
-  paintList();
+  paintList(null, true);
   paintEditor();
+  paintChars();
+  // The panel floats over the game, so it starts tucked away (it never takes width from the stage).
+  try {
+    if (anime && anime.utils && anime.utils.set) anime.utils.set(notesPanel, { opacity: 0, translateX: 26, scale: 0.96 });
+    else { notesPanel.style.opacity = "0"; notesPanel.style.transform = "translateX(26px) scale(0.96)"; }
+  } catch (err) {}
   const flush = () => { if (saveTimer) persist(); };
   overlay._veilCleanup = () => {
     loadToken += 1;
     try { if (dotsJob && dotsJob.pause) dotsJob.pause(); } catch (err) {}
     dotsJob = null;
-    [frame, loading.querySelector(".gp-load-card"), errorBox.querySelector(".gp-error-card")].forEach(el => {
+    clearTimeout(notesLeave);
+    document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("keyup", onKey, true);
+    document.removeEventListener("fullscreenchange", onFsChange);
+    [frame, loading.querySelector(".gp-load-card"), errorBox.querySelector(".gp-error-card"), notesPanel, tabInd].forEach(el => {
       try { if (el && window.anime && window.anime.utils && window.anime.utils.remove) window.anime.utils.remove(el); } catch (err) {}
     });
     flush();
   };
+  function focusGame() {
+    try { frame.focus({ preventScroll: true }); } catch (err) {}
+    try { if (frame.contentWindow) frame.contentWindow.focus(); } catch (err) {}
+  }
+  let notesLeave = 0;
   function setNotes(open) {
     if (open === player.classList.contains("notes-open")) return;
+    clearTimeout(notesLeave);
     player.classList.toggle("notes-open", open);
     const btn = overlay.querySelector('[data-gp="notes"]');
     if (btn) btn.classList.toggle("is-on", open);
+    const can = !motionOff() && anime && anime.animate;
+    const ico = btn && btn.querySelector("img");
+    if (ico && can) { try { anime.animate(ico, { rotate: [{ to: open ? -12 : 10, duration: 150, ease: "outQuad" }, { to: 0, duration: 680, ease: veilSoftJiggle }] }); } catch (err) {} }
     if (open) {
-      paintList();
-      gameSpring(overlay.querySelector("#gameNotesPanel"), { opacity: [0, 1], translateX: [24, 0] }, 0.42, 640);
-      if (window.veilMotion && window.veilMotion.stagger) window.veilMotion.stagger(list.querySelectorAll(".gn-item"), "side", { base: 90, step: 30, max: 8 });
-      if (!notes.length) addNote();
-    } else flush();
+      notesPanel.classList.remove("is-leaving");
+      if (!notes.length) { notes.push({ id: uid(), title: "Note 1", body: "", at: Date.now() }); current = 0; persist(); }
+      paintList(null, true);
+      paintEditor();
+      if (can) {
+        try { anime.animate(notesPanel, { opacity: 1, translateX: 0, scale: 1, ease: veilSpring(0.42, 720) }); } catch (err) {}
+        const parts = notesPanel.querySelectorAll(".game-notes-header, .gn-tabs, .game-notes-editor");
+        parts.forEach((el, i) => gameSpring(el, { opacity: [0, 1], translateX: [14, 0], delay: 60 + i * 45 }, 0.45, 640));
+        if (window.veilMotion && window.veilMotion.stagger) window.veilMotion.stagger(list.querySelectorAll(".gn-tab"), "drop", { base: 120, step: 28, max: 10 });
+      } else {
+        notesPanel.style.opacity = "1";
+        notesPanel.style.transform = "none";
+      }
+      try { (notes[current] && !String(notes[current].body || "") ? titleIn : bodyIn).focus({ preventScroll: true }); } catch (err) {}
+    } else {
+      flush();
+      notesPanel.classList.add("is-leaving");
+      const done = () => { if (!player.classList.contains("notes-open")) notesPanel.classList.remove("is-leaving"); };
+      if (can) {
+        try { anime.animate(notesPanel, { opacity: 0, translateX: 26, scale: 0.96, ease: veilSpring(0.22, 440) }); } catch (err) {}
+        notesLeave = setTimeout(done, 460);
+      } else {
+        notesPanel.style.opacity = "0";
+        done();
+      }
+      focusGame();
+    }
   }
   // ---- Toolbar.
   overlay.addEventListener("click", event => {
@@ -14196,11 +14339,56 @@ function openGamePlayer(game) {
     if (act === "notes-close") { setNotes(false); return; }
     if (act === "info") showGameInfo(game);
   });
+  // Esc belongs to the game (Minecraft's pause menu, closing in-game screens). It never closes the
+  // player: the close button and the backdrop do that. If Esc lands on Veil instead of the game
+  // (focus on a toolbar button, or the game lost focus after pointer lock ended), it is handed to
+  // the game frame and focus goes back to the game.
+  function sendEscToGame(type) {
+    let win = null;
+    let doc = null;
+    try { win = frame.contentWindow; doc = frame.contentDocument; } catch (err) { return; }
+    if (!win || !doc) return;
+    focusGame();
+    try {
+      const KE = win.KeyboardEvent || KeyboardEvent;
+      const ev = new KE(type, { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true, cancelable: true, composed: true });
+      if (ev.keyCode !== 27) {
+        try { Object.defineProperty(ev, "keyCode", { get: () => 27 }); Object.defineProperty(ev, "which", { get: () => 27 }); } catch (err) {}
+      }
+      const active = doc.activeElement && doc.activeElement !== doc.body ? doc.activeElement : null;
+      (active || doc.querySelector("canvas") || doc.body || doc).dispatchEvent(ev);
+    } catch (err) {}
+  }
   const onKey = event => {
-    if (!overlay.isConnected) { document.removeEventListener("keydown", onKey, true); return; }
-    if (event.key === "Escape" && !document.fullscreenElement && !overlay.querySelector(":focus") && !document.querySelector(".game-info-modal")) closeGamePlayer(overlay, flush);
+    if (!overlay.isConnected) {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("keyup", onKey, true);
+      return;
+    }
+    if (event.key !== "Escape" || overlay._closing) return;
+    if (document.querySelector(".game-info-modal, .modal-overlay:not(.game-player-overlay)")) return;
+    const target = event.target && event.target.nodeType === 1 ? event.target : null;
+    if (target && target.closest && target.closest(".game-notes")) {
+      if (event.type === "keydown" && player.classList.contains("notes-open")) {
+        event.preventDefault();
+        event.stopPropagation();
+        setNotes(false);
+      }
+      return;
+    }
+    if (target && target !== document.body && !overlay.contains(target) && target.closest && target.closest("input, textarea, select, [contenteditable='true']")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    sendEscToGame(event.type);
   };
   document.addEventListener("keydown", onKey, true);
+  document.addEventListener("keyup", onKey, true);
+  // Entering or leaving fullscreen hands focus straight back to the game.
+  const onFsChange = () => {
+    if (!overlay.isConnected) { document.removeEventListener("fullscreenchange", onFsChange); return; }
+    if (!overlay._closing && !player.classList.contains("notes-open")) setTimeout(focusGame, 30);
+  };
+  document.addEventListener("fullscreenchange", onFsChange);
   window.addEventListener("pagehide", flush);
   // Toolbar buttons and chips spring in after the player pops.
   if (window.veilMotion && window.veilMotion.stagger) {

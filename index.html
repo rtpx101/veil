@@ -908,22 +908,33 @@ html[data-mode="light"] .time-bar{background:rgba(255,255,255,.72)}
 .gp-error-card b{font-size:16px}
 .gp-error-card span{font-size:13px;color:var(--muted);line-height:1.45}
 .gp-retry{margin-top:8px;height:38px;padding:0 18px;border-radius:999px;border:0;background:var(--accent);color:var(--accentText);font-weight:700;cursor:pointer}
-/* Notes */
-.gp2 .game-notes{width:0;opacity:1;transition:width .42s cubic-bezier(.34,1.32,.64,1)}
-.gp2 .game-player.notes-open .game-notes{width:320px}
-.gp2 .game-notes-header{gap:6px;height:52px;flex:0 0 52px;padding:0 8px 0 14px}
-.gn-head-title{font-size:13px;font-weight:750}
+/* Notes: a panel floating over the game. It never takes width from the stage, so the game frame keeps its size. */
+.gp2 .game-player{position:relative}
+.gp2 .game-notes{position:absolute;top:68px;right:10px;bottom:10px;width:340px;max-width:calc(100% - 20px);z-index:20;border:1px solid var(--border);border-radius:16px;background:color-mix(in srgb,var(--panel) 92%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);box-shadow:0 24px 64px rgba(0,0,0,.5),0 2px 0 rgba(255,255,255,.03) inset;overflow:hidden;visibility:hidden;pointer-events:none;transform-origin:100% 0;transition:none;will-change:transform,opacity}
+.gp2 .game-player.notes-open .game-notes{width:340px;border-left:1px solid var(--border);visibility:visible;pointer-events:auto}
+.gp2 .game-notes.is-leaving{visibility:visible}
+.gp2 .game-notes-header{gap:8px;height:50px;flex:0 0 50px;padding:0 8px 0 12px;border-bottom:0;background:transparent}
+.gn-head-ico{width:26px;height:26px;border-radius:8px;background:var(--bg3);display:inline-flex;align-items:center;justify-content:center;flex:0 0 26px}
+.gn-head-ico img{width:14px;height:14px;filter:invert(var(--icon-invert,1));opacity:.85}
+html[data-mode="light"] .gn-head-ico img{filter:none}
+.gn-head-title{font-size:14px;font-weight:750;letter-spacing:-.01em}
 .gn-count{min-width:18px;height:18px;padding:0 6px;border-radius:99px;background:var(--bg3);color:var(--muted);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
 .gn-count:empty{display:none}
-.gp2 .gn-new{margin-left:auto}
-.gn-list{display:flex;flex-direction:column;gap:3px;padding:8px;max-height:38%;min-height:58px;overflow:auto;border-bottom:1px solid var(--border);flex:0 0 auto}
-.gn-item{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;padding:9px 11px;border:0;border-radius:10px;background:transparent;color:var(--text);text-align:left;cursor:pointer;transition:background-color .28s ease}
-.gn-item:hover{background:var(--bg3)}
-.gn-item.active{background:var(--panel2);box-shadow:inset 3px 0 0 var(--accent)}
-.gn-item b{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gn-item small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gn-empty{padding:12px 8px;font-size:12px;color:var(--muted);text-align:center}
+.gp2 .gn-x{margin-left:auto;width:30px;height:30px;border-radius:9px}
+.gp2 .gn-x img{width:12px;height:12px}
+.gn-tabs{display:flex;align-items:center;gap:4px;margin:0 10px;padding:4px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);flex:0 0 auto;box-sizing:border-box}
+.gn-strip{position:relative;flex:1;min-width:0;height:30px;display:flex;align-items:center;gap:2px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior:contain}
+.gn-strip::-webkit-scrollbar{display:none}
+.gn-ind{position:absolute;top:0;left:0;width:0;height:30px;border-radius:9px;background:var(--panel2);border:1px solid var(--border);box-sizing:border-box;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;z-index:0;opacity:0;transform-origin:50% 50%}
+.gn-ind::after{content:"";position:absolute;left:50%;bottom:3px;width:14px;height:2px;margin-left:-7px;border-radius:2px;background:var(--accent);opacity:.9}
+.gn-tab{position:relative;z-index:1;flex:0 0 auto;max-width:128px;height:30px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:color .3s ease}
+.gn-tab:hover,.gn-tab.active{color:var(--text)}
+.gn-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.gp2 .gn-new{width:30px;height:30px;flex:0 0 30px;border-radius:9px;margin:0}
+.gp2 .gn-new img{width:13px;height:13px}
+.gn-empty{position:relative;z-index:1;padding:0 8px;font-size:12px;color:var(--muted);white-space:nowrap}
 .gp2 .game-notes-editor{padding:10px;gap:8px}
+.gn-chars{margin-right:auto;font-size:11px;color:var(--muted);opacity:.8}
 .gp2 .game-note-title{height:38px;border-radius:10px;font-size:13px;font-weight:650;padding:0 12px;transition:border-color .25s ease}
 .gp2 .game-notes-editor textarea{border-radius:10px;font-size:13px;line-height:1.5;padding:12px;transition:border-color .25s ease}
 .gp2 .game-note-title:focus,.gp2 .game-notes-editor textarea:focus{outline:none;border-color:var(--accent)}
@@ -1538,7 +1549,7 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
     setStep(2, "ok", "Sign-in screen");
     await prefetch("baremux/index.js?v=6", "Loading connection…", 3);
     await prefetch("scramjet/scramjet.all.js?v=11", "Loading engine…", 4);
-    await prefetch("veil-app.js?v=110", "Loading browser…", 5);
+    await prefetch("veil-app.js?v=111", "Loading browser…", 5);
   }
   window.__veilBootWork = (async function () {
     try {
@@ -2033,6 +2044,6 @@ html.veil-spring :is(.modal-overlay .modal-box,.cookie-overlay .modal-box,.cooki
 </div>
 
 <script src="anime.min.js?v=95" defer></script>
-<script src="access-gate.js?v=110"></script>
+<script src="access-gate.js?v=111"></script>
 </body>
 </html>
