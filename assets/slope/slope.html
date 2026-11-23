@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="assets/" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>Slope</title>
+<link rel="icon" href="data:,">
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+#gameContainer {
+  position: fixed;
+  inset: 0;
+}
+#gameContainer canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}
+#veil-slope-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, 70vw);
+  height: 14px;
+  border: 2px solid #39ff14;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 14px rgba(57, 255, 20, 0.35);
+}
+#veil-slope-progress {
+  width: 0%;
+  height: 100%;
+  background: #39ff14;
+  transition: width 0.25s ease;
+}
+#veil-slope-label {
+  position: fixed;
+  top: calc(50% + 26px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font: 600 13px/1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+}
+#veil-slope-error {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(480px, 86vw);
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #eee;
+  font: 14px/1.45 system-ui, sans-serif;
+  text-align: center;
+  display: none;
+  z-index: 10;
+}
+</style>
+</head>
+<body>
+<div id="gameContainer"></div>
+<div id="veil-slope-loading"><div id="veil-slope-progress"></div></div>
+<div id="veil-slope-label">VEIL</div>
+<div id="veil-slope-error"></div>
+<script>
+(function () {
+  function external(url) {
+    try {
+      var target = new URL(url instanceof Request ? url.url : String(url), location.href);
+      return /^(https?|wss?):$/.test(target.protocol) && target.origin !== location.origin;
+    } catch (error) {
+      return false;
+    }
+  }
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    if (external(input)) return Promise.resolve(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
+    return nativeFetch(input, init);
+  };
+  var nativeOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    var args = Array.prototype.slice.call(arguments);
+    if (external(url)) args[1] = "data:application/json,{}";
+    return nativeOpen.apply(this, args);
+  };
+  var NativeSocket = window.WebSocket;
+  window.WebSocket = function (url, protocols) {
+    if (external(String(url).replace(/^ws/, "http"))) throw new Error("blocked");
+    return protocols === undefined ? new NativeSocket(url) : new NativeSocket(url, protocols);
+  };
+  window.WebSocket.prototype = NativeSocket.prototype;
+  if (navigator.sendBeacon) navigator.sendBeacon = function (url, data) { return external(url) ? true : Navigator.prototype.sendBeacon.call(navigator, url, data); };
+  var nativeAppend = Node.prototype.appendChild, nativeInsert = Node.prototype.insertBefore;
+  function blockedScript(node) {
+    return node && node.tagName === "SCRIPT" && node.src && external(node.src);
+  }
+  Node.prototype.appendChild = function (node) { return blockedScript(node) ? node : nativeAppend.call(this, node); };
+  Node.prototype.insertBefore = function (node, ref) { return blockedScript(node) ? node : nativeInsert.call(this, node, ref); };
+  window.open = function () { return null; };
+  var addListener = window.addEventListener;
+  window.addEventListener = function (type) {
+    if (type === "blur" || type === "focus") return;
+    return addListener.apply(this, arguments);
+  };
+  window.alert = function (message) { if (window.veilSlopeError) window.veilSlopeError(message); };
+})();
+var loadingBar = document.querySelector("#veil-slope-loading");
+var loadingLabel = document.querySelector("#veil-slope-label");
+var progressBar = document.querySelector("#veil-slope-progress");
+var errorBox = document.querySelector("#veil-slope-error");
+function hideLoading() {
+  loadingBar.style.display = "none";
+  loadingLabel.style.display = "none";
+}
+window.veilSlopeError = function (message) {
+  hideLoading();
+  errorBox.textContent = "Slope couldn't start: " + String(message && message.message || message || "unknown error");
+  errorBox.style.display = "block";
+};
+function onProgress(instance, progress) {
+  if (progress === "complete") progress = 1;
+  progressBar.style.width = Math.round(100 * progress) + "%";
+  if (progress >= 1) setTimeout(hideLoading, 300);
+}
+var script = document.createElement("script");
+script.src = "Build/UnityLoader.js";
+script.onerror = function () { window.veilSlopeError("the loader script is missing"); };
+script.onload = function () {
+  window.gameInstance = UnityLoader.instantiate("gameContainer", "Build/slope.json", {
+    onProgress: onProgress,
+    compatibilityCheck: function (instance, onsuccess, onerror) {
+      if (UnityLoader.SystemInfo.hasWebGL) onsuccess();
+      else window.veilSlopeError("this browser doesn't support WebGL");
+    },
+    Module: {
+      onRuntimeInitialized: function () {
+        onProgress(window.gameInstance, "complete");
+      }
+    }
+  });
+};
+document.body.appendChild(script);
+function focusCanvas() {
+  var canvas = document.querySelector("#gameContainer canvas");
+  if (canvas) { canvas.setAttribute("tabindex", "-1"); canvas.focus(); }
+}
+document.addEventListener("pointerdown", focusCanvas);
+</script>
+</body>
+</html>

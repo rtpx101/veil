@@ -13173,6 +13173,18 @@ async function loadGameCatalog() {
       maturity: "E",
       difficulty: "5"
     }, {
+      name: "Slope",
+      image: "image/games/small/slope.png",
+      imageLarge: "image/games/large/slope.png",
+      url: "assets/slope/slope.html",
+      category: "Arcade",
+      description: "Steer a speeding ball down an endless neon slope.",
+      controls: "A/D or Left/Right arrows to steer.",
+      howToPlay: "Stay on the track, dodge red blocks, and go as far as you can.",
+      sideNotes: "Loads about 33 MB the first time.",
+      maturity: "E",
+      difficulty: "6"
+    }, {
       name: "Minecraft",
       image: "image/games/small/minecraft.png",
       imageLarge: "image/games/large/minecraft.png",
