@@ -13040,12 +13040,20 @@ function gameSlug(value) {
 function gameId(value) {
   return value.id || gameSlug(value.name) || value.url || value.name;
 }
+const VEIL_GAMES_BASE = "https://rtpx101.github.io/veil-games/";
 function resolveGameAsset(value) {
   if (!value) {
     return "";
   }
+  value = String(value);
+  if (/^veil-games:/i.test(value)) {
+    return VEIL_GAMES_BASE + value.replace(/^veil-games:\/*/i, "");
+  }
   if (/^https?:\/\//i.test(value)) {
     return value;
+  }
+  if (/^\/\//.test(value)) {
+    return location.protocol + value;
   }
   return REPO_PATH + String(value).replace(/^\//, "");
 }
@@ -13231,6 +13239,18 @@ async function loadGameCatalog() {
       sideNotes: "Loads about 27 MB the first time.",
       maturity: "E10+",
       difficulty: "5"
+    }, {
+      name: "Fallout Shelter",
+      image: "image/games/small/falloutshelter.png",
+      imageLarge: "image/games/large/falloutshelter.png",
+      url: "https://rtpx101.github.io/veil-games/falloutshelter/falloutshelter.html",
+      category: "Idle",
+      description: "Build and run your own underground Vault after the bombs fall.",
+      controls: "Mouse to tap and drag dwellers, wheel to zoom.",
+      howToPlay: "Build rooms, assign dwellers, and keep power, food and water up.",
+      sideNotes: "Experimental web port. Loads about 340 MB the first time.",
+      maturity: "T",
+      difficulty: "3"
     }];
   }
   return gamesCatalog;
