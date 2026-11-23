@@ -7919,7 +7919,7 @@ function openDesktop() {
   if (!document.querySelector('link[href*="veilos.css"]')) document.head.appendChild(link);
   else { cssReady = true; tryStart(); }
   const script = document.createElement("script");
-  script.src = BASE + "/veilos.js?v=102";
+  script.src = BASE + "/veilos.js?v=103";
   script.onload = () => {
     jsReady = true;
     tryStart();
@@ -10173,7 +10173,7 @@ function ensureVeilMusic() {
     };
     if (!document.querySelector('script[src*="veilos.js"]')) {
       const script = document.createElement("script");
-      script.src = BASE + "/veilos.js?v=102";
+      script.src = BASE + "/veilos.js?v=103";
       script.onload = done;
       script.onerror = () => resolve(null);
       document.body.appendChild(script);
@@ -13926,6 +13926,11 @@ function exitAnyFullscreen() {
 function closeGamePlayer(overlay, save) {
   if (!overlay || overlay._closing) return;
   overlay._closing = true;
+  let saveWait = null;
+  try {
+    const gameWin = overlay.querySelector("#gameFrame") && overlay.querySelector("#gameFrame").contentWindow;
+    if (gameWin && typeof gameWin.veilBeforeClose === "function") saveWait = Promise.resolve(gameWin.veilBeforeClose());
+  } catch (err) { saveWait = null; }
   // Stop everything that could still touch the player: load / reload checks and their timers, the
   // frame's fade-up spring, the loading dots, pending note saves.
   try { if (overlay._veilCleanup) overlay._veilCleanup(); } catch (err) {}
@@ -13945,6 +13950,16 @@ function closeGamePlayer(overlay, save) {
   const finish = () => {
     if (finished) return;
     finished = true;
+    if (saveWait) {
+      let done = false;
+      const go = () => { if (done) return; done = true; dropPlayer(); };
+      saveWait.then(go, go);
+      setTimeout(go, 1500);
+      return;
+    }
+    dropPlayer();
+  };
+  const dropPlayer = () => {
     // Blank the game only once it is out of sight, then take the player away for good.
     try { if (frame) { frame.removeAttribute("src"); frame.remove(); } } catch (err) {}
     try { Element.prototype.remove.call(overlay); } catch (err) { try { overlay.parentNode.removeChild(overlay); } catch (e2) {} }
@@ -13983,7 +13998,7 @@ function openGamePlayer(game) {
         '<div class="gp-tools">' + tool("info", "info.svg", "Info") + tool("notes", "notepad.svg", "Notes") + tool("star", "star.svg", "Favorite") + '<span class="gp-tools-sep"></span>' + (Array.isArray(game.versions) && game.versions.length > 1 ? tool("versions", "blocks.svg", "Change version") : "") + tool("reload", "refresh.svg", "Reload game") + tool("fs", "zoom.svg", "Fullscreen") + '</div>' +
       '</div>' +
       '<div class="game-player-frame gp-stage" id="gameStage">' +
-        '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe>' +
+        '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *; clipboard-read *; clipboard-write *"></iframe>' +
         '<div class="gp-loading" data-gp-loading><div class="gp-load-card"><img class="gp-load-art" src="' + escapeHTML(smallThumb(game)) + '" alt="" onerror="this.onerror=null;this.src=\'' + escapeHTML(largeThumb(game)) + '\'"><div class="gp-load-copy"><b>' + escapeHTML(game.name) + '</b><span class="gp-load-row"><span class="sp-loader-dots" data-gp-dots><i></i><i></i><i></i></span><span data-gp-load-text>Loading game…</span></span></div></div><div class="gp-load-bar"><i></i></div></div>' +
         '<div class="gp-error" data-gp-error hidden><div class="gp-error-card"><b>This game couldn\u2019t load</b><span data-gp-error-text>The game files aren\u2019t available right now.</span><button type="button" class="gp-retry" data-gp="reload">Try again</button></div></div>' +
       '</div>' +

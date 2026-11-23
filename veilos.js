@@ -1984,7 +1984,19 @@
     win.running = false;
     if (win.installed) {
       var host = win.body && win.body.querySelector(".vos-proxy");
-      if (host) host.innerHTML = "";
+      if (host) {
+        var gameFrame = host.querySelector("iframe");
+        var saveWait = null;
+        try { if (gameFrame && gameFrame.contentWindow && typeof gameFrame.contentWindow.veilBeforeClose === "function") saveWait = gameFrame.contentWindow.veilBeforeClose(); } catch (err) { saveWait = null; }
+        if (saveWait && typeof saveWait.then === "function") {
+          var dropped = false;
+          var drop = function () { if (dropped) return; dropped = true; if (gameFrame.parentNode) gameFrame.parentNode.removeChild(gameFrame); };
+          saveWait.then(drop, drop);
+          setTimeout(drop, 1500);
+        } else {
+          host.innerHTML = "";
+        }
+      }
       win.frameReady = false;
     }
     if (id === "music") stopMusic();
@@ -2383,7 +2395,7 @@
         host.innerHTML = '<div class="vos-app-wait">This game is not available.</div>';
         return;
       }
-      host.innerHTML = '<iframe src="' + esc(src) + '" allow="gamepad *; autoplay *; fullscreen *" title=""></iframe>';
+      host.innerHTML = '<iframe src="' + esc(src) + '" allow="gamepad *; autoplay *; fullscreen *; clipboard-read *; clipboard-write *" title=""></iframe>';
       return;
     }
     host.innerHTML = '<div class="vos-app-wait">Opening…</div>';
