@@ -13172,6 +13172,53 @@ async function loadGameCatalog() {
       sideNotes: "Loads about 15 MB the first time.",
       maturity: "E",
       difficulty: "5"
+    }, {
+      name: "Minecraft",
+      image: "image/games/small/minecraft.png",
+      imageLarge: "image/games/large/minecraft.png",
+      url: "assets/minecraft/minecraft.html",
+      category: "Sandbox",
+      description: "Build, mine and explore in Eaglercraft. Pick from nine versions.",
+      controls: "WASD to move, mouse to look, left click breaks, right click places.",
+      howToPlay: "Choose a version, make a singleplayer world, and build.",
+      sideNotes: "Each version loads 16 to 75 MB the first time.",
+      maturity: "E10+",
+      difficulty: "4",
+      versions: [
+        { name: "Eaglercraft 26.2", url: "assets/minecraft/eaglercraft-26-2.html" },
+        { name: "EaglercraftX 1.20.6", url: "assets/minecraft/eaglercraftx-1-20-6.html" },
+        { name: "EaglercraftX 1.16", url: "assets/minecraft/eaglercraftx-1-16.html" },
+        { name: "Minecraft 1.12.2", url: "assets/minecraft/minecraft-1-12-2.html" },
+        { name: "Minecraft 1.11.2", url: "assets/minecraft/minecraft-1-11-2.html" },
+        { name: "Minecraft 1.9", url: "assets/minecraft/minecraft-1-9.html" },
+        { name: "Minecraft 1.8.8", url: "assets/minecraft/minecraft-1-8-8.html" },
+        { name: "Minecraft 1.5.2", url: "assets/minecraft/minecraft-1-5-2.html" },
+        { name: "Minecraft 1.7.3", url: "assets/minecraft/minecraft-1-7-3.html" }
+      ]
+    }, {
+      name: "Basket Random",
+      image: "image/games/small/basketrandom.png",
+      imageLarge: "image/games/large/basketrandom.png",
+      url: "assets/basketrandom/basketrandom.html",
+      category: "Sports",
+      description: "Chaotic 2-player basketball with ragdoll physics.",
+      controls: "Player 1: W. Player 2: Up arrow.",
+      howToPlay: "Score more baskets than your opponent.",
+      sideNotes: "Best with a friend on the same keyboard.",
+      maturity: "E",
+      difficulty: "2"
+    }, {
+      name: "Escape Road",
+      image: "image/games/small/escaperoad.png",
+      imageLarge: "image/games/large/escaperoad.png",
+      url: "assets/escaperoad/escaperoad.html",
+      category: "Racing",
+      description: "High-speed chase through traffic. Dodge the cops as long as you can.",
+      controls: "A and D or the arrow keys to steer.",
+      howToPlay: "Stay on the road and outrun pursuit for a high score.",
+      sideNotes: "Loads about 27 MB the first time.",
+      maturity: "E10+",
+      difficulty: "5"
     }];
   }
   return gamesCatalog;
@@ -13870,7 +13917,7 @@ function openGamePlayer(game) {
         '<img class="gp-thumb" src="' + escapeHTML(smallThumb(game)) + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
         '<div class="game-player-title"><span class="gpt-name" title="' + escapeHTML(game.name) + '">' + escapeHTML(game.name) + '</span>' +
           '<span class="gpt-chips"><span class="gpt-mat" title="Content rating">' + escapeHTML(String(rating)) + '</span>' + (game.category ? '<span class="gpt-chip">' + escapeHTML(game.category) + '</span>' : "") + '<span class="gpt-diff">Difficulty <b>' + escapeHTML(String(diff)) + '</b>/10</span></span></div>' +
-        '<div class="gp-tools">' + tool("info", "info.svg", "Info") + tool("notes", "notepad.svg", "Notes") + tool("star", "star.svg", "Favorite") + '<span class="gp-tools-sep"></span>' + tool("reload", "refresh.svg", "Reload game") + tool("fs", "zoom.svg", "Fullscreen") + '</div>' +
+        '<div class="gp-tools">' + tool("info", "info.svg", "Info") + tool("notes", "notepad.svg", "Notes") + tool("star", "star.svg", "Favorite") + '<span class="gp-tools-sep"></span>' + (Array.isArray(game.versions) && game.versions.length > 1 ? tool("versions", "blocks.svg", "Change version") : "") + tool("reload", "refresh.svg", "Reload game") + tool("fs", "zoom.svg", "Fullscreen") + '</div>' +
       '</div>' +
       '<div class="game-player-frame gp-stage" id="gameStage">' +
         '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe>' +
@@ -14120,6 +14167,12 @@ function openGamePlayer(game) {
       const ico = btn.querySelector("img");
       if (ico && !motionOff() && anime && anime.animate) { try { anime.animate(ico, { rotate: [0, 360], ease: veilSpring(0.4, 760) }); } catch (err) {} }
       loadGame(true);
+      return;
+    }
+    if (act === "versions") {
+      const ico = btn.querySelector("img");
+      if (ico && !motionOff() && anime && anime.animate) { try { anime.animate(ico, { rotate: [{ to: -14, duration: 160, ease: "outQuad" }, { to: 0, duration: 680, ease: veilSoftJiggle }] }); } catch (err) {} }
+      loadGame(false);
       return;
     }
     if (act === "fs") {

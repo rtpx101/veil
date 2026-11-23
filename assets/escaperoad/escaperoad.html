@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+<base href="assets/">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' data: blob:; style-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' data: blob: ws: wss:; worker-src 'self' data: blob:; child-src 'self' data: blob:; frame-src 'self' data: blob:">
+<script>(function(){var o=location.origin;function x(u){try{var t=new URL(u instanceof Request?u.url:String(u),location.href);return/^https?:$/.test(t.protocol)&&t.origin!==o}catch(e){return false}}var f=window.fetch.bind(window);window.fetch=function(i,n){if(x(i))return Promise.reject(new TypeError("Blocked by Veil"));return f(i,n)};var p=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){var a=Array.prototype.slice.call(arguments);if(x(u))a[1]="data:application/octet-stream,";return p.apply(this,a)};if(navigator.sendBeacon){var b=navigator.sendBeacon.bind(navigator);navigator.sendBeacon=function(u,d){return x(u)?true:b(u,d)}}var w=window.open;window.open=function(u){if(!u||x(u))return null;return w.apply(window,arguments)}})();</script><script>try{Object.defineProperty(document,"title",{configurable:true,get:function(){return"Veil"},set:function(){}})}catch(e){}</script>
+<title>Veil</title>
+<link rel="icon" type="image/png" href="../../../image/favi.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+#unity-container { position: fixed; inset: 0; }
+#unity-canvas { width: 100%; height: 100%; display: block; background: #231f20; outline: none; }
+#loading-cover { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; background: #000; }
+#logo-canvas { background: #000; }
+#ld_bg { display: none; }
+#veil-er-error { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: min(480px, 86vw); padding: 16px 20px; border-radius: 10px; background: rgba(20, 20, 20, 0.92); border: 1px solid rgba(255, 255, 255, 0.18); color: #eee; font: 14px/1.45 system-ui, sans-serif; text-align: center; display: none; }
+</style>
+</head>
+<body>
+<div id="unity-container">
+<canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+<div id="loading-cover">
+<canvas id="logo-canvas"></canvas>
+<img src="loading.png" id="ld_bg" alt="">
+</div>
+<div id="veil-er-error"></div>
+<script>
+(function () {
+  var canvas = document.querySelector("#unity-canvas");
+  var cover = document.querySelector("#loading-cover");
+  var logo = document.querySelector("#logo-canvas");
+  var bg = document.querySelector("#ld_bg");
+  var errorBox = document.querySelector("#veil-er-error");
+  var percent = 0;
+  var done = false;
+  var config = {
+    dataUrl: "Build/data.unityweb",
+    frameworkUrl: "Build/framework.js.unityweb",
+    codeUrl: "Build/wasm.unityweb",
+    streamingAssetsUrl: "StreamingAssets",
+    companyName: "Veil",
+    productName: "Escape Road",
+    productVersion: "2.0",
+    showBanner: function (message, type) {
+      if (type === "error") showError(message);
+      else console.warn(message);
+    }
+  };
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) config.devicePixelRatio = 1;
+  function showError(message) {
+    errorBox.textContent = "Escape Road couldn't start: " + String(message && message.message || message || "unknown error");
+    errorBox.style.display = "block";
+  }
+  function sizeLogo() {
+    var w = window.innerWidth, h = window.innerHeight, nw = h * 16 / 9;
+    if (nw <= w) { logo.width = nw; logo.height = h; } else { logo.width = w; logo.height = w * 9 / 16; }
+  }
+  function draw() {
+    if (done) return;
+    sizeLogo();
+    var ctx = logo.getContext("2d");
+    var sw = logo.width / 1920, sh = logo.height / 1080;
+    var p = Math.min(1, percent);
+    if (bg.complete && bg.naturalWidth) ctx.drawImage(bg, 0, 0, logo.width, logo.height);
+    var lw = 700, lh = 50, pad = 5, pw = lw - pad * 2, ph = lh - pad * 2, px = (1920 - pw) * 0.5;
+    ctx.fillStyle = "#977e21";
+    ctx.fillRect((1920 - lw) * 0.5 * sw, (1080 - 150) * sh, lw * sw, lh * sh);
+    ctx.fillStyle = "#fad234";
+    ctx.fillRect(px * sw, (1080 - 150 + pad) * sh, pw * p * sw, ph * sh);
+    ctx.font = "bold " + Math.round(35 * sh) + "px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = "black";
+    ctx.shadowOffsetY = 2;
+    ctx.fillText(Math.floor(p * 100) + "%", logo.width / 2, logo.height / 2 + sh * 425);
+  }
+  window.addEventListener("resize", draw);
+  bg.addEventListener("load", draw);
+  draw();
+  var script = document.createElement("script");
+  script.src = "Build/loader.js";
+  script.onload = function () {
+    createUnityInstance(canvas, config, function (progress) {
+      percent = progress;
+      draw();
+    }).then(function (instance) {
+      window.unityInstance = instance;
+      setTimeout(function () {
+        done = true;
+        cover.style.display = "none";
+        canvas.focus();
+      }, 600);
+    }).catch(showError);
+  };
+  script.onerror = function () { showError("the game loader is missing"); };
+  document.body.appendChild(script);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veil</title>
+<link rel="icon" type="image/png" href="../../image/favi.png">
+<style>
+:root {
+  --bg: #101010;
+  --panel: #181818;
+  --panel2: #202020;
+  --border: #2b2b2b;
+  --text: #f2f2f2;
+  --muted: #888;
+  --accent: #fff;
+  --accentText: #111;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.mc-bg { position: fixed; inset: -24px; background: url("../../image/games/large/minecraft.png") center / cover no-repeat; filter: blur(14px) brightness(.38) saturate(1.1); transform: scale(1.04); }
+.mc-shade { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(16, 16, 16, .35) 0%, rgba(16, 16, 16, .88) 78%); }
+.mc-wrap { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; overflow-y: auto; }
+.mc-card { width: min(760px, 100%); padding: 22px; border-radius: 22px; background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--border); box-shadow: 0 24px 70px rgba(0, 0, 0, .45); backdrop-filter: blur(10px); }
+.mc-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.mc-head img { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; flex: 0 0 52px; }
+.mc-head h1 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.mc-head p { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.mc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mc-ver { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 78px; padding: 12px 14px; border-radius: 14px; background: var(--panel2); border: 1px solid var(--border); text-align: left; transition: border-color .25s ease, background-color .25s ease; will-change: transform; }
+.mc-ver:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.mc-ver:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mc-ver.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel2)); }
+.mc-ver b { font-size: 15px; font-weight: 700; }
+.mc-ver small { font-size: 12px; color: var(--muted); }
+.mc-ver .mc-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.mc-tag { font-size: 10.5px; font-weight: 650; letter-spacing: .03em; padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, .07); color: var(--muted); }
+.mc-tag.last { background: var(--accent); color: var(--accentText); }
+.mc-check { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accentText); display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(.4); }
+.mc-check svg { width: 11px; height: 11px; }
+.mc-foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.mc-foot p { flex: 1; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.mc-play { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: var(--accentText); font-weight: 700; font-size: 14px; white-space: nowrap; will-change: transform; }
+.mc-play svg { width: 14px; height: 14px; }
+.mc-play[disabled] { opacity: .6; cursor: default; }
+@media (max-width: 620px) { .mc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mc-foot { flex-direction: column; align-items: stretch; } }
+</style>
+</head>
+<body>
+<div class="mc-bg"></div>
+<div class="mc-shade"></div>
+<div class="mc-wrap">
+  <div class="mc-card" role="dialog" aria-label="Choose a Minecraft version">
+    <div class="mc-head">
+      <img src="../../image/games/small/minecraft.png" alt="">
+      <div>
+        <h1>Minecraft</h1>
+        <p>Choose a version to launch. Your last pick is remembered.</p>
+      </div>
+    </div>
+    <div class="mc-grid" id="mcGrid" role="listbox" aria-label="Versions"></div>
+    <div class="mc-foot">
+      <p id="mcNote"></p>
+      <button type="button" class="mc-play" id="mcPlay"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 2.5v11a.6.6 0 0 0 .9.5l9-5.5a.6.6 0 0 0 0-1l-9-5.5a.6.6 0 0 0-.9.5z"/></svg><span id="mcPlayText">Play</span></button>
+    </div>
+  </div>
+</div>
+<script src="../../anime.min.js?v=95"></script>
+<script>
+(function () {
+  var VERSIONS = [
+    { id: "eaglercraft-26-2", name: "Eaglercraft 26.2", note: "The newest release, with the latest blocks and mobs.", tags: ["Newest"], size: 72 },
+    { id: "eaglercraftx-1-20-6", name: "EaglercraftX 1.20.6", note: "Trails & Tails: cherry groves, armadillos and the crafter.", tags: ["Modern"], size: 53 },
+    { id: "eaglercraftx-1-16", name: "EaglercraftX 1.16", note: "The Nether Update: netherite, bastions and piglins.", tags: ["Nether"], size: 51 },
+    { id: "minecraft-1-12-2", name: "Minecraft 1.12.2", note: "World of Color: concrete, terracotta and parrots.", tags: [], size: 32 },
+    { id: "minecraft-1-11-2", name: "Minecraft 1.11.2", note: "Exploration Update: woodland mansions and llamas.", tags: [], size: 27 },
+    { id: "minecraft-1-9", name: "Minecraft 1.9", note: "Combat Update: shields, dual wielding and the End cities.", tags: [], size: 17 },
+    { id: "minecraft-1-8-8", name: "Minecraft 1.8.8", note: "The classic Eaglercraft. Runs well on most devices.", tags: ["Recommended"], size: 24 },
+    { id: "minecraft-1-5-2", name: "Minecraft 1.5.2", note: "The Redstone Update: hoppers, droppers and quartz.", tags: ["Lightweight"], size: 16 },
+    { id: "minecraft-1-7-3", name: "Minecraft 1.7.3", note: "Beta 1.7.3: the original survival feel, before hunger.", tags: ["Beta"], size: 16 }
+  ];
+  var KEY = "veil_minecraft_version";
+  var DEFAULT = "minecraft-1-8-8";
+  var grid = document.getElementById("mcGrid");
+  var note = document.getElementById("mcNote");
+  var play = document.getElementById("mcPlay");
+  var playText = document.getElementById("mcPlayText");
+  var card = document.querySelector(".mc-card");
+  var anime = window.anime;
+  var reduce = false;
+  try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+  var canAnimate = !!(anime && anime.animate) && !reduce;
+  function spring(bounce, duration) {
+    if (anime && anime.spring) return anime.spring({ bounce: bounce, duration: duration });
+    return "outCubic";
+  }
+  function softJiggle(t) {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    var a = 6, w = 8.5;
+    return 1 - Math.exp(-a * t) * (Math.cos(w * t) + (a / w) * Math.sin(w * t));
+  }
+  function animate(el, props, bounce, duration) {
+    if (!canAnimate || !el) return null;
+    try { return anime.animate(el, Object.assign({ ease: spring(bounce, duration) }, props)); } catch (e) { return null; }
+  }
+  try {
+    var root = parent && parent !== window ? parent.document.documentElement : null;
+    if (root) {
+      var cs = parent.getComputedStyle(root);
+      ["--bg", "--panel", "--panel2", "--border", "--text", "--muted", "--accent", "--accentText"].forEach(function (name) {
+        var value = cs.getPropertyValue(name).trim();
+        if (value) document.documentElement.style.setProperty(name, value);
+      });
+    }
+  } catch (e) {}
+  var last = "";
+  try { last = localStorage.getItem(KEY) || ""; } catch (e) {}
+  var lastKnown = VERSIONS.some(function (v) { return v.id === last; });
+  var selected = lastKnown ? last : DEFAULT;
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  grid.innerHTML = VERSIONS.map(function (v) {
+    var tags = v.tags.map(function (t) { return '<span class="mc-tag">' + esc(t) + "</span>"; }).join("");
+    if (lastKnown && v.id === last) tags = '<span class="mc-tag last">Last played</span>' + tags;
+    tags += '<span class="mc-tag">' + v.size + " MB</span>";
+    var parts = v.name.split(" ");
+    var num = parts.pop();
+    return '<button type="button" class="mc-ver" role="option" data-ver="' + v.id + '" aria-selected="false">' +
+      '<span class="mc-check"><svg viewBox="0 0 12 12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M2.5 6.3l2.3 2.2 4.7-5"/></svg></span>' +
+      "<small>" + esc(parts.join(" ")) + "</small><b>" + esc(num) + "</b>" +
+      '<span class="mc-tags">' + tags + "</span></button>";
+  }).join("");
+  var tiles = Array.prototype.slice.call(grid.querySelectorAll(".mc-ver"));
+  function byId(id) { for (var i = 0; i < VERSIONS.length; i++) if (VERSIONS[i].id === id) return VERSIONS[i]; return null; }
+  function scaleOf(el) { return typeof el._mcScale === "number" ? el._mcScale : 1; }
+  function glide(el, to, bounce, duration) {
+    if (!canAnimate) return;
+    if (el._mcGlide && el._mcGlide.cancel) { try { el._mcGlide.cancel(); } catch (e) {} }
+    var from = scaleOf(el);
+    el._mcScale = to;
+    el._mcGlide = animate(el, { scale: [from, to] }, bounce, duration);
+  }
+  function paint(jiggle) {
+    tiles.forEach(function (tile) {
+      var on = tile.getAttribute("data-ver") === selected;
+      var was = tile.classList.contains("is-on");
+      tile.classList.toggle("is-on", on);
+      tile.setAttribute("aria-selected", on ? "true" : "false");
+      var check = tile.querySelector(".mc-check");
+      if (on && !was) {
+        if (!animate(check, { opacity: [0, 1], scale: [0.4, 1], rotate: [-30, 0] }, 0.55, 640)) { check.style.opacity = "1"; check.style.transform = "none"; }
+        if (jiggle && canAnimate) {
+          if (tile._mcWobble && tile._mcWobble.cancel) { try { tile._mcWobble.cancel(); } catch (e) {} }
+          try { tile._mcWobble = anime.animate(tile, { rotate: [{ to: -1.6, duration: 150, ease: "outQuad" }, { to: 0, duration: 680, ease: softJiggle }] }); } catch (e) {}
+        }
+      } else if (!on && was) {
+        if (!animate(check, { opacity: [1, 0], scale: [1, 0.5] }, 0.2, 320)) { check.style.opacity = "0"; }
+      } else if (!on) {
+        check.style.opacity = "0";
+      }
+    });
+    var v = byId(selected);
+    note.textContent = v ? v.note : "";
+    playText.textContent = v ? "Play " + v.name.split(" ").pop() : "Play";
+    if (jiggle) animate(note, { opacity: [0.35, 1], translateY: [5, 0] }, 0.45, 520);
+  }
+  function choose(id) {
+    if (id === selected) return;
+    selected = id;
+    paint(true);
+  }
+  var launching = false;
+  function launch() {
+    if (launching) return;
+    var v = byId(selected);
+    if (!v) return;
+    launching = true;
+    play.disabled = true;
+    playText.textContent = "Launching…";
+    try { localStorage.setItem(KEY, v.id); } catch (e) {}
+    var go = function () { location.replace(v.id + ".html"); };
+    if (canAnimate) {
+      try { anime.animate(play, { rotate: [{ to: -2, duration: 120, ease: "outQuad" }, { to: 0, duration: 560, ease: softJiggle }] }); } catch (e) {}
+      animate(card, { opacity: [1, 0], scale: [1, 0.96], translateY: [0, 10] }, 0.2, 420);
+      setTimeout(go, 300);
+    } else go();
+  }
+  tiles.forEach(function (tile) {
+    var id = tile.getAttribute("data-ver");
+    tile.addEventListener("pointerenter", function () { glide(tile, 1.035, 0.48, 680); });
+    tile.addEventListener("pointerleave", function () { glide(tile, 1, 0.34, 680); });
+    tile.addEventListener("click", function () { choose(id); });
+    tile.addEventListener("dblclick", function () { choose(id); launch(); });
+    tile.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); choose(id); launch(); } });
+  });
+  play.addEventListener("pointerenter", function () { glide(play, 1.05, 0.48, 680); });
+  play.addEventListener("pointerleave", function () { glide(play, 1, 0.34, 680); });
+  play.addEventListener("click", launch);
+  grid.addEventListener("keydown", function (e) {
+    var idx = tiles.indexOf(document.activeElement);
+    if (idx < 0) return;
+    var cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length || 3;
+    var next = idx;
+    if (e.key === "ArrowRight") next = idx + 1;
+    else if (e.key === "ArrowLeft") next = idx - 1;
+    else if (e.key === "ArrowDown") next = idx + cols;
+    else if (e.key === "ArrowUp") next = idx - cols;
+    else return;
+    e.preventDefault();
+    next = Math.max(0, Math.min(tiles.length - 1, next));
+    tiles[next].focus();
+    choose(tiles[next].getAttribute("data-ver"));
+  });
+  paint(false);
+  if (canAnimate) {
+    animate(card, { opacity: [0, 1], scale: [0.94, 1], translateY: [14, 0] }, 0.45, 720);
+    tiles.forEach(function (tile, i) {
+      tile.style.opacity = "0";
+      animate(tile, { opacity: [0, 1], translateY: [12, 0], delay: 90 + i * 32 }, 0.48, 640);
+    });
+    animate(play, { opacity: [0, 1], scale: [0.85, 1], delay: 260 }, 0.55, 680);
+  }
+  var current = tiles.filter(function (t) { return t.getAttribute("data-ver") === selected; })[0];
+  if (current) { try { current.focus({ preventScroll: true }); } catch (e) {} }
+})();
+</script>
+</body>
+</html>

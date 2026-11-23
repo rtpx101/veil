@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="assets/">
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' data: blob:; style-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' data: blob: ws: wss:; worker-src 'self' data: blob:; child-src 'self' data: blob:; frame-src 'self' data: blob:">
+<title>Veil</title>
+<link rel="icon" type="image/png" href="../../../image/favi.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<script>(function(){var o=location.origin;function x(u){try{var t=new URL(u instanceof Request?u.url:String(u),location.href);return/^https?:$/.test(t.protocol)&&t.origin!==o}catch(e){return false}}var f=window.fetch.bind(window);window.fetch=function(i,n){if(x(i))return Promise.reject(new TypeError("Blocked by Veil"));return f(i,n)};var p=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){var a=Array.prototype.slice.call(arguments);if(x(u))a[1]="data:application/octet-stream,";return p.apply(this,a)};if(navigator.sendBeacon){var b=navigator.sendBeacon.bind(navigator);navigator.sendBeacon=function(u,d){return x(u)?true:b(u,d)}}var w=window.open;window.open=function(u){if(!u||x(u))return null;return w.apply(window,arguments)}})();</script><script>try{Object.defineProperty(document,"title",{configurable:true,get:function(){return"Veil"},set:function(){}})}catch(e){}</script>
+<link rel="stylesheet" href="style.css">
+<script>
+window.addEventListener("keydown", function (e) {
+  if ([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) e.preventDefault();
+}, false);
+</script>
+</head>
+<body>
+<noscript>
+<div id="notSupportedWrap">
+<h2 id="notSupportedTitle">This content requires JavaScript</h2>
+<p class="notSupportedMessage">JavaScript appears to be disabled. Please enable it to view this content.</p>
+</div>
+</noscript>
+<script src="box2d.js"></script>
+<script src="supportcheck.js"></script>
+<script src="offclient.js" type="module"></script>
+<script src="main.js" type="module"></script>
+</body>
+</html>
