@@ -13999,7 +13999,7 @@ function openGamePlayer(game) {
         '<img class="gp-thumb" src="' + escapeHTML(smallThumb(game)) + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
         '<div class="game-player-title"><span class="gpt-name" title="' + escapeHTML(game.name) + '">' + escapeHTML(game.name) + '</span>' +
           '<span class="gpt-chips"><span class="gpt-mat" title="Content rating">' + escapeHTML(String(rating)) + '</span>' + (game.category ? '<span class="gpt-chip">' + escapeHTML(game.category) + '</span>' : "") + '<span class="gpt-diff">Difficulty <b>' + escapeHTML(String(diff)) + '</b>/10</span></span></div>' +
-        '<div class="gp-tools">' + tool("info", "info.svg", "Info") + tool("notes", "notepad.svg", "Notes") + tool("star", "star.svg", "Favorite") + '<span class="gp-tools-sep"></span>' + (Array.isArray(game.versions) && game.versions.length > 1 ? tool("versions", "blocks.svg", "Change version") : "") + tool("reload", "refresh.svg", "Reload game") + tool("fs", "zoom.svg", "Fullscreen") + '</div>' +
+        '<div class="gp-tools">' + tool("info", "info.svg", "Info") + tool("notes", "notepad.svg", "Notes") + tool("star", "star.svg", "Favorite") + '<span class="gp-tools-sep"></span>' + (Array.isArray(game.versions) && game.versions.length > 1 ? tool("versions", "blocks.svg", "Change version") : "") + tool("save", "download.svg", "Save & backup", " style=\"display:none\"") + tool("reload", "refresh.svg", "Reload game") + tool("fs", "zoom.svg", "Fullscreen") + '</div>' +
       '</div>' +
       '<div class="game-player-frame gp-stage" id="gameStage">' +
         '<iframe id="gameFrame" title="' + escapeHTML(game.name) + '" allow="gamepad *; autoplay *; fullscreen *; clipboard-read *; clipboard-write *"></iframe>' +
@@ -14348,6 +14348,16 @@ function openGamePlayer(game) {
       focusGame();
     }
   }
+  // Show the Save & backup button only while the game frame offers a backup menu.
+  {
+    const saveBtn = overlay.querySelector('[data-gp="save"]');
+    const saveTimer = setInterval(() => {
+      if (!overlay.isConnected) { clearInterval(saveTimer); return; }
+      let ok = false;
+      try { ok = !!(frame.contentWindow && typeof frame.contentWindow.veilSaveMenu === "function"); } catch (err) {}
+      if (saveBtn) saveBtn.style.display = ok ? "" : "none";
+    }, 1500);
+  }
   // ---- Toolbar.
   overlay.addEventListener("click", event => {
     const btn = event.target.closest("[data-gp]");
@@ -14384,6 +14394,11 @@ function openGamePlayer(game) {
       toggleFavorite(id);
       paintStar();
       starJiggle(btn.querySelector("img"));
+      return;
+    }
+    if (act === "save") {
+      // Games that keep their own saves (Fallout Shelter) expose veilSaveMenu: copy/download/load a backup.
+      try { const w = frame.contentWindow; if (w && typeof w.veilSaveMenu === "function") w.veilSaveMenu(); } catch (err) {}
       return;
     }
     if (act === "notes") { setNotes(!player.classList.contains("notes-open")); return; }
