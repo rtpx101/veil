@@ -9323,9 +9323,13 @@ function veilSpringIn(el, kind, opts) {
 function veilStaggerIn(nodes, kind, opts) {
   if (!veilMotionOk()) return;
   opts = opts || {};
-  const list = Array.prototype.filter.call(nodes || [], el => el && el.getClientRects && el.getClientRects().length).slice(0, opts.max || 14);
+  // Animate every painted node. Cutting the list at max left the tail at full opacity, so
+  // the last game card (and anything past the cap) showed up before the staggered entrance.
+  const list = Array.prototype.filter.call(nodes || [], el => el && el.getClientRects && el.getClientRects().length);
+  const cap = opts.max || 14;
   list.forEach((el, index) => {
-    veilSpringIn(el, kind, Object.assign({}, opts, { delay: (opts.base || 0) + index * (opts.step || 32), force: true }));
+    const steps = index < cap ? index : cap - 1;
+    veilSpringIn(el, kind, Object.assign({}, opts, { delay: (opts.base || 0) + steps * (opts.step || 32), force: true }));
   });
 }
 function veilSnapshot(nodes) {
@@ -13571,7 +13575,7 @@ function paintGamesLists(value2, extra, other) {
   if (other && gamesAllRow) {
     // Filtering: the new set of cards pops in one after another with a soft spring.
     paintGameRows();
-    if (veilMotionOk()) veilStaggerIn([gamesAllRow, gamesFavRow, gamesRecentRow].filter(Boolean).reduce((all, row) => all.concat(Array.from(row.querySelectorAll(".game-tile, .games-empty"))), []), "pop", { base: 0, step: 26, max: 18, bounce: 0.45, duration: 560 });
+    if (veilMotionOk()) veilStaggerIn([gamesAllRow, gamesFavRow, gamesRecentRow].filter(Boolean).reduce((all, row) => all.concat(Array.from(row.querySelectorAll(".game-tile, .games-empty"))), []), "pop", { base: 0, step: 26, max: 80, bounce: 0.45, duration: 560 });
   } else {
     paintGameRows();
   }
@@ -13637,7 +13641,7 @@ async function renderGamesPage(value3) {
     veilSpringIn(value3.querySelector(".games-hero"), "settle", { bounce: 0.4, duration: 700, force: true });
     veilStaggerIn(value3.querySelectorAll(".games-hero-content > *"), "side", { base: 120, step: 50, max: 6, bounce: 0.45, duration: 640 });
     veilStaggerIn(value3.querySelectorAll(".games-search-wrap, .games-cat"), "drop", { base: 60, step: 22, max: 12, bounce: 0.5, duration: 560 });
-    veilStaggerIn(Array.from(value3.querySelectorAll(".games-section")).filter(sec => sec.style.display !== "none").reduce((all, sec) => all.concat(Array.from(sec.querySelectorAll("h3, .game-tile"))), []), "rise", { base: 140, step: 30, max: 24, bounce: 0.45, duration: 640 });
+    veilStaggerIn(Array.from(value3.querySelectorAll(".games-section")).filter(sec => sec.style.display !== "none").reduce((all, sec) => all.concat(Array.from(sec.querySelectorAll("h3, .game-tile"))), []), "rise", { base: 140, step: 30, max: 80, bounce: 0.45, duration: 640 });
   } else playStageIntro(value3, ".games-hero, .games-header, .games-section");
   let chunk = 0;
   let bits = false;
